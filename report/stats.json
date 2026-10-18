@@ -1,22 +1,28 @@
 {
   "groups": {
     "A": {
-      "minutes": null,
-      "cost": null,
-      "triangles": null,
-      "notes": ""
+      "minutes": 6.7,
+      "cost": "0 元（codex 訂閱額度，約 150 萬 token）",
+      "triangles": 117060,
+      "notes": "codex 純程式碼建模，風格統一、偏卡通"
     },
     "B": {
-      "minutes": null,
-      "cost": null,
-      "triangles": null,
-      "notes": ""
+      "minutes": 24.7,
+      "cost": "Tripo 140 點（另有試生成 130 點）",
+      "triangles": 239996,
+      "notes": "Tripo v3.1 生成，Blender 減面到每件約 3 萬面"
     },
     "C": {
-      "minutes": null,
-      "cost": null,
-      "triangles": null,
-      "notes": ""
+      "minutes": 4.8,
+      "cost": "0 元（CC0／CC BY，需標作者）",
+      "triangles": 201113,
+      "notes": "Poly Haven／Sketchfab 現成模型，部分與需求不符"
     }
+  },
+  "shared": {
+    "base_minutes": 6.8,
+    "base_tokens": 1862029,
+    "ui_minutes": 8.1,
+    "ui_tokens": 2152625
   }
 }

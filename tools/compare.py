@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 CAMS = ["wide", "beach", "closeup"]
-NAMES = {"A": "A｜codex 程序化", "B": "B｜Tripo 模型", "C": "C｜免費素材庫", "D": "D｜社群 prompt 一次生成"}
+NAMES = {"A": "A｜codex 程序化", "B": "B｜Tripo AI", "C": "C｜免費素材庫", "D": "D｜社群 prompt 一次生成"}
 FONT = "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"
 
 
@@ -27,8 +27,10 @@ def tripo_credits():
     p = ROOT / "assets" / "tripo" / "log.csv"
     if not p.exists():
         return ""
-    vals = [r["credits"] for r in csv.DictReader(p.open()) if r["credits"]]
-    return str(sum(float(v) for v in vals)) if vals else ""
+    rows = [r for r in csv.DictReader(p.open()) if r["credits"]]
+    main = sum(float(r["credits"]) for r in rows if "__" not in r["slot"])
+    trial = sum(float(r["credits"]) for r in rows if "__" in r["slot"])
+    return f"{main:.0f}（另試生成 {trial:.0f}）" if rows else ""
 
 
 def main(groups):

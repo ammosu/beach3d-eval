@@ -1,3 +1,10 @@
 time,slot,task_id,status,seconds,credits,file
 2026-10-19T02:18:00,palm_tall__v3.1-20260211,6e40aced-1418-467c-a66c-5f9f42384bc3,SUCCESS,158,20,assets/tripo/palm_tall__v3.1-20260211.glb
 2026-10-19T02:20:29,palm_tall__P2-20260801,e9128301-9ca0-42c0-93da-1ed242b34272,SUCCESS,98,110,assets/tripo/palm_tall__P2-20260801.glb
+2026-10-19T02:27:23,palm_pair,8237481f-205d-4fab-b2f8-46aa4c0a24b6,TaskStatus.SUCCESS,158,20.0,/home/cw/git_project/beach3d-eval/assets/tripo/palm_pair.glb
+2026-10-19T02:30:06,rocks,15a8dd10-251e-465d-b1b7-e8661d09bde4,TaskStatus.SUCCESS,158,20.0,/home/cw/git_project/beach3d-eval/assets/tripo/rocks.glb
+2026-10-19T02:32:18,boat,e4431f01-5692-4796-ab51-7f8c5f3eaee5,TaskStatus.SUCCESS,128,20.0,/home/cw/git_project/beach3d-eval/assets/tripo/boat.glb
+2026-10-19T02:35:32,hut,33dca8fc-cabb-4ed5-8066-6e5f4f6a624d,TaskStatus.SUCCESS,189,20.0,/home/cw/git_project/beach3d-eval/assets/tripo/hut.glb
+2026-10-19T02:38:15,umbrella,330238ff-4ea6-496f-9643-4597e36ff01e,TaskStatus.SUCCESS,158,20.0,/home/cw/git_project/beach3d-eval/assets/tripo/umbrella.glb
+2026-10-19T02:40:28,driftwood,7403b1e1-8b82-4df7-bb52-51b5388e69a2,TaskStatus.SUCCESS,127,20.0,/home/cw/git_project/beach3d-eval/assets/tripo/driftwood.glb
+2026-10-19T02:43:11,lifeguard,e5cae4f8-4991-40d2-9d8e-4e9c8f6b36b7,TaskStatus.SUCCESS,158,20.0,/home/cw/git_project/beach3d-eval/assets/tripo/lifeguard.glb
