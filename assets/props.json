@@ -64,7 +64,8 @@
       "paths": {
         "B": "/assets/tripo/palm_pair.glb",
         "C": "/assets/library/palm_pair.glb"
-      }
+      },
+      "maxLen": 6
     },
     {
       "id": "rocks",
@@ -78,7 +79,8 @@
       "paths": {
         "B": "/assets/tripo/rocks.glb",
         "C": "/assets/library/rocks.glb"
-      }
+      },
+      "maxLen": 4
     },
     {
       "id": "boat",
@@ -87,12 +89,13 @@
         0,
         8
       ],
-      "height": 1.2,
+      "height": 0.9,
       "prompt": "small wooden rowing boat beached on sand, weathered blue paint, realistic",
       "paths": {
         "B": "/assets/tripo/boat.glb",
         "C": "/assets/library/boat.glb"
-      }
+      },
+      "maxLen": 3.6
     },
     {
       "id": "hut",
@@ -106,7 +109,8 @@
       "paths": {
         "B": "/assets/tripo/hut.glb",
         "C": "/assets/library/hut.glb"
-      }
+      },
+      "maxLen": 6
     },
     {
       "id": "umbrella",
@@ -120,7 +124,8 @@
       "paths": {
         "B": "/assets/tripo/umbrella.glb",
         "C": "/assets/library/umbrella.glb"
-      }
+      },
+      "maxLen": 4.5
     },
     {
       "id": "driftwood",
@@ -134,7 +139,8 @@
       "paths": {
         "B": "/assets/tripo/driftwood.glb",
         "C": "/assets/library/driftwood.glb"
-      }
+      },
+      "maxLen": 3.2
     },
     {
       "id": "lifeguard",
@@ -148,7 +154,8 @@
       "paths": {
         "B": "/assets/tripo/lifeguard.glb",
         "C": "/assets/library/lifeguard.glb"
-      }
+      },
+      "maxLen": 4
     }
   ]
 }

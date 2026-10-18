@@ -12,6 +12,8 @@ function batchProp(model){
  model.traverse(o=>{if(!o.isMesh)return;const key=o.material.uuid;let batch=batches.get(key);if(!batch){batch={material:o.material,geometries:[]};batches.set(key,batch);}let geo=o.geometry.clone().applyMatrix4(o.matrixWorld);if(geo.index)geo=geo.toNonIndexed();batch.geometries.push(geo);});
  model.traverse(o=>{if(o.isMesh)o.geometry.dispose();});model.clear();model.position.set(0,0,0);model.quaternion.identity();model.scale.setScalar(1);for(const batch of batches.values()){const geo=mergeGeometries(batch.geometries);const mesh=new THREE.Mesh(geo,batch.material);mesh.castShadow=mesh.receiveShadow=true;model.add(mesh);batch.geometries.forEach(g=>g.dispose());}
 }
+// Fit inside the slot: height cap plus optional footprint cap (maxLen), same rule for every group.
+function fitScale(slot,size){let s=slot.height/size.y;if(slot.maxLen)s=Math.min(s,slot.maxLen/Math.max(size.x,size.z));return s;}
 export async function loadProps(group='A') {
  if (!['A','B','C'].includes(group)) throw new Error(`Unknown group: ${group}`);
  const response=await fetch('/assets/props.json');
@@ -25,7 +27,7 @@ export async function loadProps(group='A') {
   if(group==='A'){
    const model=new THREE.Group();slotStubs[slot.id](model);batchProp(model);
    const box=new THREE.Box3().setFromObject(model),size=box.getSize(new THREE.Vector3());
-   model.scale.multiplyScalar(slot.height/size.y);model.updateMatrixWorld(true);box.setFromObject(model);
+   model.scale.multiplyScalar(fitScale(slot,size));model.updateMatrixWorld(true);box.setFromObject(model);
    const center=box.getCenter(new THREE.Vector3());model.position.x-=center.x;model.position.z-=center.z;
    model.position.y+=groundHeight(slot.pos[0],slot.pos[2])-slot.pos[1]-box.min.y;
    marker.add(model);let triangles=0;model.traverse(o=>{if(o.isMesh)triangles+=(o.geometry.index?.count??o.geometry.attributes.position.count)/3;});
@@ -37,7 +39,7 @@ export async function loadProps(group='A') {
    const {scene:model}=await loader.loadAsync(path);
    const box=new THREE.Box3().setFromObject(model); const size=box.getSize(new THREE.Vector3());
    if(!Number.isFinite(size.y)||size.y<=0) throw new Error('Model has no measurable height');
-   model.scale.multiplyScalar(slot.height/size.y); model.updateMatrixWorld(true);
+   model.scale.multiplyScalar(fitScale(slot,size)); model.updateMatrixWorld(true);
    box.setFromObject(model); const center=box.getCenter(new THREE.Vector3());
    model.position.x-=center.x; model.position.z-=center.z;
    model.position.y+=groundHeight(slot.pos[0],slot.pos[2])-slot.pos[1]-box.min.y;
