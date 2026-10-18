@@ -23,29 +23,32 @@ def load_env():
                 os.environ.setdefault(k.strip(), v.strip())
 
 
-def balance(task):
-    # SDK 欄位名稱可能隨版本變動，抓得到就記
-    for k in ("consumed_credit", "credit", "cost"):
-        v = getattr(task, k, None)
-        if v is not None:
-            return v
-    return ""
+
+
+async def download(client, task, slot_id, raw_dir, name=None):
+    out_dir = raw_dir / slot_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    files = await client.download_task_models(task, str(out_dir))
+    src = files.get("pbr_model") or files.get("model") or next(v for v in files.values() if v)
+    dst = OUT / f"{name or slot_id}.glb"
+    shutil.copy(src, dst)
+    return dst
 
 
 async def gen_one(client, slot, raw_dir):
+    before = (await client.get_balance()).balance
     t0 = time.time()
     extra = {"model_version": os.environ["TRIPO_MODEL_VERSION"]} if os.environ.get("TRIPO_MODEL_VERSION") else {}
     task_id = await client.text_to_model(prompt=slot["prompt"], texture=True, pbr=True, **extra)
+    print(f"{slot['id']}: task {task_id}", flush=True)  # 先印出，下載失敗時可用 --recover 找回
     task = await client.wait_for_task(task_id, verbose=True)
     secs = round(time.time() - t0)
     status = str(task.status)
     dst = ""
     if "SUCCESS" in status.upper():
-        files = await client.download_task_models(task, str(raw_dir / slot["id"]))
-        src = files.get("pbr_model") or files.get("model") or next(iter(files.values()))
-        dst = OUT / f"{slot['id']}.glb"
-        shutil.copy(src, dst)
-    return [datetime.now().isoformat(timespec="seconds"), slot["id"], task_id, status, secs, balance(task), dst]
+        dst = await download(client, task, slot["id"], raw_dir)
+    after = (await client.get_balance()).balance
+    return [datetime.now().isoformat(timespec="seconds"), slot["id"], task_id, status, secs, round(before - after, 2), dst]
 
 
 async def main():
@@ -53,7 +56,16 @@ async def main():
     ap.add_argument("ids", nargs="*")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--force", action="store_true", help="已存在也重新生成")
+    ap.add_argument("--recover", nargs=2, metavar=("TASK_ID", "NAME"), help="下載已完成的任務：slot 取 NAME 的 __ 前段")
     a = ap.parse_args()
+    if a.recover:
+        load_env()
+        from tripo3d import TripoClient
+        OUT.mkdir(parents=True, exist_ok=True)
+        async with TripoClient(api_key=os.environ["TRIPO_API_KEY"]) as client:
+            task = await client.get_task(a.recover[0])
+            print(await download(client, task, a.recover[1].split("__")[0], ROOT / "assets" / "raw" / "tripo", a.recover[1]))
+        return
 
     slots = json.loads((ROOT / "assets" / "props.json").read_text())["slots"]
     if a.ids:

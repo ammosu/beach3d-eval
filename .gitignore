@@ -3,3 +3,4 @@ node_modules/
 dist/
 .venv/
 assets/raw/
+assets/tripo/*__*.glb
