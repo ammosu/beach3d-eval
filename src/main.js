@@ -9,6 +9,8 @@ import { groundHeight, shoreGLSL } from './terrain.js';
 import { addCoastDetails } from './coast.js';
 import { propRoot, loadProps } from './props.js';
 const params=new URLSearchParams(location.search);
+const comparing=location.pathname.endsWith('/compare.html');
+if(comparing){params.set('explore','1');params.delete('cam');}
 const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);
 renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.65;
@@ -105,9 +107,11 @@ const view=config.cameras[params.get('cam')]||config.cameras.wide;camera.positio
 const exploreEnabled=params.get('explore')==='1'&&!params.has('cam');
 let controls;if(!exploreEnabled&&!params.has('cam')){controls=new OrbitControls(camera,renderer.domElement);controls.target.fromArray(view.target);controls.maxPolarAngle=Math.PI*.48;controls.minDistance=2;controls.maxDistance=180;controls.enableDamping=true;}
 const composer=new EffectComposer(renderer);composer.addPass(new RenderPass(scene,camera));composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.035,.4,3.0));composer.addPass(new OutputPass());
-const explore=exploreEnabled?(await import('./explore.js')).createExplore({scene,camera,renderer,config,results,group:params.get('group')||'A',auto:params.get('auto')==='1'}):null;
+const comparison=comparing?await (await import('./compare.js')).createComparison({scene,camera,renderer,composer,config,results,initialGroup:params.get('group')||'A'}):null;
+const explore=exploreEnabled?(await import('./explore.js')).createExplore({scene,camera,renderer,config,results,group:params.get('group')||'A',auto:params.get('auto')==='1',comparison:comparing}):null;
 let lastFrame=performance.now();
+comparison?.connect(explore);
 const clock=new THREE.Clock();const fixed=params.has('time')?Number(params.get('time')):null;
-function frame(){requestAnimationFrame(frame);water.material.uniforms.time.value=fixed??clock.getElapsedTime();controls?.update();const now=performance.now();explore?.update((now-lastFrame)/1000);lastFrame=now;composer.render();}frame();
+function frame(){requestAnimationFrame(frame);water.material.uniforms.time.value=fixed??clock.getElapsedTime();controls?.update();const now=performance.now();explore?.update((now-lastFrame)/1000);lastFrame=now;if(comparison)comparison.render();else composer.render();}frame();
 window.__SCENE__={scene,camera,water,propRoot,results,renderer};window.__READY__=true;
-addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);});
+addEventListener('resize',()=>{if(comparison){comparison.resize();return;}camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);});

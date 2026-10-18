@@ -1,0 +1,32 @@
+import {chromium} from 'playwright-core';
+import {homedir} from 'node:os';
+import {mkdir} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+await mkdir('shots/ui',{recursive:true});
+const browser=await chromium.launch({executablePath:`${homedir()}/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome`,headless:true,args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+const base='http://localhost:5191';
+try{
+ const page=await browser.newPage({viewport:{width:1440,height:900}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(base);await page.locator('.card').last().waitFor();await page.screenshot({path:'shots/ui/hub.png'});
+ assert.equal(await page.locator('.card').count(),3);
+ await page.setViewportSize({width:390,height:844});await page.screenshot({path:'shots/ui/hub_mobile.png',fullPage:true});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await page.setViewportSize({width:1440,height:900});
+ await page.goto(`${base}/compare.html?groups=A,B&auto=1&time=4`);await page.waitForFunction(()=>window.__READY__);await page.click('#begin');
+ await page.evaluate(()=>{for(let i=0;i<60;i++)window.__EXPLORE__.update(1/60);});
+ await page.screenshot({path:'shots/ui/compare_AB.png'});
+ const before=await page.evaluate(()=>window.__EXPLORE__.player.toArray());
+ await page.keyboard.down('w');await page.evaluate(()=>{for(let i=0;i<60;i++)window.__EXPLORE__.update(1/60);});await page.keyboard.up('w');
+ const after=await page.evaluate(()=>window.__EXPLORE__.player.toArray());assert.notDeepEqual(before,after);
+ await page.selectOption('#compare-groups','A,B,C');assert.deepEqual(await page.evaluate(()=>window.__EXPLORE__.player.toArray()),after);
+ assert.deepEqual(await page.evaluate(()=>window.__COMPARE__.groups),['A','B','C']);
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ await page.screenshot({path:'shots/ui/compare_ABC.png'});
+ await page.selectOption('#compare-groups','B,C');assert.equal(await page.locator('.pane-labels>div').count(),2);
+ await page.goto(`${base}/props.html?group=A&solo=boat`);await page.waitForFunction(()=>window.__READY__);await page.screenshot({path:'shots/ui/solo.png'});
+ assert((await page.evaluate(()=>window.__PROP__.triangles))>0);
+ await page.selectOption('#solo-prop','rocks');assert.equal(await page.evaluate(()=>window.__PROP__.id),'rocks');
+ await page.route('**/assets/tripo/*.glb',r=>r.fulfill({status:404,body:'missing'}));await page.selectOption('#solo-group','B');await page.waitForFunction(()=>window.__READY__);assert.equal(await page.locator('#triangles').textContent(),'生成中');
+ await page.goto(`${base}/compare.html?groups=A,B&auto=1`);await page.waitForFunction(()=>window.__READY__);assert.match(await page.locator('.pane-labels').textContent(),/8 件生成中/);
+ await page.goto(`${base}/?group=A&cam=beach&time=4`);await page.waitForFunction(()=>window.__READY__);assert(page.url().includes('/scene.html?'));
+ assert.deepEqual(errors,[]);console.log('UI checks passed: responsive hub, comparison movement/pickers, solo switching, missing GLBs, legacy URLs.');
+}finally{await browser.close();}

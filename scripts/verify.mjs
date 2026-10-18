@@ -10,18 +10,18 @@ try{
  const page=await browser.newPage({viewport:{width:1280,height:720}});
  await page.route('**/assets/**/*.glb',route=>route.fulfill({contentType:'model/gltf+json',body:JSON.stringify(fixture)}));
  for(const group of ['A','B','C']){
-  await page.goto(`http://localhost:5191/?group=${group}&cam=wide&time=4`);await page.waitForFunction(()=>window.__READY__);
+  await page.goto(`http://localhost:5191/scene.html?group=${group}&cam=wide&time=4`);await page.waitForFunction(()=>window.__READY__);
   const checks=await page.evaluate(async()=>{
    const THREE=await import('/node_modules/three/build/three.module.js');
    const {groundHeight}=await import('/src/terrain.js');
    const {propRoot,results}=window.__SCENE__;propRoot.updateMatrixWorld(true);
-   return {results,slots:propRoot.children.map(marker=>{const b=new THREE.Box3().setFromObject(marker);return {id:marker.name,height:b.max.y-b.min.y,target:marker.userData.slot.height,groundError:b.min.y-groundHeight(marker.position.x,marker.position.z),centerError:Math.hypot((b.min.x+b.max.x)/2-marker.position.x,(b.min.z+b.max.z)/2-marker.position.z)};})};
+   return {results,slots:propRoot.children.map(marker=>{const b=new THREE.Box3().setFromObject(marker);return {id:marker.name,height:b.max.y-b.min.y,target:marker.userData.slot.height,maxLen:marker.userData.slot.maxLen,span:Math.max(b.max.x-b.min.x,b.max.z-b.min.z),groundError:b.min.y-groundHeight(marker.position.x,marker.position.z),centerError:Math.hypot((b.min.x+b.max.x)/2-marker.position.x,(b.min.z+b.max.z)/2-marker.position.z)};})};
   });
   assert.equal(checks.results.filter(r=>r.status===(group==='A'?'procedural':'loaded')).length,8);
-  for(const s of checks.slots){assert.ok(Math.abs(s.height-s.target)<1e-5);assert.ok(Math.abs(s.groundError)<1e-5);assert.ok(s.centerError<1e-5);}
+  for(const s of checks.slots){assert.ok(s.height>0&&s.height<=s.target+1e-5);if(s.maxLen)assert.ok(s.span<=s.maxLen+1e-5);assert.ok(Math.abs(s.height-s.target)<1e-5||(s.maxLen&&Math.abs(s.span-s.maxLen)<1e-5));assert.ok(Math.abs(s.groundError)<1e-5);assert.ok(s.centerError<1e-5);}
   console.log(`${group}: eight models normalized, centered and grounded`);
  }
- await page.goto('http://localhost:5191/?group=A');await page.waitForFunction(()=>window.__READY__);
+ await page.goto('http://localhost:5191/scene.html?group=A');await page.waitForFunction(()=>window.__READY__);
  const start=await page.evaluate(()=>window.__SCENE__.water.material.uniforms.time.value);
  await page.waitForTimeout(250);
  assert.ok(await page.evaluate(()=>window.__SCENE__.water.material.uniforms.time.value)>start);

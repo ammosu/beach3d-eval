@@ -6,7 +6,7 @@ await mkdir('shots/explore',{recursive:true});
 const browser=await chromium.launch({executablePath:`${homedir()}/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome`,headless:true,args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 try {
  const page=await browser.newPage({viewport:{width:1280,height:720},deviceScaleFactor:1});const errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto('http://localhost:5191/?explore=1&auto=1&group=A&time=4');await page.waitForFunction(()=>window.__READY__);
+ await page.goto('http://localhost:5191/scene.html?explore=1&auto=1&group=A&time=4');await page.waitForFunction(()=>window.__READY__);
  await page.screenshot({path:'shots/explore/start.png'});await page.click('#begin');
  // Fixed simulation steps keep the scripted walk reproducible even under SwiftShader.
  async function walk(key,steps){await page.keyboard.down(key);await page.evaluate(n=>{for(let i=0;i<n;i++)window.__EXPLORE__.update(1/60);},steps);await page.keyboard.up(key);await page.evaluate(()=>{for(let i=0;i<45;i++)window.__EXPLORE__.update(1/60);});}

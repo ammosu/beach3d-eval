@@ -1,0 +1,22 @@
+{
+  "groups": {
+    "A": {
+      "minutes": null,
+      "cost": null,
+      "triangles": null,
+      "notes": ""
+    },
+    "B": {
+      "minutes": null,
+      "cost": null,
+      "triangles": null,
+      "notes": ""
+    },
+    "C": {
+      "minutes": null,
+      "cost": null,
+      "triangles": null,
+      "notes": ""
+    }
+  }
+}

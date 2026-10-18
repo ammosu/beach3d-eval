@@ -3,7 +3,7 @@ import { groundHeight } from './terrain.js';
 import { loadProps, propRoot } from './props.js';
 import './explore.css';
 
-export function createExplore({ scene, camera, renderer, config, results, group, auto }) {
+export function createExplore({ scene, camera, renderer, config, results, group, auto, comparison=false }) {
   const labels = { A: 'A｜codex 程序化', B: 'B｜Tripo', C: 'C｜免費素材庫' };
   const ui = document.createElement('div'); ui.id = 'explore';
   ui.innerHTML = `<div class="hud panel"><small>BEACH FIELD NOTES / EXPLORE</small><strong id="group-label"></strong><span id="stats"></span><nav aria-label="Prop group">${['A','B','C'].map(g=>`<button data-group="${g}">${g}</button>`).join('')}</nav></div><div class="help panel">WASD / 方向鍵 移動 · Shift 跑步 · Space 跳躍<br>V 視角 · P 拍照 · M 靜音 · Esc 暫停 <button id="mute">聲音 開</button><button id="view">切換視角</button><button id="photo">拍照</button></div><div id="poi" class="panel" hidden></div><div id="start"><div class="welcome"><small>WALK • COMPARE • DISCOVER</small><h1>Beach 3D — AI 場景驗證</h1><p>沿著海岸散步，近看三種 AI 場景素材。</p><p>WASD / 方向鍵移動，滑鼠環顧，Shift 跑步，Space 跳躍。<br>1 / 2 / 3 切換素材，V 切換視角，P 拍照，M 靜音。<br>觸控：左側搖桿移動，右側拖曳環顧。</p><button id="begin">點擊開始</button></div></div><div id="stick"><i></i></div><div id="look"></div><button id="jump" class="touch">跳躍</button><button id="exit-photo" hidden>結束拍照 P</button>`;
@@ -32,10 +32,16 @@ export function createExplore({ scene, camera, renderer, config, results, group,
     $('#stats').textContent=`${triangles.toLocaleString()} triangles${missing ? ` · ${missing} 個素材尚未提供` : ''}`;
     ui.querySelectorAll('[data-group]').forEach(b=>{b.setAttribute('aria-pressed',String(b.dataset.group===group));});
   }
+  if(comparison){
+    ui.classList.add('comparison');
+    $('.welcome h1').textContent='同一視角，並排探索';
+    $('.welcome p').textContent='每個畫面同步移動，只比較道具來源的差異。';
+    $('.welcome p + p').innerHTML='WASD / 方向鍵移動，滑鼠環顧，Shift 跑步，Space 跳躍。<br>V 切換視角，P 拍照，M 靜音；Esc 暫停後可切換比較組別。<br>觸控：左側搖桿移動，右側拖曳環顧。';
+  }
   refresh();
   // Serialize the existing singleton loader. Cache detached groups so revisits allocate nothing.
   const cache=new Map();
-  async function switchGroup(next){desired=next;if(busy||next===group)return;busy=true;$('#stats').textContent='載入素材中…';
+  async function switchGroup(next){if(comparison)return;desired=next;if(busy||next===group)return;busy=true;$('#stats').textContent='載入素材中…';
     try{while(desired!==group){const requested=desired;cache.set(group,{children:[...propRoot.children],results:currentResults});propRoot.clear();
       if(cache.has(requested)){const saved=cache.get(requested);propRoot.add(...saved.children);currentResults=saved.results;}
       else {const loaded=await loadProps(requested);currentResults=loaded.results;}
@@ -77,7 +83,7 @@ export function createExplore({ scene, camera, renderer, config, results, group,
     }
   }
   camera.position.set(player.x+1,player.y+3,player.z+5);update(0);
-  const api={update,switchGroup,player,get group(){return group;},get busy(){return busy;},get photo(){return photo;},get first(){return first;},get active(){return active;},get colliders(){return colliders;}};
+  const api={refresh,update,switchGroup,player,get group(){return group;},get busy(){return busy;},get photo(){return photo;},get first(){return first;},get active(){return active;},get colliders(){return colliders;}};
   if(auto)window.__EXPLORE__=api;
   return api;
 }
