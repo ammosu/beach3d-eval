@@ -1,12 +1,17 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { groundHeight } from './terrain.js';
+import * as procedural from './props-a.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 export const propRoot = new THREE.Group();
 propRoot.name='prop-slots';
-export const slotStubs = {
- palm_tall(slot) {}, palm_pair(slot) {}, rocks(slot) {}, boat(slot) {},
- hut(slot) {}, umbrella(slot) {}, driftwood(slot) {}, lifeguard(slot) {},
-};
+export const slotStubs = Object.fromEntries(Object.entries(procedural));
+// Bake prop-local transforms and batch by material; keep slot transforms independent.
+function batchProp(model){
+ model.updateMatrixWorld(true);const batches=new Map();
+ model.traverse(o=>{if(!o.isMesh)return;const key=o.material.uuid;let batch=batches.get(key);if(!batch){batch={material:o.material,geometries:[]};batches.set(key,batch);}let geo=o.geometry.clone().applyMatrix4(o.matrixWorld);if(geo.index)geo=geo.toNonIndexed();batch.geometries.push(geo);});
+ model.traverse(o=>{if(o.isMesh)o.geometry.dispose();});model.clear();model.position.set(0,0,0);model.quaternion.identity();model.scale.setScalar(1);for(const batch of batches.values()){const geo=mergeGeometries(batch.geometries);const mesh=new THREE.Mesh(geo,batch.material);mesh.castShadow=mesh.receiveShadow=true;model.add(mesh);batch.geometries.forEach(g=>g.dispose());}
+}
 export async function loadProps(group='A') {
  if (!['A','B','C'].includes(group)) throw new Error(`Unknown group: ${group}`);
  const response=await fetch('/assets/props.json');
@@ -17,7 +22,15 @@ export async function loadProps(group='A') {
  const results=await Promise.all(config.slots.map(async slot=>{
   const marker=new THREE.Group(); marker.name=slot.id; marker.position.fromArray(slot.pos); propRoot.add(marker);
   marker.userData.slot=slot;
-  if(group==='A'){slotStubs[slot.id]?.(marker); return {id:slot.id,status:'stub'};}
+  if(group==='A'){
+   const model=new THREE.Group();slotStubs[slot.id](model);batchProp(model);
+   const box=new THREE.Box3().setFromObject(model),size=box.getSize(new THREE.Vector3());
+   model.scale.multiplyScalar(slot.height/size.y);model.updateMatrixWorld(true);box.setFromObject(model);
+   const center=box.getCenter(new THREE.Vector3());model.position.x-=center.x;model.position.z-=center.z;
+   model.position.y+=groundHeight(slot.pos[0],slot.pos[2])-slot.pos[1]-box.min.y;
+   marker.add(model);let triangles=0;model.traverse(o=>{if(o.isMesh)triangles+=(o.geometry.index?.count??o.geometry.attributes.position.count)/3;});
+   marker.userData.triangles=triangles;return {id:slot.id,status:'procedural',triangles};
+  }
   const path=slot.paths?.[group];
   if(!path) return {id:slot.id,status:'missing-path'};
   try {

@@ -9,7 +9,7 @@ const browser=await chromium.launch({executablePath:`${homedir()}/.cache/ms-play
 try{
  const page=await browser.newPage({viewport:{width:1280,height:720}});
  await page.route('**/assets/**/*.glb',route=>route.fulfill({contentType:'model/gltf+json',body:JSON.stringify(fixture)}));
- for(const group of ['B','C']){
+ for(const group of ['A','B','C']){
   await page.goto(`http://localhost:5191/?group=${group}&cam=wide&time=4`);await page.waitForFunction(()=>window.__READY__);
   const checks=await page.evaluate(async()=>{
    const THREE=await import('/node_modules/three/build/three.module.js');
@@ -17,7 +17,7 @@ try{
    const {propRoot,results}=window.__SCENE__;propRoot.updateMatrixWorld(true);
    return {results,slots:propRoot.children.map(marker=>{const b=new THREE.Box3().setFromObject(marker);return {id:marker.name,height:b.max.y-b.min.y,target:marker.userData.slot.height,groundError:b.min.y-groundHeight(marker.position.x,marker.position.z),centerError:Math.hypot((b.min.x+b.max.x)/2-marker.position.x,(b.min.z+b.max.z)/2-marker.position.z)};})};
   });
-  assert.equal(checks.results.filter(r=>r.status==='loaded').length,8);
+  assert.equal(checks.results.filter(r=>r.status===(group==='A'?'procedural':'loaded')).length,8);
   for(const s of checks.slots){assert.ok(Math.abs(s.height-s.target)<1e-5);assert.ok(Math.abs(s.groundError)<1e-5);assert.ok(s.centerError<1e-5);}
   console.log(`${group}: eight models normalized, centered and grounded`);
  }
@@ -28,6 +28,6 @@ try{
  const before=await page.evaluate(()=>window.__SCENE__.camera.position.toArray());
  await page.mouse.move(500,350);await page.mouse.down();await page.mouse.move(700,400,{steps:10});await page.mouse.up();
  assert.notDeepEqual(await page.evaluate(()=>window.__SCENE__.camera.position.toArray()),before);
- assert.equal(await page.evaluate(()=>window.__SCENE__.propRoot.children.filter(s=>s.children.length===0).length),8);
- console.log('A: empty slots; live waves and OrbitControls verified');
+ assert.equal(await page.evaluate(()=>window.__SCENE__.propRoot.children.filter(s=>s.children.length>0).length),8);
+ console.log('A: populated slots; live waves and OrbitControls verified');
 }finally{await browser.close();}

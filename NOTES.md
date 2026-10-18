@@ -59,3 +59,55 @@ Three additional screenshot → review → fix rounds used the unchanged wide an
 - Landforms and canopy are procedural approximations; individual foliage clusters remain discernible. Sand and caustic patterns can reveal repetition at close range. Wet sand uses an analytical sky-colored Fresnel approximation, not a second planar reflection pass.
 - Bounding-box grounding uses the slot center's ground height. Very wide future props may need per-asset adjustments to avoid local dune intersections. Animated/compressed GLB extensions have not been tested.
 - SwiftShader captures prioritize reproducibility, not real-device frame-rate measurement.
+
+## Group A
+
+All eight slots now contain code-generated three.js models. `src/props.js` dispatches the A builders in `src/props-a.js`, batches geometry by material, and normalizes each model to the exact configured height, horizontal slot center, and analytical ground height. Slot markers retain the exact `pos` values from `assets/props.json`. Seeded geometry, canvas grain/chipped-paint maps, and a procedural basalt shader are the only asset sources: no model files, image assets, remote requests, or CDNs are used by A. B/C loading behavior is unchanged.
+
+The shared `src/main.js`, water, sky, sand, lighting, post-processing, cameras, and slot configuration are unchanged.
+
+| Prop | Approach | Triangles |
+| --- | --- | ---: |
+| `palm_tall` | Curved, tapered tube trunk with growth rings and crown sheaths; 15 arched fronds made from separate tapered leaflets; seven coconuts. | 17,088 |
+| `palm_pair` | Two individually seeded palms with different heights and opposing leans from a shared base. | 30,288 |
+| `rocks` | Seven irregular, smoothed basalt meshes, separately grounded; vertex color variation and shader pores; ray-placed open barnacle shells with dark apertures. | 25,340 |
+| `boat` | Hollow tapered hull with seven blue strakes per side, separate inner wood surfaces, ribs, floorboards, three thwarts, gunwales, nails, oarlocks, and two stowed wooden oars. | 15,600 |
+| `hut` | Short stilts, braces, individual floor/wall planks, doorway, side windows, steps, and seven overlapping courses of irregular palm thatch. | 9,896 |
+| `umbrella` | Timber pole and radial ribs under layered straw thatch; two slatted loungers with raised backs, armrests, legs, support struts, and bolts. | 9,788 |
+| `driftwood` | Curved irregular bleached trunk, longitudinal grooves, tapered broken branches/root forks, end faces, and splinters. | 7,192 |
+| `lifeguard` | Splayed white supports and cross braces, elevated plank deck, railings, ladder, lookout seat, red plank roof, rescue cross, and lifebuoy. | 1,868 |
+
+Total: **117,060 triangles**, counted from the final mesh geometry, excluding the shared scene and inspection floor. Counts are also saved in `shots/A/props/triangles.json`.
+
+### Isolated inspection
+
+With the development server running, open `http://localhost:5191/props.html?solo=boat` (substitute any slot id). This independent viewer uses a neutral grey background/floor, fixed studio lights, and a fixed three-quarter camera. Each model is uniformly scaled so its longest bounding-box dimension is three units; all use the same camera, ground baseline, 38-degree field of view, and 800×800 capture. This exposes the natural aspect-ratio differences rather than stretching narrow props. These studio settings do not affect the beach comparison.
+
+```sh
+node scripts/shoot.mjs A
+node scripts/shoot-props.mjs
+node scripts/props-contact.mjs r4
+node scripts/verify.mjs
+npm run build
+```
+
+Scene captures: `shots/A/{wide,beach,closeup}.png`. Individual renders: `shots/A/props/<slot>.png`. The contact-sheet utility uses local Python/Pillow solely to arrange verification screenshots; its output is never loaded as a scene asset.
+
+### Three correction rounds
+
+| Checkpoint | Review and corrections |
+| --- | --- |
+| `shots/A/r1.png` | Initial complete set. Lounger backs tilted downward; rocks were excessively faceted; driftwood ends were open; thatch looked like regular wooden pickets. |
+| `shots/A/r2.png` | Round 1: corrected lounger back rotation, smoothed/refined rock topology, closed driftwood ends with splinters, widened palm leaflets, lowered protruding hut posts, and replaced broad regular thatch with finer, denser, varied strips. |
+| `shots/A/r3.png` | Round 2: tapered and curved the driftwood with forked branches, added basalt pore shading, cut hut windows, added individual tower roof boards and thatch course relief. Batched meshes by material to reduce draw calls. |
+| `shots/A/r4.png` | Round 3 plus final grounding review: irregular drooping thatch edges, open barnacle apertures and denser colonies, gentler driftwood branch taper, boat nails/oarlocks, lounger bolts, and a corrected transform reset after batching. Grounded each rock separately before assembling the cluster. Final scene and individual captures were regenerated. |
+
+### Verification and remaining weaknesses
+
+- `node scripts/shoot.mjs A` and `node scripts/shoot-props.mjs` complete without browser or shader errors.
+- `node scripts/verify.mjs` now checks populated A slots as well as the B/C fixture loaders: all eight heights, horizontal centers, and ground contacts match within `1e-5`. Live water animation and OrbitControls remain operational.
+- `npm run build` passes; Vite retains its nonblocking large-bundle advisory.
+- Palm foliage and straw remain thin ribbon approximations, with no wind animation or subsurface scattering. Thatch still has an underlying conical silhouette, and palm crowns can look sparse at distance.
+- Wood grain is procedural and repeated; it is not anatomically correct end grain on every face. The boat's strakes are thin surfaces and its underside is simplified. Driftwood forks are still visibly constructed at close inspection.
+- Rock pores are shader detail rather than fully modeled cavities; barnacles repeat a small shell profile.
+- The unchanged shared shadow map produces fine self-shadow patterns on small lounge slats and foliage. Large props are grounded at the slot's central terrain height, so individual feet can intersect uneven sand. The isolated viewer removes terrain variation but does not conceal those scene limitations.

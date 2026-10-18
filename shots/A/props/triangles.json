@@ -1,0 +1,42 @@
+[
+  {
+    "id": "palm_tall",
+    "status": "procedural",
+    "triangles": 17088
+  },
+  {
+    "id": "palm_pair",
+    "status": "procedural",
+    "triangles": 30288
+  },
+  {
+    "id": "rocks",
+    "status": "procedural",
+    "triangles": 25340
+  },
+  {
+    "id": "boat",
+    "status": "procedural",
+    "triangles": 15600
+  },
+  {
+    "id": "hut",
+    "status": "procedural",
+    "triangles": 9896
+  },
+  {
+    "id": "umbrella",
+    "status": "procedural",
+    "triangles": 9788
+  },
+  {
+    "id": "driftwood",
+    "status": "procedural",
+    "triangles": 7192
+  },
+  {
+    "id": "lifeguard",
+    "status": "procedural",
+    "triangles": 1868
+  }
+]
