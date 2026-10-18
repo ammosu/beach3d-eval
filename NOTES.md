@@ -111,3 +111,34 @@ Scene captures: `shots/A/{wide,beach,closeup}.png`. Individual renders: `shots/A
 - Wood grain is procedural and repeated; it is not anatomically correct end grain on every face. The boat's strakes are thin surfaces and its underside is simplified. Driftwood forks are still visibly constructed at close inspection.
 - Rock pores are shader detail rather than fully modeled cavities; barnacles repeat a small shell profile.
 - The unchanged shared shadow map produces fine self-shadow patterns on small lounge slats and foliage. Large props are grounded at the slot's central terrain height, so individual feet can intersect uneven sand. The isolated viewer removes terrain variation but does not conceal those scene limitations.
+
+## Explore mode
+
+Open **http://localhost:5191/?explore=1&group=A** and press **點擊開始**. Explore is explicitly opt-in: a URL without `explore=1` retains OrbitControls; any `cam` parameter takes precedence and retains the original comparison view. The explore module and CSS load only in explore mode. Shared water, sky, terrain, lights, prop generators, fitting rules, and existing screenshot scripts are unchanged.
+
+- WASD / arrows move relative to the camera; mouse looks around; Shift runs; Space jumps. V toggles third/first person. Esc releases pointer lock and pauses; click the start button to resume. While paused, the group buttons remain accessible.
+- 1 / 2 / 3 or the segmented buttons switch A｜codex 程序化, B｜Tripo, C｜免費素材庫 in place. The HUD counts actual mesh triangles, excluding the landscape and avatar. Missing files leave empty slots and a visible missing count. Near loaded props, a label identifies the slot and source.
+- M or the sound button mutes procedural wave/wind audio, created only after the initial click. P freezes the player and camera and hides the HUD; P again returns. Touch users can tap the lower-right corner to leave photo mode (the exit control is invisible until hovered/focused so captures remain clean).
+- Touch devices have a left joystick, right drag-to-look region, jump button, view toggle, group buttons, and photo control.
+- Ground contact uses `groundHeight()`. Water deeper than 0.65 m is blocked, shallow wading slows movement and emits pooled splash rings, and the cove is bounded at X −34…35 and Z ≤27. Expanded world-space slot boxes stop the player and shorten the third-person camera boom. Camera height is clamped above sand. A newly switched model that surrounds the player permits movement toward an exit without teleporting the player.
+
+Implementation: `src/explore.js` and `src/explore.css`, with a small opt-in hook in `src/main.js`. Character geometry is shared, ten splash meshes are pooled, camera vectors are reused, collision boxes are built only after loading, and POI text changes only when its target/group changes. Group loads are serialized and up to three groups are cached to prevent repeated GPU allocation on revisits. The existing loader and its fitting rule remain untouched.
+
+### Screenshot / feel iterations
+
+1. `shots/explore/round1/`: initial screenshots showed an oversized character, high camera pitch, and floating-looking feet. Pulled the follow camera farther back, lowered its angle, added shoes and head shadows, and added a small walking bob. Kept paused HUD controls reachable after pointer unlock.
+2. `shots/explore/round2/`: reviewed the improved walk views. Smoothed limb return when stopping, shortened source labels, and fixed the group-switch overlap case so a player can exit newly overlapping bounds. Final captures are `shots/explore/{start,walk1,walk2,group_switch}.png`; `mobile.png` checks the portrait touch layout.
+
+### Verification
+
+- `node scripts/shoot-explore.mjs`: same Chromium executable and SwiftShader flags as `shoot.mjs`; uses `?auto=1` to bypass pointer lock after clicking start, steps a reproducible scripted path, saves all four required captures, checks movement, A/B/C switching and retained position, V, photo freeze, deep-water limits, and camera height. The automation API exists only with `auto=1`.
+- `node scripts/verify-explore.mjs`: passed jump, boat collision, forced 404s for all eight B assets, rapid C→A switching, hidden photo HUD, and touch joystick movement. Missing-file checks use request interception, leaving actual assets untouched.
+- `node scripts/shoot.mjs A`: passed all three views. Pillow RGB image differences against pre-change backups were empty for **wide, beach, and closeup**: pixel-identical, not merely the same framing.
+- `npm run build`: passed, with the existing nonblocking three.js chunk-size advisory.
+
+### Known issues
+
+- AABB prop collision is deliberately conservative: palm foliage and open hut/umbrella space can block walking. This is a lightweight exploration controller, not mesh-accurate physics; jumping does not implement traversable prop platforms.
+- Group geometry is cached for the page lifetime. Reload to pick up newly generated GLBs or retry previously missing files. The first switch may pause movement while assets decode; cached revisits reuse models. Large supplied GLBs can still be expensive.
+- SwiftShader verification cannot establish 60 fps on a physical desktop GPU. The controller avoids per-frame object creation, but actual rendering throughput depends on the unchanged base scene and supplied prop complexity. No real-GPU performance claim is made.
+- Character animation and audio are procedural approximations. Sound starts after a user gesture; mobile coverage is browser emulation, not a physical handset test.
