@@ -1,0 +1,34 @@
+[
+  {
+    "id": "palm_tall",
+    "status": "loaded"
+  },
+  {
+    "id": "palm_pair",
+    "status": "loaded"
+  },
+  {
+    "id": "rocks",
+    "status": "loaded"
+  },
+  {
+    "id": "boat",
+    "status": "loaded"
+  },
+  {
+    "id": "hut",
+    "status": "loaded"
+  },
+  {
+    "id": "umbrella",
+    "status": "loaded"
+  },
+  {
+    "id": "driftwood",
+    "status": "loaded"
+  },
+  {
+    "id": "lifeguard",
+    "status": "loaded"
+  }
+]
