@@ -1,0 +1,108 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this repo is
+
+An experiment comparing how well AI builds a three.js tropical beach scene. One shared base scene (water, sky, sand, light) with 8 prop slots, where only the prop source varies:
+
+- **A**: procedural props written by codex.
+- **B**: Tripo AI GLBs, decimated in Blender.
+- **C**: free library models (Poly Haven, Sketchfab, Poly Pizza).
+
+On top of that there are an explore mode, a synced split-view compare page, a game mode, three characters (A/B/C), blind scoring, and comparison videos and slides.
+
+Read these first:
+
+- `PLAYBOOK.md`: the reusable process, commands and pitfalls.
+- `NOTES.md`: per-feature implementation notes, written by codex.
+- `REPORT.md` and `心得.md`: results.
+
+User-facing docs are in Traditional Chinese (Taiwan); keep that.
+
+Sibling worktrees `../beach3d-codex2` (port 5193) and `../beach3d-opus` (port 5192) hold the same pipeline re-run by other models (branches `codex2-run`, `opus-run`). They share only `assets/props.json` and the recorder hooks below.
+
+## Commands
+
+```sh
+npx vite --port 5191 --strictPort      # dev server (npm run dev); many scripts assume 5191
+npm run build                          # 5 entries: index, scene, compare, props, game → dist/ (copies assets/, report/)
+node scripts/shoot.mjs <A|B|C>         # fixed-camera stills → shots/<g>/{wide,beach,closeup}.png (SwiftShader)
+node scripts/shoot-props.mjs <g> [slot]   # solo prop renders → shots/<g>/props/
+node scripts/verify-game.mjs           # full game regression (quests, boat, A/B/C, mobile, missing GLBs)
+node scripts/verify-explore.mjs        # explore-mode regression
+```
+
+Media pipeline:
+
+- `node scripts/record-path.mjs <g> [fps] [path.json] [outdir]`: frame-by-frame GPU render along a camera path. Uses `SCENE_URL` and `SETTLE_MS` to point at other ports.
+- `scripts/record-game.mjs` and `scripts/record-walk.mjs <g>`: game and character recordings.
+- Compositing: `python3 tools/make_video.py`, `tools/make_zoom.py`, `tools/compare_models.py`.
+
+Assets and stats:
+
+- `.venv/bin/python tools/tripo_gen.py --dry-run|<slots>|--recover <task> <slot>`: Tripo generation. Spends credits, so ask the user first.
+- `tools/decimate_all.sh`: Blender headless decimation to 30k tris.
+- `tools/build_stats.py` → `report/stats.json`; `tools/compare.py` → `compare/*.png`.
+
+Blind scoring:
+
+- `tools/blind_score.py`; set `BLIND_CONFIG` to compare other dirs.
+- `tools/blind_props.py`; `tools/judge_opus.py` runs Opus as a second judge.
+
+Slides:
+
+- `tools/build_live.sh` packages the three versions into `slides/live/`.
+- `cd slides && python3 start.py` serves the slides and live demos on ports 8730–8733.
+
+Delegation to other models:
+
+- `tools/codex_run.sh <group> <step> <BRIEF.md>`: runs codex exec on a brief, timed via `tools/timed.sh` into `timing.csv`.
+- Opus runs use `tools/claude_run.sh` in the opus worktree.
+
+There is no lint or unit-test setup. Verification means running the Playwright scripts and looking at the screenshots.
+
+## Architecture
+
+- **One scene module, many pages.** `src/main.js` builds the renderer, sky, sand, water (`src/water.js`), coast details and the prop root for every page. It switches behaviour by URL and pathname:
+  - `?cam=` gives a fixed view.
+  - `?explore=1` lazy-loads `src/explore.js`.
+  - `compare.html` adds `src/compare.js`, which uses one renderer with scissor viewports and toggles props per pane.
+  - `game.html` adds `src/game/*`.
+  - `props.html` runs `src/props-solo.js`, a separate solo viewer.
+  - `index.html` is the hub (`src/hub.js`, reads `report/stats.json`).
+- **Props.** `assets/props.json` is the single source of slots: `pos`, `height`, optional `maxLen`, `prompt`, and `paths.B/C` GLB paths. `src/props.js` `loadProps(group)` places either A's procedural builders (`src/props-a.js`) or GLBs.
+  - The fit rule is shared by all groups: `scale = min(height/size.y, maxLen/max(size.x,size.z))`. Don't change it per group, or the comparison stops being fair.
+- **Terrain and water are analytic and stateless.**
+  - `src/terrain.js` `shore(x)` and `groundHeight(x,z)` are used by JS, by the shaders (`shoreGLSL`), by explore and game collision, and by the recorders.
+  - `src/water.js` also exports CPU mirrors `sampleWater()` and `swashReach()`, which drive game buoyancy and footprints.
+  - All animation must derive from one time value so offline rendering is deterministic.
+- **Determinism and automation hooks.** These are what the recorders and verifiers use; keep them working.
+  - `window.__SCENE__` (`{scene, camera, renderer, water, …}`) and `window.__READY__`.
+  - `window.__TIME__`: when set, it overrides the water/sand clock.
+  - `?time=N`: freezes time.
+  - With `?auto=1` only: `window.__EXPLORE__` and `window.__GAME__` (including deterministic `step(seconds)`, `teleport`, `view`, `interact`).
+  - In game mode, game/explore dt is derived from the water clock, so a frozen clock freezes play.
+- **Characters.** `src/game/character.js` serves both the game and the solo viewer.
+  - A: procedural SkinnedMesh.
+  - B: Tripo `assets/character/{idle,walk,run,jump,climb}.glb`, with clips merged onto one skeleton.
+  - C: Quaternius `assets/character_C/character.glb`.
+  - Missing clip poses (sit, lie, paddle, climb) are procedural bone aiming.
+  - Gotcha: an `update(0)` call must not `restore()` bones. three.js `PropertyMixer` skips writing unchanged values, so the rest pose would stay on screen in offline recordings.
+  - Walk/run playback is time-scaled to measured clip stride so feet don't slide.
+- **Game camera collision** uses BVH (`three-mesh-bvh`) copies of the real prop triangles. Player and ball collision use conservative AABBs.
+
+## Conventions and gotchas
+
+- Headless Chromium path: `~/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome`.
+  - GPU: `--use-gl=angle --use-angle=gl-egl` (≈0.17 s/frame).
+  - SwiftShader: `--use-angle=swiftshader --enable-unsafe-swiftshader` (≈1.6 s/frame), used for stills and verification.
+- Codex runs stop the Vite dev server when they exit. Restart it before recording.
+- When writing briefs for codex, state the "must not change" list explicitly: water look, fit rule, `props.json`, camera presets, the hooks above, and port 5191.
+- Before a long video render, preview at 0.5–2 fps and look at a contact sheet. This catches cameras clipping through props and black frames.
+- Comparisons must stay fair:
+  - Same camera path, same time, same framing.
+  - Blind scoring anonymizes and rotates order.
+  - Framing differences between sources bias scores; normalize them (`tools/blind_props.py` `fit()`).
+- `.env` (Tripo key) is gitignored. `assets/raw/`, trial GLBs (`*__*.glb`), `video/*.mp4` and `video/frames/` are not committed.
+- Commit messages are in Chinese.
