@@ -20,7 +20,11 @@
   .lead { font-size: clamp(16px, 1.7vw, 24px); color: var(--muted); margin: 0; }
   .row { display: flex; gap: 1.6vw; justify-content: center; align-items: flex-start; }
   figure { margin: 0; flex: 1; text-align: center; min-width: 0; }
-  figure img { width: 100%; border-radius: 6px; display: block; }
+  figure img, figure video { width: 100%; border-radius: 6px; display: block; background: #000; }
+  .chips { display: flex; flex-wrap: wrap; gap: .5em; justify-content: center; }
+  .chips button { background: #1d232b; color: var(--fg); border: 1px solid #39414b; border-radius: 99px;
+                  padding: .35em 1em; font: inherit; font-size: clamp(13px, 1.2vw, 17px); cursor: pointer; position: relative; z-index: 2; }
+  .chips button.on { background: var(--tripo); border-color: var(--tripo); }
   figcaption { font-weight: 700; font-size: clamp(14px, 1.5vw, 22px); margin: .6em 0; }
   .c-codex { color: var(--codex); } .c-tripo { color: var(--tripo); }
   .c-library { color: var(--library); } .c-opus { color: var(--opus); }
@@ -93,6 +97,19 @@
 </section>
 
 <section class="slide">
+  <h2>各物件由遠拉近：5 種來源同一鏡頭</h2>
+  <div class="row"><figure style="max-width:84vw"><video id="zoom" src="assets/zoom_props.mp4" muted loop playsinline preload="auto"></video></figure></div>
+  <div class="chips" id="zoom-chips"></div>
+  <div class="src">每件 4 秒、同一條鏡頭路徑；codex／Opus 版本來自各自的場景（地形與水不同）</div>
+</section>
+
+<section class="slide">
+  <h2>場景中的物件：同一路徑飛越（A／B／C）</h2>
+  <div class="row"><figure style="max-width:80vw"><video src="assets/props_flythrough.mp4" data-start="4" muted loop playsinline preload="auto"></video></figure></div>
+  <div class="src">共用底座只換物件；右下為各物件盲評（codex 評審）</div>
+</section>
+
+<section class="slide">
   <h2>真正拉開差距的，是寫整個場景的 AI</h2>
   <div class="row">
     <figure><figcaption class="c-codex">codex（沙箱＋低推理）</figcaption><img src="assets/model_M1.jpg" alt="codex 低推理版本"></figure>
@@ -104,6 +121,12 @@
 </section>
 
 <section class="slide">
+  <h2>水面對照：三種 AI 寫的場景</h2>
+  <div class="row"><figure style="max-width:80vw"><video src="assets/water_models.mp4" muted loop playsinline preload="auto"></video></figure></div>
+  <div class="src">同一條鏡頭路徑逐格算繪、時間同步；右下為場景盲評（codex 評審）</div>
+</section>
+
+<section class="slide">
   <h2>角色是 Tripo 的強項：3 分鐘生成＋自動綁骨架</h2>
   <div class="row"><figure style="max-width:70vw"><img src="assets/chars_crop.jpg" alt="三組角色並排"></figure></div>
   <div class="row" style="max-width:70vw;margin:0 auto">
@@ -111,6 +134,12 @@
     <figure><figcaption class="c-tripo">Tripo（95 點）</figcaption></figure>
     <figure><figcaption class="c-library">素材庫（CC0）</figcaption></figure>
   </div>
+</section>
+
+<section class="slide">
+  <h2>角色在場景中移動：同一段走位</h2>
+  <div class="row"><figure style="max-width:92vw"><video src="assets/walk_abc.mp4" muted loop playsinline preload="auto"></video></figure></div>
+  <p class="lead" style="text-align:center">走到陽傘 → 躺上躺椅（素材庫沒有躺椅，改坐沙灘）→ 起身走向救生塔</p>
 </section>
 
 <section class="slide">
@@ -150,6 +179,18 @@ function render(d) {
 }
 fetch('data.json').then(r => r.json()).then(render).catch(() => render(FALLBACK)).then(() => animate(slides[i]));
 
+const ZOOM = [['palm_tall', '高椰子樹'], ['palm_pair', '雙椰子樹'], ['rocks', '火山岩'], ['boat', '小船'], ['hut', '茅草屋'],
+              ['umbrella', '陽傘＋躺椅'], ['driftwood', '漂流木'], ['lifeguard', '救生塔']];
+const zv = document.getElementById('zoom'), seg = 121 / 30;
+document.getElementById('zoom-chips').innerHTML = ZOOM.map(([, n], k) => `<button data-k="${k}">${n}</button>`).join('');
+document.getElementById('zoom-chips').addEventListener('click', e => {
+  const k = e.target.dataset.k; if (k == null) return;
+  zv.currentTime = k * seg + 0.01; zv.play();
+});
+zv.addEventListener('timeupdate', () => {
+  const k = Math.min(ZOOM.length - 1, Math.floor(zv.currentTime / seg));
+  document.querySelectorAll('#zoom-chips button').forEach((b, j) => b.classList.toggle('on', j === k));
+});
 const slides = [...document.querySelectorAll('.slide')];
 let i = Math.max(0, Math.min(slides.length - 1, (parseInt(location.hash.slice(1)) || 1) - 1));
 function animate(slide) {
@@ -158,7 +199,7 @@ function animate(slide) {
     return;
   }
   // 依閱讀順序排出要進場的元素：標題、圖、說明、方塊
-  const items = [...slide.querySelectorAll(':scope > h1, :scope > h2, :scope > .lead, :scope > .row > figure, :scope > .row, :scope > .boxes > .box, :scope > .chart, :scope > .src')]
+  const items = [...slide.querySelectorAll(':scope > h1, :scope > h2, :scope > .lead, :scope > .row > figure, :scope > .row, :scope > .boxes > .box, :scope > .chart, :scope > .chips, :scope > .src')]
     .filter(el => !(el.classList.contains('row') && el.querySelector('figure')));
   items.forEach((el, k) => { el.classList.remove('play'); void el.offsetWidth; el.style.setProperty('--d', `${k * 140}ms`); el.classList.add('play'); });
   // 長條：先歸零，再依序長到目標寬度，數值隨後淡入
@@ -173,6 +214,7 @@ function animate(slide) {
 }
 function show() {
   slides.forEach((s, k) => s.classList.toggle('on', k === i));
+  document.querySelectorAll('video').forEach(v => { if (slides[i].contains(v)) { v.currentTime = +(v.dataset.start || 0); v.play().catch(() => {}); } else v.pause(); });
   animate(slides[i]);
   document.getElementById('pager').textContent = `${i + 1} / ${slides.length}`;
   history.replaceState(null, '', '#' + (i + 1));
