@@ -15,3 +15,5 @@
 @media(prefers-reduced-motion:reduce){#game-toast{transition:none}}
 #game-audio{display:none;position:absolute;top:128px;right:22px;background:#123d56c9;border:1px solid #ffffff44!important;border-radius:8px;color:white;padding:7px 12px;font-size:11px!important}.game-playing #game-audio{display:block}.game-complete #game-audio{display:none}@media(max-width:700px){#game-audio{top:92px;right:12px;padding:6px 10px}}
 .game-mode button{-webkit-tap-highlight-color:transparent}.game-paused #game{visibility:hidden}.game-paused #explore .hud{display:none}
+
+.game-mode #character-stats{display:block;font-size:10px;line-height:1.5;margin-top:4px;color:#e4f2ec}.game-mode #game-audio{top:165px}@media(max-width:700px){.game-mode #game-audio{top:130px}.game-mode #character-stats{font-size:9px}}

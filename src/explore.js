@@ -20,7 +20,7 @@ export function createExplore({ scene, camera, renderer, config, results, group,
   const arms=[part(skin,-.34,1.03,0,.65,1,.65),part(skin,.34,1.03,0,.65,1,.65)];
   const legs=[part(pants,-.15,.38,0,.85,1.1,.85),part(pants,.15,.38,0,.85,1.1,.85)];
   const rings=[], ringGeo=new T.RingGeometry(.25,.29,24);for(let i=0;i<10;i++){const m=new T.Mesh(ringGeo,new T.MeshBasicMaterial({color:0xe5ffff,transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide}));m.rotation.x=-Math.PI/2;m.visible=false;scene.add(m);rings.push({mesh:m,age:2});}
-  let driven=false;
+  let driven=false,gameCamera=null,groupChanged=null,movementSpeed=0;
   let active=false,photo=false,first=false,muted=false,yaw=.15,pitch=.08,velocityY=0,phase=0,splashTime=0,ringIndex=0,busy=false,desired=group;
   let colliders=[],currentResults=results, audio, gain;
   const target=new T.Vector3(),desiredCamera=new T.Vector3(),probe=new T.Vector3();
@@ -46,7 +46,7 @@ export function createExplore({ scene, camera, renderer, config, results, group,
     try{while(desired!==group){const requested=desired;cache.set(group,{children:[...propRoot.children],results:currentResults});propRoot.clear();
       if(cache.has(requested)){const saved=cache.get(requested);propRoot.add(...saved.children);currentResults=saved.results;}
       else {const loaded=await loadProps(requested);currentResults=loaded.results;}
-      group=requested;refresh();
+      group=requested;refresh();await groupChanged?.(group);
     }}catch(e){$('#stats').textContent=`載入失敗：${e.message}`;}finally{busy=false;}
   }
   function sound(){if(!audio){audio=new AudioContext();gain=audio.createGain();gain.gain.value=muted?0:.13;gain.connect(audio.destination);const buffer=audio.createBuffer(1,audio.sampleRate*8,audio.sampleRate),data=buffer.getChannelData(0);let brown=0;for(let i=0;i<data.length;i++){brown=(brown+(Math.random()*2-1)*.025)/1.025;data[i]=brown;}const noise=audio.createBufferSource();noise.buffer=buffer;noise.loop=true;const filter=audio.createBiquadFilter();filter.type='lowpass';filter.frequency.value=850;noise.connect(filter);filter.connect(gain);noise.start();const lfo=audio.createOscillator(),depth=audio.createGain();lfo.frequency.value=.12;depth.gain.value=.035;lfo.connect(depth);depth.connect(gain.gain);lfo.start();}if(gameMode&&muted)audio.suspend();else audio.resume();}
@@ -57,7 +57,7 @@ export function createExplore({ scene, camera, renderer, config, results, group,
   $('#begin').onclick=startExperience;
   $('#mute').onclick=mute;$('#view').onclick=()=>first=!first;$('#photo').onclick=photoToggle;$('#exit-photo').onclick=photoToggle;$('#jump').onpointerdown=jump;
   ui.querySelectorAll('[data-group]').forEach(b=>b.onclick=()=>switchGroup(b.dataset.group));
-  addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();keys.add(e.code);if(e.repeat)return;if(!gameMode&&e.code==='KeyP')photoToggle();if(!gameMode&&e.code==='KeyV')first=!first;if(e.code==='KeyM')mute();if(e.code==='Space')jump();if(!photo&&/^Digit[123]$/.test(e.code))switchGroup('ABC'[Number(e.code.at(-1))-1]);});
+  addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();keys.add(e.code);if(e.repeat)return;if(!gameMode&&e.code==='KeyP')photoToggle();if(e.code==='KeyV'&&(!gameMode||!driven))first=!first;if(e.code==='KeyM')mute();if(e.code==='Space')jump();if(!photo&&/^Digit[123]$/.test(e.code))switchGroup('ABC'[Number(e.code.at(-1))-1]);});
   addEventListener('keyup',e=>keys.delete(e.code));addEventListener('blur',()=>{keys.clear();joyX=joyY=0;});
   document.addEventListener('pointerlockchange',()=>{if(!auto&&!document.pointerLockElement){active=false;keys.clear();if(!photo)start.hidden=false;}});
   function look(dx,dy){if(!active||photo)return;yaw-=dx*.0025;pitch=T.MathUtils.clamp(pitch+dy*.0025,-.55,.85);}
@@ -74,11 +74,12 @@ export function createExplore({ scene, camera, renderer, config, results, group,
       const moving=Math.hypot(dx,dz);phase+=moving*5;if(moving>.001){avatar.rotation.y=Math.atan2(dx,dz);if(wet&&(splashTime-=dt)<=0){const r=rings[ringIndex++%rings.length];r.age=0;r.mesh.position.set(player.x,.09,player.z);r.mesh.visible=true;splashTime=.22;}}
       const swing=moving>.001?Math.sin(phase)*.55:0;const blend=1-Math.exp(-18*dt);arms[0].rotation.x=legs[1].rotation.x=T.MathUtils.lerp(arms[0].rotation.x,swing,blend);arms[1].rotation.x=legs[0].rotation.x=-arms[0].rotation.x;
     }
-    if(!driven)avatar.position.copy(player);avatar.position.y+=Math.hypot(dx,dz)>.001?Math.abs(Math.sin(phase))*.045:0;avatar.visible=!first;
+    movementSpeed=dt>0?Math.hypot(dx,dz)/dt:movementSpeed;
+    if(!driven)avatar.position.copy(player);avatar.position.y+=Math.hypot(dx,dz)>.001?Math.abs(Math.sin(phase))*.045:0;avatar.visible=gameMode||!first;
     if(!photo&&!driven){target.copy(player);target.y+=1.45;desiredCamera.copy(target);if(first){desiredCamera.x-=Math.sin(yaw)*.05;desiredCamera.z-=Math.cos(yaw)*.05;camera.position.copy(desiredCamera);target.x-=Math.sin(yaw)*10;target.z-=Math.cos(yaw)*10;target.y-=Math.sin(pitch)*10;}else{desiredCamera.x+=Math.sin(yaw)*6.2*Math.cos(pitch);desiredCamera.z+=Math.cos(yaw)*6.2*Math.cos(pitch);desiredCamera.y+=.45+Math.sin(pitch)*6.2;
-      for(let i=1;i<=24;i++){probe.lerpVectors(target,desiredCamera,i/24);if(probe.y<groundHeight(probe.x,probe.z)+.35||cameraBlocked(probe)){desiredCamera.lerpVectors(target,desiredCamera,(i-1)/24);break;}}
-      camera.position.lerp(desiredCamera,1-Math.exp(-10*dt));}
-      camera.position.y=Math.max(camera.position.y,groundHeight(camera.position.x,camera.position.z)+.3);camera.lookAt(target);
+      for(let i=1;!gameCamera&&i<=24;i++){probe.lerpVectors(target,desiredCamera,i/24);if(probe.y<groundHeight(probe.x,probe.z)+.35||cameraBlocked(probe)){desiredCamera.lerpVectors(target,desiredCamera,(i-1)/24);break;}}
+      if(!gameCamera)camera.position.lerp(desiredCamera,1-Math.exp(-10*dt));}
+      camera.position.y=Math.max(camera.position.y,groundHeight(camera.position.x,camera.position.z)+.3);camera.lookAt(target);if(gameCamera&&!first)gameCamera.update(dt,player,yaw,pitch);
       let nearest=null,best=4;for(const c of colliders){const d=Math.hypot(Math.max(c.box.min.x-player.x,0,player.x-c.box.max.x),Math.max(c.box.min.z-player.z,0,player.z-c.box.max.z));if(d<best){best=d;nearest=c;}}
       if(nearest!==lastPoi||group!==lastPoiGroup){lastPoi=nearest;lastPoiGroup=group;poi.textContent=nearest?`${nearest.id} · ${labels[group]}${group==='A'?' · code-generated':` · ${nearest.slot.paths[group].split('/').at(-1)}`}`:'';poi.hidden=!nearest;}
       for(const r of rings){if(r.age<1){r.age+=dt;r.mesh.scale.setScalar(1+r.age*3);r.mesh.material.opacity=(1-r.age)*.45;}else r.mesh.visible=false;}
@@ -88,7 +89,7 @@ export function createExplore({ scene, camera, renderer, config, results, group,
   // Optional game adapter: default Explore and comparison behavior stays unchanged.
   function input(out){out.forward=Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'))-joyY;out.side=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'))+joyX;out.yaw=yaw;return out;}
   function sfx(kind){if(!audio||muted)return;const osc=audio.createOscillator(),env=audio.createGain(),t=audio.currentTime;const f=kind==='pickup'?880:kind==='kick'?110:kind==='paddle'?230:350;osc.type=kind==='kick'?'sine':'triangle';osc.frequency.setValueAtTime(f,t);osc.frequency.exponentialRampToValueAtTime(kind==='pickup'?1760:55,t+.22);env.gain.setValueAtTime(.001,t);env.gain.linearRampToValueAtTime(kind==='pickup'?.6:.8,t+.015);env.gain.exponentialRampToValueAtTime(.001,t+.28);osc.connect(env);env.connect(gain);osc.start(t);osc.stop(t+.3);osc.onended=()=>{osc.disconnect();env.disconnect();};}
-  const api={start:startExperience,input,sfx,mute,avatar,arms,legs,shoes,setDriven(value){driven=value;velocityY=0;},setView(angle,elevation=.08){yaw=angle;pitch=elevation;},clearInput(){keys.clear();joyX=joyY=0;},get muted(){return muted;},refresh,update,switchGroup,player,get group(){return group;},get busy(){return busy;},get photo(){return photo;},get first(){return first;},get active(){return active;},get colliders(){return colliders;}};
+  const api={setFirstPerson(value){first=value;},setCameraController(controller){gameCamera=controller;},onGroupChange(fn){groupChanged=fn;},get speed(){return movementSpeed;},get airborne(){return velocityY!==0;},start:startExperience,input,sfx,mute,avatar,arms,legs,shoes,setDriven(value){driven=value;velocityY=0;},setView(angle,elevation=.08){yaw=angle;pitch=elevation;},clearInput(){keys.clear();joyX=joyY=0;},get muted(){return muted;},refresh,update,switchGroup,player,get group(){return group;},get busy(){return busy;},get photo(){return photo;},get first(){return first;},get active(){return active;},get colliders(){return colliders;}};
   if(auto)window.__EXPLORE__=api;
   return api;
 }

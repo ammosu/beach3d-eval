@@ -1,0 +1,351 @@
+{
+  "characters": [
+    {
+      "group": "A",
+      "source": "A｜codex 程序化",
+      "fallback": false,
+      "triangles": 11484,
+      "clips": [],
+      "animation": "idle",
+      "actionTime": 0.6500000000000004,
+      "skinnedMeshes": 1,
+      "bones": 17,
+      "height": 1.75,
+      "headHidden": false,
+      "poseSample": [
+        [
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          1
+        ]
+      ],
+      "clipTime": null
+    },
+    {
+      "group": "A",
+      "source": "A｜codex 程序化",
+      "fallback": false,
+      "triangles": 11484,
+      "clips": [],
+      "animation": "walk",
+      "actionTime": 0.6333333333333336,
+      "skinnedMeshes": 1,
+      "bones": 17,
+      "height": 1.75,
+      "headHidden": false,
+      "poseSample": [
+        [
+          -0.11231964571463965,
+          0,
+          0,
+          0.9936721276087688
+        ],
+        [
+          0.11231964571463965,
+          0,
+          0,
+          0.9936721276087688
+        ]
+      ],
+      "clipTime": null
+    },
+    {
+      "group": "B",
+      "source": "B｜Tripo AI",
+      "fallback": false,
+      "triangles": 19814,
+      "clips": [
+        "idle",
+        "walk",
+        "run",
+        "jump",
+        "climb"
+      ],
+      "animation": "idle",
+      "actionTime": 0.6500000000000004,
+      "skinnedMeshes": 1,
+      "bones": 41,
+      "height": 1.75,
+      "headHidden": false,
+      "poseSample": [
+        [
+          0.9974319528321014,
+          0.0441054419638754,
+          -0.01437493839624387,
+          0.05456712018071247
+        ],
+        [
+          -0.9965483152514075,
+          0.01626084598778386,
+          0.04658491118692189,
+          0.06675991542122697
+        ]
+      ],
+      "clipTime": 0.6500000000000004
+    },
+    {
+      "group": "B",
+      "source": "B｜Tripo AI",
+      "fallback": false,
+      "triangles": 19814,
+      "clips": [
+        "idle",
+        "walk",
+        "run",
+        "jump",
+        "climb"
+      ],
+      "animation": "walk",
+      "actionTime": 0.6333333333333336,
+      "skinnedMeshes": 1,
+      "bones": 41,
+      "height": 1.75,
+      "headHidden": false,
+      "poseSample": [
+        [
+          0.9987654155470213,
+          -0.017483563223480124,
+          -0.04404166138446235,
+          -0.014909810972039167
+        ],
+        [
+          -0.9974445988475118,
+          -0.019061230801698827,
+          -0.0667573858864782,
+          -0.01686395979165488
+        ]
+      ],
+      "clipTime": 0.6500000000000004
+    },
+    {
+      "group": "C",
+      "source": "C｜Quaternius CC0",
+      "fallback": false,
+      "triangles": 6574,
+      "clips": [
+        "CharacterArmature|Death",
+        "CharacterArmature|Gun_Shoot",
+        "CharacterArmature|HitRecieve",
+        "CharacterArmature|HitRecieve_2",
+        "CharacterArmature|Idle",
+        "CharacterArmature|Idle_Gun",
+        "CharacterArmature|Idle_Gun_Pointing",
+        "CharacterArmature|Idle_Gun_Shoot",
+        "CharacterArmature|Idle_Neutral",
+        "CharacterArmature|Idle_Sword",
+        "CharacterArmature|Interact",
+        "CharacterArmature|Kick_Left",
+        "CharacterArmature|Kick_Right",
+        "CharacterArmature|Punch_Left",
+        "CharacterArmature|Punch_Right",
+        "CharacterArmature|Roll",
+        "CharacterArmature|Run",
+        "CharacterArmature|Run_Back",
+        "CharacterArmature|Run_Left",
+        "CharacterArmature|Run_Right",
+        "CharacterArmature|Run_Shoot",
+        "CharacterArmature|Sword_Slash",
+        "CharacterArmature|Walk",
+        "CharacterArmature|Wave"
+      ],
+      "animation": "idle",
+      "actionTime": 0.6500000000000004,
+      "skinnedMeshes": 12,
+      "bones": 62,
+      "height": 1.75,
+      "headHidden": false,
+      "poseSample": [
+        [
+          0.5360789633872011,
+          -0.013778492295267002,
+          -0.8371555517411324,
+          0.1077036691704289
+        ],
+        [
+          0.556982938518977,
+          0.11607388734828117,
+          0.8075473707860462,
+          0.15544807110790446
+        ]
+      ],
+      "clipTime": 0.6500000000000004
+    },
+    {
+      "group": "C",
+      "source": "C｜Quaternius CC0",
+      "fallback": false,
+      "triangles": 6574,
+      "clips": [
+        "CharacterArmature|Death",
+        "CharacterArmature|Gun_Shoot",
+        "CharacterArmature|HitRecieve",
+        "CharacterArmature|HitRecieve_2",
+        "CharacterArmature|Idle",
+        "CharacterArmature|Idle_Gun",
+        "CharacterArmature|Idle_Gun_Pointing",
+        "CharacterArmature|Idle_Gun_Shoot",
+        "CharacterArmature|Idle_Neutral",
+        "CharacterArmature|Idle_Sword",
+        "CharacterArmature|Interact",
+        "CharacterArmature|Kick_Left",
+        "CharacterArmature|Kick_Right",
+        "CharacterArmature|Punch_Left",
+        "CharacterArmature|Punch_Right",
+        "CharacterArmature|Roll",
+        "CharacterArmature|Run",
+        "CharacterArmature|Run_Back",
+        "CharacterArmature|Run_Left",
+        "CharacterArmature|Run_Right",
+        "CharacterArmature|Run_Shoot",
+        "CharacterArmature|Sword_Slash",
+        "CharacterArmature|Walk",
+        "CharacterArmature|Wave"
+      ],
+      "animation": "walk",
+      "actionTime": 0.6333333333333336,
+      "skinnedMeshes": 12,
+      "bones": 62,
+      "height": 1.75,
+      "headHidden": false,
+      "poseSample": [
+        [
+          0.7056221959431748,
+          0.042853529350990315,
+          -0.7025702810976745,
+          -0.08158364868544724
+        ],
+        [
+          0.6645000907600471,
+          0.20475628283401584,
+          0.6855208184455253,
+          0.21581404379155433
+        ]
+      ],
+      "clipTime": 0.6500000000000004
+    }
+  ],
+  "comparison": [
+    {
+      "group": "A",
+      "source": "A｜codex 程序化",
+      "fallback": false,
+      "triangles": 11484,
+      "clips": [],
+      "animation": "walk",
+      "actionTime": 0.6333333333333336,
+      "skinnedMeshes": 1,
+      "bones": 17,
+      "height": 1.75,
+      "headHidden": false,
+      "poseSample": [
+        [
+          -0.2550569742455338,
+          0,
+          0,
+          0.9669260260685474
+        ],
+        [
+          0.2550569742455338,
+          0,
+          0,
+          0.9669260260685474
+        ]
+      ],
+      "clipTime": null
+    },
+    {
+      "group": "B",
+      "source": "B｜Tripo AI",
+      "fallback": false,
+      "triangles": 19814,
+      "clips": [
+        "idle",
+        "walk",
+        "run",
+        "jump",
+        "climb"
+      ],
+      "animation": "walk",
+      "actionTime": 0.6333333333333336,
+      "skinnedMeshes": 1,
+      "bones": 41,
+      "height": 1.75,
+      "headHidden": false,
+      "poseSample": [
+        [
+          0.9987656212410558,
+          -0.017474658382174966,
+          -0.04403793423132263,
+          -0.014917478558979897
+        ],
+        [
+          -0.997444511936922,
+          -0.019069393185465525,
+          -0.06675825271393677,
+          -0.016856439275123033
+        ]
+      ],
+      "clipTime": 0.6500000000000004
+    },
+    {
+      "group": "C",
+      "source": "C｜Quaternius CC0",
+      "fallback": false,
+      "triangles": 6574,
+      "clips": [
+        "CharacterArmature|Death",
+        "CharacterArmature|Gun_Shoot",
+        "CharacterArmature|HitRecieve",
+        "CharacterArmature|HitRecieve_2",
+        "CharacterArmature|Idle",
+        "CharacterArmature|Idle_Gun",
+        "CharacterArmature|Idle_Gun_Pointing",
+        "CharacterArmature|Idle_Gun_Shoot",
+        "CharacterArmature|Idle_Neutral",
+        "CharacterArmature|Idle_Sword",
+        "CharacterArmature|Interact",
+        "CharacterArmature|Kick_Left",
+        "CharacterArmature|Kick_Right",
+        "CharacterArmature|Punch_Left",
+        "CharacterArmature|Punch_Right",
+        "CharacterArmature|Roll",
+        "CharacterArmature|Run",
+        "CharacterArmature|Run_Back",
+        "CharacterArmature|Run_Left",
+        "CharacterArmature|Run_Right",
+        "CharacterArmature|Run_Shoot",
+        "CharacterArmature|Sword_Slash",
+        "CharacterArmature|Walk",
+        "CharacterArmature|Wave"
+      ],
+      "animation": "walk",
+      "actionTime": 0.6333333333333336,
+      "skinnedMeshes": 12,
+      "bones": 62,
+      "height": 1.75,
+      "headHidden": false,
+      "poseSample": [
+        [
+          0.7056264602227268,
+          0.042830730893884145,
+          -0.7025706731846296,
+          -0.08155535730739293
+        ],
+        [
+          0.6644915863112554,
+          0.20478096557696737,
+          0.6855106914507524,
+          0.21584897443728535
+        ]
+      ],
+      "clipTime": 0.6500000000000004
+    }
+  ]
+}

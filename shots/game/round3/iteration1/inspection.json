@@ -1,0 +1,324 @@
+{
+  "B": {
+    "character": {
+      "group": "B",
+      "source": "B｜Tripo AI",
+      "fallback": false,
+      "triangles": 19814,
+      "clips": [
+        "idle",
+        "walk",
+        "run",
+        "jump",
+        "climb"
+      ],
+      "animation": "idle",
+      "actionTime": 0.09999999999999999,
+      "skinnedMeshes": 1,
+      "bones": 41,
+      "height": 1.75
+    },
+    "surfaces": {
+      "umbrella": {
+        "kind": "lounger",
+        "real": true,
+        "point": [
+          6.820872394479755,
+          0.9493163841569626,
+          0.43571648737357394
+        ],
+        "box": {
+          "isBox3": true,
+          "min": {
+            "x": 4.547687302074278,
+            "y": 0.5489039236434239,
+            "z": -0.44205786560086646
+          },
+          "max": {
+            "x": 7.452312697925722,
+            "y": 3.1489039236434238,
+            "z": 2.4420578656008662
+          }
+        },
+        "player": [
+          -7,
+          0.6380679238319547,
+          12
+        ]
+      },
+      "lifeguard": {
+        "kind": "deck",
+        "real": true,
+        "point": [
+          22.189164159471016,
+          2.1118019256122635,
+          -1.288148615441794
+        ],
+        "box": {
+          "isBox3": true,
+          "min": {
+            "x": 20.80196032335024,
+            "y": 0.3636809302661197,
+            "z": -3.2295614824187195
+          },
+          "max": {
+            "x": 23.19803967664976,
+            "y": 4.36368093026612,
+            "z": -0.7704385175812807
+          }
+        },
+        "player": [
+          -7,
+          0.6380679238319547,
+          12
+        ]
+      },
+      "boat": {
+        "kind": "seat",
+        "real": true,
+        "point": [
+          4.516230647507735,
+          1.496144442134055,
+          8
+        ],
+        "box": {
+          "isBox3": true,
+          "min": {
+            "x": 2.709423381230663,
+            "y": 1.1440978045611474,
+            "z": 7.36455994453803
+          },
+          "max": {
+            "x": 5.290576618769337,
+            "y": 2.0440978045611473,
+            "z": 8.63544005546197
+          }
+        },
+        "player": [
+          -7,
+          0.6380679238319547,
+          12
+        ]
+      }
+    }
+  },
+  "A": {
+    "character": {
+      "group": "A",
+      "source": "A｜codex 程序化",
+      "fallback": false,
+      "triangles": 12076,
+      "clips": [],
+      "animation": "idle",
+      "actionTime": 0.18333333333333335,
+      "skinnedMeshes": 1,
+      "bones": 17,
+      "height": 1.75
+    },
+    "surfaces": {
+      "umbrella": {
+        "kind": "lounger",
+        "real": true,
+        "point": [
+          5.498872288157928,
+          1.0252569295352016,
+          1.1252823889838814
+        ],
+        "box": {
+          "isBox3": true,
+          "min": {
+            "x": 4.371334936513265,
+            "y": 0.5489039236434239,
+            "z": -0.628671056790457
+          },
+          "max": {
+            "x": 7.628665063486736,
+            "y": 3.1489039236434238,
+            "z": 2.6286710567904574
+          }
+        },
+        "player": [
+          -4,
+          0.4380056962449378,
+          -6.754999999999997
+        ]
+      },
+      "lifeguard": {
+        "kind": "deck",
+        "real": true,
+        "point": [
+          22,
+          2.5240095172518844,
+          -1.9999999999999998
+        ],
+        "box": {
+          "isBox3": true,
+          "min": {
+            "x": 20.634223564106442,
+            "y": 0.3636809302661196,
+            "z": -3.5137866278848273
+          },
+          "max": {
+            "x": 23.365776435893558,
+            "y": 4.36368093026612,
+            "z": -0.486213372115172
+          }
+        },
+        "player": [
+          -4,
+          0.4380056962449378,
+          -6.754999999999997
+        ]
+      },
+      "boat": {
+        "kind": "seat",
+        "real": true,
+        "point": [
+          4,
+          1.2755730756853372,
+          7.875140322261477
+        ],
+        "box": {
+          "isBox3": true,
+          "min": {
+            "x": 2.2,
+            "y": 1.1440978045611474,
+            "z": 7.125982255830334
+          },
+          "max": {
+            "x": 5.8,
+            "y": 1.9806664798554743,
+            "z": 8.874017744169667
+          }
+        },
+        "player": [
+          -4,
+          0.4380056962449378,
+          -6.754999999999997
+        ]
+      }
+    }
+  },
+  "C": {
+    "character": {
+      "group": "C",
+      "source": "C｜Quaternius CC0",
+      "fallback": false,
+      "triangles": 6574,
+      "clips": [
+        "CharacterArmature|Death",
+        "CharacterArmature|Gun_Shoot",
+        "CharacterArmature|HitRecieve",
+        "CharacterArmature|HitRecieve_2",
+        "CharacterArmature|Idle",
+        "CharacterArmature|Idle_Gun",
+        "CharacterArmature|Idle_Gun_Pointing",
+        "CharacterArmature|Idle_Gun_Shoot",
+        "CharacterArmature|Idle_Neutral",
+        "CharacterArmature|Idle_Sword",
+        "CharacterArmature|Interact",
+        "CharacterArmature|Kick_Left",
+        "CharacterArmature|Kick_Right",
+        "CharacterArmature|Punch_Left",
+        "CharacterArmature|Punch_Right",
+        "CharacterArmature|Roll",
+        "CharacterArmature|Run",
+        "CharacterArmature|Run_Back",
+        "CharacterArmature|Run_Left",
+        "CharacterArmature|Run_Right",
+        "CharacterArmature|Run_Shoot",
+        "CharacterArmature|Sword_Slash",
+        "CharacterArmature|Walk",
+        "CharacterArmature|Wave"
+      ],
+      "animation": "idle",
+      "actionTime": 0.1999999999999943,
+      "skinnedMeshes": 12,
+      "bones": 62,
+      "height": 1.75
+    },
+    "surfaces": {
+      "umbrella": {
+        "kind": "sand",
+        "real": false,
+        "point": [
+          6.407035910652938,
+          0.5509117900766876,
+          1
+        ],
+        "box": {
+          "isBox3": true,
+          "min": {
+            "x": 4.982410223367654,
+            "y": 0.548903923643424,
+            "z": -0.1712537665390078
+          },
+          "max": {
+            "x": 7.017589776632347,
+            "y": 3.1489039236434246,
+            "z": 2.171253766539008
+          }
+        },
+        "player": [
+          22,
+          0.34462274492605066,
+          0.563786627884828
+        ]
+      },
+      "lifeguard": {
+        "kind": "deck",
+        "real": true,
+        "point": [
+          21.17360790957274,
+          1.7974594454429462,
+          -0.9036715484091156
+        ],
+        "box": {
+          "isBox3": true,
+          "min": {
+            "x": 20.665058930848275,
+            "y": 0.3636809302661196,
+            "z": -3.4832679050935504
+          },
+          "max": {
+            "x": 23.33494106915173,
+            "y": 4.36368093026612,
+            "z": -0.51673209490645
+          }
+        },
+        "player": [
+          22,
+          0.34462274492605066,
+          0.563786627884828
+        ]
+      },
+      "boat": {
+        "kind": "seat",
+        "real": true,
+        "point": [
+          3.6752075137916793,
+          1.5152920021015301,
+          6.585714285714286
+        ],
+        "box": {
+          "isBox3": true,
+          "min": {
+            "x": 2.2461205744750683,
+            "y": 1.1440978045611474,
+            "z": 6.2
+          },
+          "max": {
+            "x": 5.753879425524932,
+            "y": 1.866929642634902,
+            "z": 9.8
+          }
+        },
+        "player": [
+          22,
+          0.34462274492605066,
+          0.563786627884828
+        ]
+      }
+    }
+  }
+}
