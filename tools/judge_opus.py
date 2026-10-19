@@ -1,7 +1,8 @@
 import json,subprocess,sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-R=Path('/home/cw/git_project/beach3d-eval/eval_props')
+# 用 Opus 5.5 當第二位評審，評 tools/blind_props.py 產生的同一批匿名圖 → eval_props/scores_opus_judge.json
+R=Path(__file__).resolve().parent.parent / 'eval_props'
 def judge(n):
     d=R/f'round{n}'
     prompt=f"先用 Read 工具查看 {d}/props_grid.png 這張圖，然後依下面的指示評分。\n\n"+(d/'prompt.md').read_text()
