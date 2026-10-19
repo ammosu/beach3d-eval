@@ -4,3 +4,5 @@ dist/
 .venv/
 assets/raw/
 assets/tripo/*__*.glb
+video/frames/
+video/*.mp4

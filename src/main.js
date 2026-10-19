@@ -112,6 +112,6 @@ const explore=exploreEnabled?(await import('./explore.js')).createExplore({scene
 let lastFrame=performance.now();
 comparison?.connect(explore);
 const clock=new THREE.Clock();const fixed=params.has('time')?Number(params.get('time')):null;
-function frame(){requestAnimationFrame(frame);water.material.uniforms.time.value=fixed??clock.getElapsedTime();controls?.update();const now=performance.now();explore?.update((now-lastFrame)/1000);lastFrame=now;if(comparison)comparison.render();else composer.render();}frame();
+function frame(){requestAnimationFrame(frame);water.material.uniforms.time.value=window.__TIME__??fixed??clock.getElapsedTime();controls?.update();const now=performance.now();explore?.update((now-lastFrame)/1000);lastFrame=now;if(comparison)comparison.render();else composer.render();}frame();
 window.__SCENE__={scene,camera,water,propRoot,results,renderer};window.__READY__=true;
 addEventListener('resize',()=>{if(comparison){comparison.resize();return;}camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);});
