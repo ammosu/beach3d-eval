@@ -17,7 +17,7 @@ GREY = PALETTE.get("neutral", "#BBBBBB")
 ACC = PALETTE.get("accent", "#4696F0")
 NAMES = {"tripo": "Tripo AI", "opus": "Opus 寫程式", "codex2": "codex 寫程式（高推理）",
          "codex1": "codex 寫程式（低推理）", "library": "免費素材庫"}
-MODEL_NAMES = {"opus": "Opus 5.5", "codex2": "codex（GPU＋高推理）", "codex1": "codex（沙箱＋低推理）"}
+MODEL_NAMES = {"opus": "Opus 5.5", "codex2": "codex（高推理）", "codex1": "codex（低推理）"}
 
 
 def img(name, width):

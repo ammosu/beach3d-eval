@@ -10,9 +10,9 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parent.parent
 GIT = ROOT.parent
 VARIANTS = [  # (代號, 標題, 副標, shots/A 資料夾, 影格資料夾, 顏色)
-    ("M1", "codex 第一輪", "沙箱・推理 low（水面 high）｜44 分｜約 1,176 萬 token", GIT / "beach3d-eval/shots/A", "water_codex", (240, 150, 60)),
-    ("M2", "codex 第二輪", "無沙箱・fast・推理 high｜33 分｜約 990 萬 token", GIT / "beach3d-codex2/shots/A", "water_codex2", (70, 150, 240)),
-    ("M3", "Opus 5.5", "claude -p・預設｜119 分｜26.35 美元", GIT / "beach3d-opus/shots/A", "water_opus", (150, 110, 220)),
+    ("M1", "codex 第一輪", "推理 low（水面 high）｜44 分｜API 換算 $18.65", GIT / "beach3d-eval/shots/A", "water_codex", (240, 150, 60)),
+    ("M2", "codex 第二輪", "推理 high｜33 分｜API 換算 $17.94", GIT / "beach3d-codex2/shots/A", "water_codex2", (70, 150, 240)),
+    ("M3", "Opus 5.5", "預設｜119 分｜API 換算 $26.35", GIT / "beach3d-opus/shots/A", "water_opus", (150, 110, 220)),
 ]
 SCORES = json.loads((ROOT / "eval_models/scores.json").read_text())
 SLOTS = [s["id"] for s in json.loads((ROOT / "assets/props.json").read_text())["slots"]]
