@@ -59,9 +59,8 @@ try {
   await cut(async () => { for (const s of shells.slice(2)) { await teleport(s.x, s.z + .8); await press('KeyE'); await ffwd(.8); } });
   await hold(1);
   // 3. 踢沙灘球進海
-  await cut(async () => { await teleport(t.ball[0], t.ball[2] + 4, 0); await press('KeyV'); });
+  await cut(() => teleport(t.ball[0], t.ball[2] + 4, 0));
   await walkTo(t.ball[0], t.ball[2] + 1.3, 0.3, 3); await press('KeyE'); await hold(4);
-  await cut(() => press('KeyV'));
   // 4. 躺椅休息
   await cut(() => teleport(t.umbrella[0] + 2, t.umbrella[2] + 4, Math.atan2(2, 4)));
   await walkTo(t.umbrella[0], t.umbrella[2], 0.6, 3); await press('KeyE'); await hold(4); await press('KeyE'); await hold(.5);
