@@ -11,6 +11,7 @@ beach3d-eval 實際跑過的流程、指令與踩過的坑。換主題（森林�
 | B 組：Tripo 生成 8 件（逐件跑）＋ Blender 減面 | 18.5 分＋2 分 | 140 點（另試生成 130 點） |
 | C 組：素材庫挑選＋匯入（Blender MCP） | 4.8 分 | 0（CC BY 需標作者） |
 | 遊覽模式＋入口頁＋並排比較（codex） | 8.1 分 | 約 215 萬 token |
+| 水面升級 Water v2（codex，high 推理） | 30 分（含軟體算繪影片約 15 分） | codex 額度 |
 | codex 盲評 3 輪 | 約 20 秒 | 少量 token |
 | 60 秒影片（逐格算繪＋合成） | 約 3 分 | 0 |
 
@@ -31,6 +32,9 @@ beach3d-eval 實際跑過的流程、指令與踩過的坑。換主題（森林�
   - 腳本內容：用 `timed.sh` 計時，執行 `codex exec --json -s workspace-write -c sandbox_workspace_write.network_access=true -c service_tier='"fast"' -o logs/<步驟>.last.md`，prompt 從 stdin 餵入。
 - token 用量會從 `logs/<步驟>.jsonl` 最後一筆 usage 抓出來（`build_stats.py`）。
 - 底座的已知弱點是植被呈圓球狀、雲很卡通，物件來源幫不上忙。下次可以考慮 HDRI 天空，或用 Tripo 生成植被。
+- 水面請直接沿用 `src/water.js`（Water v2：Gerstner 波浪、不重複法線、沖岸泡沫、濕沙）。第一版的格子紋、虛線泡沫、灰色濕沙帶都已解決，brief 見 `BRIEF_water.md`。
+- codex 沙箱用不到 GPU，會退回 swiftshader，每格約 1.5 秒。長影片改由我們自己用 GPU 算繪，brief 裡請 codex 只跑 2fps 預覽就好。
+- 所有動畫都只能由 time uniform（`window.__TIME__`）驅動，逐格算繪才會穩定。
 
 ### 3. B 組（Tripo）
 - `.venv/bin/python tools/tripo_gen.py --dry-run`：先列清單，**使用者確認後才花點數**。
