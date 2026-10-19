@@ -95,7 +95,7 @@ beach3d-eval 實際跑過的流程、指令與踩過的坑。換主題（森林�
 |---|---|---|---|---|
 | codex 第一輪（beach3d-eval） | 沙箱、推理 low（水面 high） | 44 分 | 約 1,176 萬 token | 7.1 |
 | codex 第二輪（beach3d-codex2） | `-s danger-full-access`、fast、推理 high | 33 分 | 約 990 萬 token | 7.9 |
-| Opus 5.5（beach3d-opus） | `tools/claude_run.sh`（claude -p，隔離 MCP 與設定） | 119 分 | 訂閱額度（API 等值 26.35 美元） | 8.6 |
+| Opus 5.5（beach3d-opus） | `tools/claude_run.sh`（claude -p，隔離 MCP 與設定） | 119 分 | API 換算 26.35 美元 | 8.6 |
 
 - 盲評：`BLIND_CONFIG='{"groups":{...},"out":"eval_models","intro":"..."}' python3 tools/blind_score.py 3`
 - 對照圖與水面影片：`python3 tools/compare_models.py`（先用 record-path.mjs + video/water16.json 錄三個版本；別的 port 用 `SCENE_URL`、需要等待用 `SETTLE_MS`）
