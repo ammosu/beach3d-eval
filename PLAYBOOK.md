@@ -87,3 +87,17 @@ beach3d-eval 實際跑過的流程、指令與踩過的坑。換主題（森林�
 - `video/path.json`：關鍵格座標要依新的物件位置重排。
 - `tools/make_video.py`：片頭和結論文字、`NAMES` 對照表。
 - `tools/build_stats.py`：notes 文字。
+
+## 換模型比較（2026-10-19）
+同一份需求、同一套流程（底座 → 第二輪意見 → A 組物件 → 水面），各自在獨立 worktree 從 commit 8c15a75 開始跑：
+
+| 版本 | 設定 | 總耗時 | 花費 | codex 盲評 |
+|---|---|---|---|---|
+| codex 第一輪（beach3d-eval） | 沙箱、推理 low（水面 high） | 44 分 | 約 1,176 萬 token | 7.1 |
+| codex 第二輪（beach3d-codex2） | `-s danger-full-access`、fast、推理 high | 33 分 | 約 990 萬 token | 7.9 |
+| Opus 5.5（beach3d-opus） | `tools/claude_run.sh`（claude -p，隔離 MCP 與設定） | 119 分 | 26.35 美元 | 8.6 |
+
+- 盲評：`BLIND_CONFIG='{"groups":{...},"out":"eval_models","intro":"..."}' python3 tools/blind_score.py 3`
+- 對照圖與水面影片：`python3 tools/compare_models.py`（先用 record-path.mjs + video/water16.json 錄三個版本；別的 port 用 `SCENE_URL`、需要等待用 `SETTLE_MS`）
+- codex 結束時 vite 會被一起關掉，錄影前要自己重開。
+- 錄影發現 Opus 版約 30% 畫格全黑：茅草材質 alpha test＋bump map 產生 NaN。給 Opus 一輪修 bug（6.6 分、1.03 美元）後只剩 1 格。brief 裡應附錄影器讓模型自己跑飛越檢查。

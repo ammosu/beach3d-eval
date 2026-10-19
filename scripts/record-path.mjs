@@ -44,9 +44,10 @@ catch (error) {
 try {
   const page = await browser.newPage({ viewport: { width: 960, height: 540 }, deviceScaleFactor: 1 });
   const errors = []; page.on('pageerror', e => errors.push(e.message));
-  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto(`http://localhost:5191/scene.html?group=${group}&cam=wide&time=0`, { waitUntil: 'networkidle' });
+  page.on('console', m => { if (m.type() === 'error' && !/404/.test(m.text())) errors.push(m.text()); });
+  await page.goto(process.env.SCENE_URL || `http://localhost:5191/scene.html?group=${group}&cam=wide&time=0`, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => window.__READY__ === true);
+  await page.waitForTimeout(Number(process.env.SETTLE_MS || 0));
   await page.evaluate(async keys => {
     const { groundHeight } = await import('/src/terrain.js');
     // Catmull-Rom 穿過關鍵格，相機不低於地面 0.8m

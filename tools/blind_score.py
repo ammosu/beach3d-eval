@@ -3,13 +3,19 @@
 用法：python3 tools/blind_score.py [輪數，預設 3]   → eval/round<n>/（匿名圖、prompt、score.json）、eval/scores.json
 耗時記到 timing.csv（group=eval）。
 """
-import json, subprocess, sys
+import json, os, subprocess, sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
-GROUPS = ["A", "B", "C"]
+# BLIND_CONFIG（JSON）可改成比較別的版本：{"groups": {"M1": "<shots 資料夾>", ...}, "intro": "...", "out": "eval_models"}
+CFG = json.loads(os.environ.get("BLIND_CONFIG", "{}"))
+SHOTS = {g: Path(d) for g, d in CFG.get("groups", {}).items()}
+GROUPS = list(SHOTS) or ["A", "B", "C"]
+OUTDIR = ROOT / CFG.get("out", "eval")
+INTRO = CFG.get("intro", "水、天空、沙灘、光線、植被完全相同，只有 8 件物件的製作方式不同。")
+shot = lambda g, *parts: (SHOTS.get(g) or ROOT / "shots" / g).joinpath(*parts)
 LABELS = ["X", "Y", "Z"]
 CAMS = ["wide", "beach", "closeup"]
 FONT = "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"
@@ -43,7 +49,7 @@ def props_grid(order, out):
     for i, (g, lab) in enumerate(order):
         d.text((20, head + i * cell + cell // 2 - 20), lab, font=ImageFont.truetype(FONT, 40), fill="black")
         for j, s in enumerate(SLOTS):
-            p = ROOT / "shots" / g / "props" / f"{s['id']}.png"
+            p = shot(g, "props", f"{s['id']}.png")
             if p.exists():
                 canvas.paste(Image.open(p).convert("RGB").resize((cell, cell)), (side + j * cell, head + i * cell))
     canvas.save(out)
@@ -53,7 +59,7 @@ def prompt_text(images):
     props = "\n".join(f"- {s['id']}：{s['prompt']}" for s in SLOTS)
     crit = "\n".join(f"- {k}：{v}" for k, v in CRITERIA.items())
     return f"""你是 3D 場景美術評審。以下是同一個海邊 three.js 場景的三個版本 X、Y、Z：
-水、天空、沙灘、光線、植被完全相同，只有 8 件物件的製作方式不同。請只依畫面盲評，不要猜測製作方式。
+{INTRO}請只依畫面盲評，不要猜測製作方式。
 
 附圖（依序）：{', '.join(images)}
 - scene_wide / scene_beach / scene_closeup：三個鏡頭，每張由左到右是 X、Y、Z（左上角有標籤）
@@ -76,11 +82,11 @@ def prompt_text(images):
 
 def run_round(n):
     order = [(GROUPS[(i + n) % 3], LABELS[i]) for i in range(3)]  # 每輪輪換：X 依序是 A、B、C
-    d = ROOT / "eval" / f"round{n}"
+    d = OUTDIR / f"round{n}"
     d.mkdir(parents=True, exist_ok=True)
     images = []
     for cam in CAMS:
-        labeled_row([ROOT / "shots" / g / f"{cam}.png" for g, _ in order], LABELS, (960, 540)).save(d / f"scene_{cam}.png")
+        labeled_row([shot(g, f"{cam}.png") for g, _ in order], LABELS, (960, 540)).save(d / f"scene_{cam}.png")
         images.append(f"scene_{cam}.png")
     props_grid(order, d / "props_grid.png")
     images.append("props_grid.png")
@@ -91,7 +97,7 @@ def run_round(n):
            "-c", "service_tier=\"fast\"", "-c", "model_reasoning_effort=high",
            "-o", str(d / "last.md"), "-i", *[str(d / x) for x in images]]
     with open(d / "events.jsonl", "w") as out, open(d / "err.log", "w") as err:
-        subprocess.run([str(ROOT / "tools/timed.sh"), "eval", f"blind{n}", "--", *cmd],
+        subprocess.run([str(ROOT / "tools/timed.sh"), OUTDIR.name, f"blind{n}", "--", *cmd],
                        input=prompt, text=True, stdout=out, stderr=err, timeout=3600)
     raw = (d / "last.md").read_text().strip()
     raw = raw[raw.index("{"): raw.rindex("}") + 1]
@@ -104,7 +110,7 @@ def aggregate(results):
     props = {s["id"]: {g: [] for g in GROUPS} for s in SLOTS}
     comments, rankings = {g: [] for g in GROUPS}, []
     for n, r in results:
-        m = json.loads((ROOT / "eval" / f"round{n}" / "mapping.json").read_text())
+        m = json.loads((OUTDIR / f"round{n}" / "mapping.json").read_text())
         for lab, g in m.items():
             for k in CRITERIA:
                 crit[g][k].append(r["criteria"][lab][k])
@@ -121,7 +127,7 @@ def aggregate(results):
         "rankings": rankings,
         "comments": comments,
     }
-    (ROOT / "eval" / "scores.json").write_text(json.dumps(out, ensure_ascii=False, indent=2))
+    (OUTDIR / "scores.json").write_text(json.dumps(out, ensure_ascii=False, indent=2))
     return out
 
 
