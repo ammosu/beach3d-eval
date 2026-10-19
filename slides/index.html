@@ -41,6 +41,14 @@
   .pager { position: absolute; right: 3vw; bottom: 3vh; color: #7d838b; font-size: 14px; }
   .nav { position: absolute; top: 0; bottom: 0; width: 18vw; cursor: pointer; }
   .nav.prev { left: 0; } .nav.next { right: 0; }
+  /* 簡易動畫：換頁時元素依序淡入上移、長條由 0 長出；系統設定「減少動態」時全部關閉 */
+  .play { animation: rise .6s cubic-bezier(.2,.7,.2,1) both; animation-delay: var(--d, 0ms); }
+  @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+  .bar { transition: width .9s cubic-bezier(.2,.7,.2,1); transition-delay: var(--d, 0ms); }
+  .val { transition: opacity .4s ease; transition-delay: var(--d, 0ms); }
+  .box.play { animation-name: pop; }
+  @keyframes pop { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .play { animation: none; } .bar, .val { transition: none; } }
   @media (max-width: 700px) { .row, .boxes { flex-direction: column; align-items: stretch; } .slide { overflow-y: auto; justify-content: flex-start; } .src { position: static; } }
 </style>
 </head>
@@ -129,7 +137,7 @@ function chart(el, rows, value, name, hi, note) {
   el.innerHTML = rows.map(r => {
     const on = hi.includes(r.key);
     return `<div class="name${on ? ' hi' : ''}">${name(r)}</div>
-      <div class="track"><div class="bar${on ? ' hi' : ''}" style="width:${value(r) * 8}%;${on ? 'background:' + COLOR[r.key] : ''}"></div>
+      <div class="track"><div class="bar${on ? ' hi' : ''}" data-w="${value(r) * 8}" style="width:0;${on ? 'background:' + COLOR[r.key] : ''}"></div>
       <span class="val">${value(r).toFixed(1)}${note ? `<span class="note">${note(r)}</span>` : ''}</span></div>`;
   }).join('');
 }
@@ -140,12 +148,32 @@ function render(d) {
   chart(document.getElementById('models-chart'), d.models, r => r.score, r => MODEL_NAMES[r.key], ['opus', 'codex2'],
         r => `${r.minutes} 分鐘${r.key === 'opus' ? '' : '（fast）'}・API 換算 $${r.api_usd.toFixed(2)}`);
 }
-fetch('data.json').then(r => r.json()).then(render).catch(() => render(FALLBACK));
+fetch('data.json').then(r => r.json()).then(render).catch(() => render(FALLBACK)).then(() => animate(slides[i]));
 
 const slides = [...document.querySelectorAll('.slide')];
 let i = Math.max(0, Math.min(slides.length - 1, (parseInt(location.hash.slice(1)) || 1) - 1));
+function animate(slide) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    slide.querySelectorAll('.bar').forEach(b => b.style.width = b.dataset.w + '%');
+    return;
+  }
+  // 依閱讀順序排出要進場的元素：標題、圖、說明、方塊
+  const items = [...slide.querySelectorAll(':scope > h1, :scope > h2, :scope > .lead, :scope > .row > figure, :scope > .row, :scope > .boxes > .box, :scope > .chart, :scope > .src')]
+    .filter(el => !(el.classList.contains('row') && el.querySelector('figure')));
+  items.forEach((el, k) => { el.classList.remove('play'); void el.offsetWidth; el.style.setProperty('--d', `${k * 140}ms`); el.classList.add('play'); });
+  // 長條：先歸零，再依序長到目標寬度，數值隨後淡入
+  const bars = [...slide.querySelectorAll('.bar')], vals = [...slide.querySelectorAll('.val')];
+  const start = items.findIndex(el => el.classList.contains('chart')) * 140 + 200;
+  bars.forEach((b, k) => { b.style.transition = 'none'; b.style.width = '0'; b.style.setProperty('--d', `${start + k * 120}ms`); });
+  vals.forEach((v, k) => { v.style.transition = 'none'; v.style.opacity = '0'; v.style.setProperty('--d', `${start + 600 + k * 120}ms`); });
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    bars.forEach(b => { b.style.transition = ''; b.style.width = b.dataset.w + '%'; });
+    vals.forEach(v => { v.style.transition = ''; v.style.opacity = '1'; });
+  }));
+}
 function show() {
   slides.forEach((s, k) => s.classList.toggle('on', k === i));
+  animate(slides[i]);
   document.getElementById('pager').textContent = `${i + 1} / ${slides.length}`;
   history.replaceState(null, '', '#' + (i + 1));
 }
