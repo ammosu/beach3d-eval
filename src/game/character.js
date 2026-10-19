@@ -63,13 +63,21 @@ export async function createCharacter(group='A'){
  const names=source==='A'?{hip:'hips',spine:'spine',head:'head',thigh:['thighL','thighR'],calf:['calfL','calfR'],foot:['footL','footR'],arm:['armL','armR'],fore:['foreL','foreR'],hand:['handL','handR']}:source==='B'?{hip:'Hip',spine:'Waist',head:'Head',thigh:['L_Thigh','R_Thigh'],calf:['L_Calf','R_Calf'],foot:['L_Foot','R_Foot'],arm:['L_Upperarm','R_Upperarm'],fore:['L_Forearm','R_Forearm'],hand:['L_Hand','R_Hand']}:{hip:'Body',spine:'Hips',head:'Head',thigh:['UpperLeg.L','UpperLeg.R'],calf:['LowerLeg.L','LowerLeg.R'],foot:['Foot.L','Foot.R'],arm:['UpperArm.L','UpperArm.R'],fore:['LowerArm.L','LowerArm.R'],hand:['Wrist.L','Wrist.R']};
  const get=n=>allBones.find(b=>b.name===n||b.name===n.replaceAll('.','')),rig={};for(const [k,n] of Object.entries(names))rig[k]=Array.isArray(n)?n.map(get):get(n);
  const rest=new Map(allBones.map(b=>[b,{q:b.quaternion.clone(),p:b.position.clone(),s:b.scale.clone()}]));
+ // Each clip's own ground speed (in place): sample the feet over one cycle; stride ≈ peak foot separation,
+ // two steps per cycle. Playback is later scaled to the avatar's real speed so the feet don't slide.
+ const nativeSpeed={};
+ for(const name of ['walk','run']){const action=actions.get(name),feet=rig.foot;if(!action||!feet?.[0]||!feet?.[1])continue;
+  const duration=action.getClip().duration,a=V(),b=V();let sep=0;idle?.stop();action.reset().play();
+  for(let k=0;k<=24;k++){action.time=duration*k/24;mixer.update(0);root.updateMatrixWorld(true);feet[0].getWorldPosition(a);feet[1].getWorldPosition(b);sep=Math.max(sep,Math.hypot(a.x-b.x,a.z-b.z));}
+  action.stop();nativeSpeed[name]=2*sep/duration;}
+ idle?.reset().play();mixer.update(0);for(const [bone,r] of rest){bone.quaternion.copy(r.q);bone.position.copy(r.p);bone.scale.copy(r.s);}root.updateMatrixWorld(true);
  // Directions expressed in each bone's local frame make procedural poses portable
  // across the three rigs' different bone rolls and coordinate systems.
  const axes=new Map(),q=new T.Quaternion(),parentQ=new T.Quaternion(),turn=new T.Quaternion(),dir=V(),from=V(),to=V();
  function axis(b,end){if(!b)return;const a=end?end.getWorldPosition(V()).sub(b.getWorldPosition(V())):V(0,1,0);axes.set(b,a.normalize().applyQuaternion(b.getWorldQuaternion(new T.Quaternion()).invert()));}
  for(let i=0;i<2;i++){axis(rig.thigh[i],rig.calf[i]);axis(rig.calf[i],source==='C'?rig.calf[i]?.children[0]:rig.foot[i]);axis(rig.arm[i],rig.fore[i]);axis(rig.fore[i],rig.hand[i]);}axis(rig.spine,rig.head);
  const hipY=rig.hip?.getWorldPosition(V()).y??.91;
- let active='idle',age=0,actionAge=0,oneShot='',oneAge=0,opacity=1;
+ let posed=false,active='idle',age=0,actionAge=0,oneShot='',oneAge=0,opacity=1;
  const previousPose=new Map(allBones.map(b=>[b,{q:b.quaternion.clone(),p:b.position.clone()}]));
  const poseRotation=new T.Quaternion(),posePosition=V(),bodyRotation=new T.Quaternion(),bodyPosition=V(),headWorld=V();
  function aim(b,x,y,z,weight=1){if(!b||!axes.has(b))return;b.updateWorldMatrix(true,false);b.getWorldQuaternion(q);from.copy(axes.get(b)).applyQuaternion(q);dir.set(x,y,z).normalize().applyQuaternion(root.getWorldQuaternion(parentQ));turn.setFromUnitVectors(from,dir);q.premultiply(turn);b.parent.getWorldQuaternion(parentQ).invert();q.premultiply(parentQ);b.quaternion.slerp(q,weight);b.updateWorldMatrix(false,true);}
@@ -77,9 +85,14 @@ export async function createCharacter(group='A'){
  function trigger(name){oneShot=name;oneAge=0;}
  function restore(){for(const [b,r] of rest){b.quaternion.copy(r.q);b.position.copy(r.p);b.scale.copy(r.s);}}
  function update(dt,{speed=0,airborne=false,pose='stand',first=false,fade=1,animation=null}={}){
+  // A dt=0 call (a render between offline steps) keeps the current pose. Re-running restore() there would leave
+  // the rest pose on screen: three.js PropertyMixer skips writing values that did not change since its last apply.
+  if(!dt&&posed&&!animation)return;posed=true;
   age+=dt;actionAge+=dt;oneAge+=dt;if(oneAge>.85)oneShot='';
   const selected=animation??(pose==='climb'?'climb':pose==='paddle'?'paddle':pose==='lie'?'lie':pose==='sit'||pose==='sand'?'sit':airborne?'jump':oneShot||(speed>3.4?'run':speed>.12?'walk':'idle'));
-  play(selected);restore();mixer.update(dt);
+  play(selected);
+  if(nativeSpeed[selected]&&!animation)actions.get(selected).setEffectiveTimeScale(T.MathUtils.clamp(speed/nativeSpeed[selected],.5,3.5));
+  restore();mixer.update(dt);
   const proceduralPose=!actions.has(selected),seated=selected==='sit'||selected==='paddle',lying=selected==='lie';
   // Reset the outer transform before posing. All anatomical directions are avatar-local.
   pivot.position.set(0,0,0);pivot.quaternion.identity();root.updateMatrixWorld(true);
@@ -98,8 +111,9 @@ export async function createCharacter(group='A'){
    }
    aim(rig.spine,0,1,lying?.45:selected==='interact'?.35:seated?.08:Math.sin(age*1.7)*.018);
   }
-  const blend=1-Math.exp(-12*dt);
-  for(const [b,previous] of previousPose){q.copy(b.quaternion);b.quaternion.copy(previous.q).slerp(q,dt?blend:1);b.position.lerpVectors(previous.p,b.position,dt?blend:1);previous.q.copy(b.quaternion);previous.p.copy(b.position);}
+  // Smooth bones only right after a clip/pose switch; smoothing every frame flattens the gait cycle itself.
+  const blend=1-Math.exp(-12*dt),boneBlend=actionAge<.3?blend:1;
+  for(const [b,previous] of previousPose){q.copy(b.quaternion);b.quaternion.copy(previous.q).slerp(q,dt?boneBlend:1);b.position.lerpVectors(previous.p,b.position,dt?boneBlend:1);previous.q.copy(b.quaternion);previous.p.copy(b.position);}
   posePosition.set(0,0,0);poseRotation.identity();
   if(lying){posePosition.set(0,.115,hipY);poseRotation.setFromAxisAngle(V(1,0,0),-Math.PI/2);}
   else if(seated)posePosition.set(0,-hipY+.10,0);
@@ -110,7 +124,7 @@ export async function createCharacter(group='A'){
   opacity=T.MathUtils.damp(opacity,fade,12,dt);for(const m of materials){m.mat.opacity=m.opacity*opacity;m.mat.transparent=m.transparent||opacity<.995;m.mat.depthWrite=m.depthWrite&&opacity>.5;}
   root.updateMatrixWorld(true);
  }
- function info(){return {group,source:CHARACTER_SOURCES[source],fallback,triangles,clips:clips.map(c=>c.name),animation:active,actionTime:actionAge,skinnedMeshes:meshes.filter(m=>m.isSkinnedMesh).length,bones:allBones.length,height:1.75,headHidden:rig.head?.scale.x<.01,poseSample:rig.thigh.map(b=>b?.quaternion.toArray()),clipTime:actions.get(active)?.time??null};}
+ function info(){return {group,source:CHARACTER_SOURCES[source],fallback,triangles,clips:clips.map(c=>c.name),animation:active,actionTime:actionAge,skinnedMeshes:meshes.filter(m=>m.isSkinnedMesh).length,bones:allBones.length,height:1.75,headHidden:rig.head?.scale.x<.01,poseSample:rig.thigh.map(b=>b?.quaternion.toArray()),clipTime:actions.get(active)?.time??null,footSep:rig.foot?.[0]&&rig.foot?.[1]?rig.foot[0].getWorldPosition(V()).distanceTo(rig.foot[1].getWorldPosition(V())):null,calfSep:rig.calf?.[0]&&rig.calf?.[1]?rig.calf[0].getWorldPosition(V()).distanceTo(rig.calf[1].getWorldPosition(V())):null,nativeSpeed,timeScale:actions.get(active)?.getEffectiveTimeScale()??null};}
  function head(out=headWorld){return rig.head?rig.head.getWorldPosition(out):out.copy(root.position).add(V(0,1.6,0));}
  update(0);
  return {root,update,trigger,info,head,mixer,rig,meshes,dispose(){mixer.stopAllAction();mixer.uncacheRoot(model);disposeModel(model);root.removeFromParent();},animations:[...new Set(['idle','walk','run','jump','climb','sit','lie','paddle','kick','interact',...actions.keys()])]};
