@@ -1,0 +1,161 @@
+{
+  "cameras": {
+    "wide": {
+      "pos": [
+        -38,
+        16,
+        30
+      ],
+      "target": [
+        0,
+        0,
+        -10
+      ]
+    },
+    "beach": {
+      "pos": [
+        -6,
+        1.7,
+        12
+      ],
+      "target": [
+        6,
+        1.2,
+        -6
+      ]
+    },
+    "closeup": {
+      "pos": [
+        3,
+        2.2,
+        6
+      ],
+      "target": [
+        6,
+        1.0,
+        0
+      ]
+    }
+  },
+  "slots": [
+    {
+      "id": "palm_tall",
+      "pos": [
+        -4,
+        0,
+        -2
+      ],
+      "height": 9,
+      "prompt": "a tall tropical coconut palm tree with curved trunk, coconuts, realistic",
+      "paths": {
+        "B": "/assets/tripo/palm_tall.glb",
+        "C": "/assets/library/palm_tall.glb"
+      }
+    },
+    {
+      "id": "palm_pair",
+      "pos": [
+        10,
+        0,
+        -5
+      ],
+      "height": 7,
+      "prompt": "two leaning coconut palm trees growing from one base, realistic",
+      "paths": {
+        "B": "/assets/tripo/palm_pair.glb",
+        "C": "/assets/library/palm_pair.glb"
+      },
+      "maxLen": 6
+    },
+    {
+      "id": "rocks",
+      "pos": [
+        16,
+        0,
+        3
+      ],
+      "height": 2.5,
+      "prompt": "cluster of weathered dark volcanic beach rocks with barnacles, realistic",
+      "paths": {
+        "B": "/assets/tripo/rocks.glb",
+        "C": "/assets/library/rocks.glb"
+      },
+      "maxLen": 4
+    },
+    {
+      "id": "boat",
+      "pos": [
+        4,
+        0,
+        8
+      ],
+      "height": 0.9,
+      "prompt": "small wooden rowing boat beached on sand, weathered blue paint, realistic",
+      "paths": {
+        "B": "/assets/tripo/boat.glb",
+        "C": "/assets/library/boat.glb"
+      },
+      "maxLen": 3.6
+    },
+    {
+      "id": "hut",
+      "pos": [
+        -14,
+        0,
+        -8
+      ],
+      "height": 4.5,
+      "prompt": "tropical beach hut on short stilts with thatched palm-leaf roof, realistic",
+      "paths": {
+        "B": "/assets/tripo/hut.glb",
+        "C": "/assets/library/hut.glb"
+      },
+      "maxLen": 6
+    },
+    {
+      "id": "umbrella",
+      "pos": [
+        6,
+        0,
+        1
+      ],
+      "height": 2.6,
+      "prompt": "straw beach umbrella with two wooden sun loungers underneath, realistic",
+      "paths": {
+        "B": "/assets/tripo/umbrella.glb",
+        "C": "/assets/library/umbrella.glb"
+      },
+      "maxLen": 4.5
+    },
+    {
+      "id": "driftwood",
+      "pos": [
+        -1,
+        0,
+        6
+      ],
+      "height": 0.6,
+      "prompt": "large bleached driftwood log lying on sand, realistic",
+      "paths": {
+        "B": "/assets/tripo/driftwood.glb",
+        "C": "/assets/library/driftwood.glb"
+      },
+      "maxLen": 3.2
+    },
+    {
+      "id": "lifeguard",
+      "pos": [
+        22,
+        0,
+        -2
+      ],
+      "height": 4,
+      "prompt": "wooden lifeguard tower painted white and red, realistic",
+      "paths": {
+        "B": "/assets/tripo/lifeguard.glb",
+        "C": "/assets/library/lifeguard.glb"
+      },
+      "maxLen": 4
+    }
+  ]
+}

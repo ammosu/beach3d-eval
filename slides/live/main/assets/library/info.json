@@ -1,0 +1,50 @@
+{
+ "palm_tall": {
+  "object": "Sketchfab_model",
+  "tris": 320,
+  "attribution": [],
+  "kb": 5483
+ },
+ "palm_pair": {
+  "object": "Sketchfab_model.001",
+  "tris": 12997,
+  "attribution": [],
+  "kb": 9056
+ },
+ "boat": {
+  "object": "Sketchfab_model.002",
+  "tris": 8770,
+  "attribution": [],
+  "kb": 2286
+ },
+ "hut": {
+  "object": "Sketchfab_model.003",
+  "tris": 3923,
+  "attribution": [],
+  "kb": 2072
+ },
+ "umbrella": {
+  "object": "Sketchfab_model.004",
+  "tris": 3996,
+  "attribution": [],
+  "kb": 542
+ },
+ "lifeguard": {
+  "object": "Sketchfab_model.005",
+  "tris": 22021,
+  "attribution": [],
+  "kb": 5236
+ },
+ "rocks": {
+  "object": "boulder_01_LOD0",
+  "tris": 66122,
+  "attribution": [],
+  "kb": 7763
+ },
+ "driftwood": {
+  "object": "dead_tree_trunk_02_LOD0",
+  "tris": 83128,
+  "attribution": [],
+  "kb": 6687
+ }
+}
