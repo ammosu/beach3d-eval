@@ -2,7 +2,7 @@
 // 用法：node scripts/record-path.mjs <A|B|C> [fps 覆寫，預覽用] [路徑檔，預設 video/path.json] [輸出資料夾]
 // 逐格設定相機與水面時間，與即時效能無關；用本機 GPU（ANGLE gl-egl）算繪。
 import { chromium } from 'playwright-core';
-import { mkdir, readFile, rm } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 const group = process.argv[2];
 if (!['A', 'B', 'C'].includes(group)) throw new Error('Usage: node scripts/record-path.mjs <A|B|C> [fps]');
@@ -11,13 +11,40 @@ const fps = Number(process.argv[3] || path.fps);
 const out = process.argv[5] || `video/frames/${group}`;
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
-const browser = await chromium.launch({
-  executablePath: `${homedir()}/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome`, headless: true,
-  args: ['--use-gl=angle', '--use-angle=gl-egl', '--ignore-gpu-blocklist', '--enable-gpu'],
-});
+let rendererName;
+async function launchRenderer(backend) {
+  const browser = await chromium.launch({
+    executablePath: `${homedir()}/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome`, headless: true,
+    args: backend === 'swiftshader'
+      ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader']
+      : ['--use-gl=angle', '--use-angle=gl-egl', '--ignore-gpu-blocklist', '--enable-gpu'],
+  });
+  try {
+    const probe = await browser.newPage();
+    const renderer = await probe.evaluate(() => {
+      const gl = document.createElement('canvas').getContext('webgl2');
+      if (!gl) throw new Error('WebGL2 unavailable');
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+    });
+    await probe.screenshot();
+    await probe.close();
+    rendererName = renderer;
+    console.log(`Render backend: ${renderer}`);
+    return browser;
+  } catch (error) { await browser.close(); throw error; }
+}
+let browser;
+try { browser = await launchRenderer(process.env.RECORD_RENDERER || 'gpu'); }
+catch (error) {
+  if (process.env.RECORD_RENDERER) throw error;
+  console.warn(`GPU backend unavailable (${error.message.split('\n')[0]}). Using deterministic SwiftShader; this is not a hardware performance measurement.`);
+  browser = await launchRenderer('swiftshader');
+}
 try {
   const page = await browser.newPage({ viewport: { width: 960, height: 540 }, deviceScaleFactor: 1 });
   const errors = []; page.on('pageerror', e => errors.push(e.message));
+  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto(`http://localhost:5191/scene.html?group=${group}&cam=wide&time=0`, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => window.__READY__ === true);
   await page.evaluate(async keys => {
@@ -44,8 +71,11 @@ try {
   const t0 = Date.now();
   for (let f = 0; f <= n; f++) {
     await page.evaluate(t => { window.__SETFRAME__(t); return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); }, f / fps);
+    if (errors.length) throw new Error(errors.join('\n'));
     await page.screenshot({ path: `${out}/${String(f).padStart(5, '0')}.jpg`, type: 'jpeg', quality: 92 });
-    if (f % 150 === 0) console.log(group, f, '/', n, Math.round((Date.now() - t0) / 1000) + 's');
+    if (f % 30 === 0) console.log(group, f, '/', n, Math.round((Date.now() - t0) / 1000) + 's');
   }
   if (errors.length) throw new Error(errors.join('\n'));
+  await writeFile(`${out}/render-info.json`, JSON.stringify({renderer:rendererName, fps, frameCount:n+1, lastTime:end, width:960, height:540, renderSeconds:(Date.now()-t0)/1000}, null, 2)+'\n');
+  console.log(`Completed ${n+1} frames in ${out}`);
 } finally { await browser.close(); }

@@ -1,0 +1,18 @@
+{
+  "deterministicSeeking": true,
+  "animatedSand": true,
+  "shaderErrors": [],
+  "waterTriangles": 220160,
+  "waterVertices": 110767,
+  "frame": {
+    "frame": 700,
+    "calls": 47,
+    "triangles": 2482050,
+    "points": 0,
+    "lines": 0
+  },
+  "memory": {
+    "geometries": 19,
+    "textures": 41
+  }
+}

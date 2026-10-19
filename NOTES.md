@@ -160,3 +160,55 @@ Implementation: `src/explore.js` and `src/explore.css`, with a small opt-in hook
 - `npm run build` passes with the existing nonblocking large-chunk advisory.
 
 Comparison caches all three prop groups for fast switching. Missing GLBs are retried on reload. Rendering costs grow with pane count because reflections, shadows, and bloom still run per pane, while base geometry/material allocations remain shared. SwiftShader checks establish rendering correctness, not a measured physical-GPU frame rate. B assets are being generated independently; missing counts and available thumbnails can change as that work completes.
+
+## Water v2
+
+Water and sand shading now live together in `src/water.js`, wired into `src/main.js`. The existing sun/sky, exposure, lights, camera presets, terrain functions/mesh, props/fitting, slots and Explore/compare/hub behavior are unchanged. The only time source is `water.material.uniforms.time`; the sand material references **that exact uniform object**. `?time=` and `window.__TIME__` therefore freeze/seek waves, normals, foam, caustics, swash and drying together. No simulation history, random animation state, texture downloads or wall-clock-driven shader inputs are used.
+
+### Techniques
+
+- Four directional Gerstner components (19, 11.3, 6.7 and 3.8 m wavelengths; offshore amplitudes 0.29, 0.16, 0.085 and 0.045 m) give actual horizontal/vertical displacement and analytical wave normals. Lagoon attenuation and a separate asymmetric shoaling bore produce readable nearshore crests. Troughs are bounded above the existing seabed to prevent disconnected water strips. Distant displacement/detail fades before coarse mesh rows can alias.
+- A single coast-following water grid concentrates 35 cm rows in the surf and coarsens offshore. It contains **110,767 vertices / 220,160 triangles**, versus 204,800 triangles previously (+7.5%). The terrain itself is untouched.
+- Domain-warped, world-space procedural gradient noise replaces the tiled normal texture. Four scales, with different rotations and advection directions, move independently; fine detail diminishes with viewing distance. There is no repeating normal-map tile.
+- Breaking foam follows the same crest phase as the shoaling wave, with irregular caps, cellular-looking lace, small bubbles and a dispersing wake. A fast uprush and slower backwash move a conforming thin water sheet approximately 0–2.7 m onto the beach. Its ragged edge and foam coverage vary spatially. The cycle is about 4.62 s, with alongshore phase offsets.
+- Sand keeps its warm hue while wetness lowers albedo/roughness. A stateless inverse-smoothstep calculation of time since retreat leaves a mottled damp mark that gradually dries. Fresnel sheen is strongest in the fresh film; the old uniform gray strip is gone.
+- RGB Beer–Lambert absorption, an angle-dependent optical path, refracted procedural bottom coordinates, restrained moving caustics, shallow crest tint, Schlick Fresnel reflection and sun-aligned glitter replace the previous fixed color/reflection blend. Reflections use a bounded projected reflected ray and filtered planar samples; their sky fallback matches the existing sky gradient. The original 512×512 planar reflection pass is retained.
+
+Wave construction was informed by [NVIDIA GPU Gems: Effective Water Simulation from Physical Models](https://developer.nvidia.com/gpugems/gpugems/part-i-natural-effects/chapter-1-effective-water-simulation-physical-models). The nearshore visual reference was [Mohamed Sameeh's Maldives surf photograph](https://unsplash.com/photos/waves-of-water-at-beach-8iKpG2BmjOA). Neither reference supplies runtime assets.
+
+### Five image-review rounds
+
+Each round used the existing server at `http://localhost:5191`, `node scripts/record-path.mjs B 2 video/water.json /tmp/water_check`, and `node scripts/shoot.mjs B`. Flythrough contact sheets and all three fixed camera images are retained under `shots/water_v2/round1` through `round5`. Compared against `shots/before_water/` and decoded frames of `video/water_before.mp4`.
+
+| Round | Visual findings and correction |
+| --- | --- |
+| 1 | Removed the reflection grid and gray sand strip, but the lagoon was too yellow/glassy and reflected whole clouds. Increased shoaling relief, restrained reflected radiance and adjusted absorption. |
+| 2 | Surf silhouettes became visible; very shallow troughs exposed a narrow sand gap. Bounded the trough above the seabed, widened lace/wake coverage and softened the swash edge. |
+| 3 | Gaps resolved and deterministic sand/water seeking passed. Whole-cloud reflections still read too flat. Added projected reflection-ray lookup and small crest disturbance. |
+| 4 | Full ray projection created overly sharp, high-contrast reflection fragments at grazing angles. Limited ray travel/UV offset, blended its strength and widened reflection filtering. |
+| 5 | Corrected the shallow-floor normal direction and aligned drying with the exact retreat phase. Reviewed the balanced result at aerial, waterline and shore-parallel angles, plus wide/beach/closeup. Kept visible wave shapes, cyan depth progression, irregular foam, and warm wet sand. |
+
+`shots/water_v2/before_after.jpg` compares the first flythrough frame. `shots/water_v2/compare_ABC.png` records all three comparison panes after settling. One capture immediately following the two-to-three-pane resize caught an unfinished pane; a separate capture after six frames confirmed all three panes render. No UI code was changed.
+
+### Verification and performance
+
+- `npm run build`: passed; existing nonblocking three.js chunk-size advisory remains.
+- `node scripts/shoot.mjs B`: all eight real assets loaded in all three fixed views; no browser/shader errors.
+- `node scripts/verify.mjs`: A/B/C fitting, centering, ground contact, live water time and OrbitControls passed.
+- `node scripts/verify-ui.mjs`: hub, synchronized comparison movement/group switching, solo viewer, missing assets and legacy URLs passed. Stable three-pane rendering was also inspected separately.
+- `node scripts/verify-water.mjs`: compares exact PNG bytes after seeking **4 → 6 → 4 seconds**. Both the whole scene and sand-only views change with time and reproduce the original pixels after reverse seeking. It catches browser/shader errors and records rendering counters in `shots/water_v2/verification/results.json`.
+- Resource design: one water draw per view, the existing one planar reflection per view, no FFT targets, no depth/refraction buffer, no extra reflection pass for wet sand, and no per-frame CPU mesh updates. The B verification camera recorded **47 draw calls / 2,482,050 triangles** for the complete frame including reflections, shadows and postprocessing. Comparison retains the same shared geometry/materials and renders per pane.
+- **Hardware limitation:** this environment exposes neither `/dev/dri` nor NVIDIA devices, and `nvidia-smi` cannot contact a driver. The requested ANGLE `gl-egl` backend fails screenshot capture. `record-path.mjs` now probes it first and explicitly reports a SwiftShader fallback; `RECORD_RENDERER=gpu` requires GPU success and `RECORD_RENDERER=swiftshader` selects software directly. It also fails on shader-console errors and writes a render manifest. These captures validate images/determinism, **not RTX 60 fps**. No physical-GPU performance claim is made.
+
+Final render commands (default output is the recorder's unchanged 960×540 resolution):
+
+```sh
+node scripts/record-path.mjs B 30 video/water.json video/frames/water
+ffmpeg -y -framerate 30 -i video/frames/water/%05d.jpg -vf scale=in_range=full:out_range=limited -color_range tv -c:v libx264 -crf 20 -pix_fmt yuv420p -movflags +faststart video/water.mp4
+```
+
+The final `video/water.mp4` is complete: **601 frames, 30 fps, 20.033 s, 960×540, H.264 / yuv420p**, with fast-start metadata. The explicit range conversion preserves the full-range JPEG capture appearance in standard limited-range H.264; the initial exact encoding command inherited JPEG's full-range flag. All 601 source JPEGs and the complete MP4 decode were verified. The software capture took 808.695 s; `shots/water_v2/render-info.json` retains the backend/timing record. Final contact sheet: `shots/water_v2/final_contact.jpg`. Consecutive 30 fps samples at the opening, shore and waterline were visually inspected (`motion_start.jpg`, `motion_shore.jpg`, `motion_waterline.jpg`).
+
+### Remaining limitations
+
+This is an analytical lagoon approximation, not a fluid solver: breakers do not overturn into tubes or throw particle spray, and foam does not collide with individual props. Bottom refraction/caustics are procedural, so submerged models are not refracted through a scene-depth buffer. Reflections remain planar with a bounded ray approximation; steep nearshore waves and grazing views can reveal stretching, and the existing stylized clouds/landforms remain visible in reflections. Wet-sand drying is a deterministic cyclic approximation, not an accumulated physical moisture simulation. The unchanged sand tessellation can reveal minor water-film contact errors at distant/coarse shoreline sections. Real RTX profiling remains outstanding.
