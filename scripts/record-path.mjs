@@ -1,14 +1,14 @@
 // 依 video/path.json 的鏡頭路徑逐格算繪某一組 → video/frames/<group>/%05d.jpg
-// 用法：node scripts/record-path.mjs <A|B|C> [fps 覆寫，預覽用]
+// 用法：node scripts/record-path.mjs <A|B|C> [fps 覆寫，預覽用] [路徑檔，預設 video/path.json] [輸出資料夾]
 // 逐格設定相機與水面時間，與即時效能無關；用本機 GPU（ANGLE gl-egl）算繪。
 import { chromium } from 'playwright-core';
 import { mkdir, readFile, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 const group = process.argv[2];
 if (!['A', 'B', 'C'].includes(group)) throw new Error('Usage: node scripts/record-path.mjs <A|B|C> [fps]');
-const path = JSON.parse(await readFile('video/path.json', 'utf8'));
+const path = JSON.parse(await readFile(process.argv[4] || 'video/path.json', 'utf8'));
 const fps = Number(process.argv[3] || path.fps);
-const out = `video/frames/${group}`;
+const out = process.argv[5] || `video/frames/${group}`;
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
 const browser = await chromium.launch({
