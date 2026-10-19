@@ -1,0 +1,47 @@
+{
+  "total": {
+    "codex1": 7.6,
+    "codex2": 7.63,
+    "opus": 8.1,
+    "tripo": 8.5,
+    "library": 4.6
+  },
+  "rankings": [
+    [
+      "tripo",
+      "opus",
+      "codex1",
+      "codex2",
+      "library"
+    ],
+    [
+      "tripo",
+      "opus",
+      "codex1",
+      "codex2",
+      "library"
+    ],
+    [
+      "opus",
+      "tripo",
+      "codex2",
+      "codex1",
+      "library"
+    ],
+    [
+      "tripo",
+      "opus",
+      "codex2",
+      "codex1",
+      "library"
+    ],
+    [
+      "tripo",
+      "opus",
+      "codex1",
+      "codex2",
+      "library"
+    ]
+  ],
+  "cost_usd": 0.41
+}
