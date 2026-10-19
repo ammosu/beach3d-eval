@@ -80,7 +80,8 @@
     <figure><img src="assets/hut_B.jpg" alt="Tripo 茅草高腳屋"><figcaption class="c-tripo">Tripo：茅草高腳屋</figcaption></figure>
     <figure><img src="assets/hut_C.jpg" alt="素材庫木板屋"><figcaption class="c-library">素材庫：木板屋</figcaption></figure>
   </div>
-  <div class="src">兩位評審平均（1–10 分）；素材庫低分主因：找不到符合需求的模型</div>
+  <p class="lead" id="props-cost" style="text-align:center"></p>
+  <div class="src">兩位評審平均（1–10 分）；素材庫低分主因：找不到符合需求的模型；費用為 API 換算（Tripo 為實付點數）</div>
 </section>
 
 <section class="slide">
@@ -91,7 +92,7 @@
     <figure><figcaption class="c-opus">Opus 5.5</figcaption><img src="assets/model_M3.jpg" alt="Opus 版本"></figure>
   </div>
   <div class="chart" id="models-chart"></div>
-  <div class="src">整個場景盲評（codex 評審 3 輪，1–10 分）；同一份需求、同一套流程</div>
+  <div class="src">整個場景盲評（codex 評審 3 輪，1–10 分）；API 換算費用：codex 以一般費率計（實際用 fast 跑，費率加倍），Opus 依 claude 回報；實際皆走訂閱額度</div>
 </section>
 
 <section class="slide">
@@ -119,7 +120,7 @@
 
 <script>
 // 分數取自 data.json（與影片同一份）；用 file:// 開啟時讀不到就用內嵌備份
-const FALLBACK = {"props": [{"key": "tripo", "codex": 8.57, "opus": 8.5, "avg": 8.54}, {"key": "opus", "codex": 8.3, "opus": 8.1, "avg": 8.2}, {"key": "codex2", "codex": 8.67, "opus": 7.63, "avg": 8.15}, {"key": "codex1", "codex": 7.97, "opus": 7.6, "avg": 7.79}, {"key": "library", "codex": 5.77, "opus": 4.6, "avg": 5.18}], "models": [{"key": "opus", "score": 8.58, "minutes": 119, "cost": "$26.35"}, {"key": "codex2", "score": 7.88, "minutes": 33, "cost": "訂閱額度"}, {"key": "codex1", "score": 7.08, "minutes": 44, "cost": "訂閱額度"}]};
+const FALLBACK = {"props": [{"key": "tripo", "codex": 8.57, "opus": 8.5, "avg": 8.54, "api_usd": 1.4}, {"key": "opus", "codex": 8.3, "opus": 8.1, "avg": 8.2, "api_usd": 6.04}, {"key": "codex2", "codex": 8.67, "opus": 7.63, "avg": 8.15, "api_usd": 3.51}, {"key": "codex1", "codex": 7.97, "opus": 7.6, "avg": 7.79, "api_usd": 2.87}, {"key": "library", "codex": 5.77, "opus": 4.6, "avg": 5.18, "api_usd": 0}], "models": [{"key": "opus", "score": 8.58, "minutes": 119, "api_usd": 26.35}, {"key": "codex2", "score": 7.88, "minutes": 33, "api_usd": 17.94}, {"key": "codex1", "score": 7.08, "minutes": 44, "api_usd": 18.65}]};
 const NAMES = {tripo: 'Tripo AI', opus: 'Opus 寫程式', codex2: 'codex 寫程式（高推理）', codex1: 'codex 寫程式（低推理）', library: '免費素材庫'};
 const MODEL_NAMES = {opus: 'Opus 5.5', codex2: 'codex（GPU＋高推理）', codex1: 'codex（沙箱＋低推理）'};
 const COLOR = {tripo: 'var(--tripo)', opus: 'var(--opus)', codex2: 'var(--codex)', codex1: 'var(--codex)', library: 'var(--library)'};
@@ -134,8 +135,10 @@ function chart(el, rows, value, name, hi, note) {
 }
 function render(d) {
   chart(document.getElementById('props-chart'), d.props, r => r.avg, r => NAMES[r.key], ['tripo', 'opus', 'codex2', 'library']);
+  document.getElementById('props-cost').textContent = '8 件物件 API 換算費用：' +
+    d.props.map(r => `${NAMES[r.key]} $${r.api_usd.toFixed(2)}`).join('、');
   chart(document.getElementById('models-chart'), d.models, r => r.score, r => MODEL_NAMES[r.key], ['opus', 'codex2'],
-        r => `${r.minutes} 分鐘`);
+        r => `${r.minutes} 分鐘${r.key === 'opus' ? '' : '（fast）'}・API 換算 $${r.api_usd.toFixed(2)}`);
 }
 fetch('data.json').then(r => r.json()).then(render).catch(() => render(FALLBACK));
 
