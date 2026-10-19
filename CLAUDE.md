@@ -90,6 +90,10 @@ There is no lint or unit-test setup. Verification means running the Playwright s
   - Missing clip poses (sit, lie, paddle, climb) are procedural bone aiming.
   - Gotcha: an `update(0)` call must not `restore()` bones. three.js `PropertyMixer` skips writing unchanged values, so the rest pose would stay on screen in offline recordings.
   - Walk/run playback is time-scaled to measured clip stride so feet don't slide.
+- **Tide-pool quest (6th game quest).** `src/game/lagoon.js` opens the Reef Lagoon in a full-screen iframe: `reef/opus/` for groups A and C, `reef/tripo_lagoon/` for B.
+  - The lagoon files are not edited. The parent polls the same-origin `window.__reef.creatures`; a species counts once a thrown or re-grabbed creature reaches `state==='entry'`.
+  - `vite.config.js` copies `reef/` into `dist/`.
+  - While the overlay is open, `game.suspended` skips the beach render.
 - **Game camera collision** uses BVH (`three-mesh-bvh`) copies of the real prop triangles. Player and ball collision use conservative AABBs.
 
 ## Conventions and gotchas

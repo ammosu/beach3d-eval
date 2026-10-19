@@ -17,3 +17,12 @@
 .game-mode button{-webkit-tap-highlight-color:transparent}.game-paused #game{visibility:hidden}.game-paused #explore .hud{display:none}
 
 .game-mode #character-stats{display:block;font-size:10px;line-height:1.5;margin-top:4px;color:#e4f2ec}.game-mode #game-audio{top:165px}@media(max-width:700px){.game-mode #game-audio{top:130px}.game-mode #character-stats{font-size:9px}}
+/* 潮池：全螢幕 iframe 的 Reef Lagoon，上方一條任務列 */
+#lagoon{position:fixed;inset:0;z-index:60;background:#0b2a36}#lagoon iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.lagoon-bar{position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:16px;padding:9px 12px 9px 18px;background:#f6fcfdef;color:#123d56;border-radius:5px 18px 5px 5px;box-shadow:0 3px 22px #0b2a3640;font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;font-size:13px;white-space:nowrap}
+.lagoon-bar strong{font-size:14px;margin-right:8px}.lagoon-bar #lagoon-count{font-variant-numeric:tabular-nums;color:#5e7c88}
+.lagoon-bar ol{display:flex;gap:6px;list-style:none;margin:0;padding:0}.lagoon-bar li{padding:3px 7px;border-radius:6px;background:#e3eef1;color:#5e7c88}.lagoon-bar li kbd{font:inherit;font-size:10px;margin-right:3px;opacity:.7}
+.lagoon-bar li.done{background:#126b8a;color:#fff}.lagoon-bar li.done kbd{opacity:.9}
+.lagoon-bar button{font:inherit;font-weight:700;cursor:pointer;border:0;border-radius:8px;padding:7px 12px;background:#e3eef1;color:#123d56}.lagoon-bar button kbd{font:inherit;font-size:10px;opacity:.6}
+#lagoon.complete .lagoon-bar button{background:#ffe398;animation:lagoon-pulse 1.4s ease-in-out infinite}@keyframes lagoon-pulse{50%{box-shadow:0 0 0 6px #ffe39866}}
+@media (max-width:900px){.lagoon-bar{flex-wrap:wrap;white-space:normal;justify-content:center;width:94vw;gap:8px}.lagoon-bar ol{flex-wrap:wrap;justify-content:center}}

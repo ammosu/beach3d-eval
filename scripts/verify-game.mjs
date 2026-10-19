@@ -23,6 +23,13 @@ try{
  await at(targets.ball[0],targets.ball[2]+3);await page.keyboard.down('KeyW');await step(.6);await page.keyboard.up('KeyW');await shot('B_walking-ball');await at(targets.ball[0],targets.ball[2]+1.3);await e();await step(4);assert((await page.evaluate(()=>window.__GAME__.state)).ball,'ball must reach deep water');await at(-4,-12);await shot('ball');
  await at(targets.umbrella[0],targets.umbrella[2]);await e();await step(2);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'rest');assert((await page.evaluate(()=>window.__GAME__.state)).lounger);await shot('lounger');await e();
  await at(targets.lifeguard[0],targets.lifeguard[2]);await e();await step(2);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'tower');assert((await page.evaluate(()=>window.__GAME__.state)).tower);await shot('tower');await e();
+ // Tide pool: the Reef Lagoon iframe opens, every species released into the water ticks the quest, and the back button returns on foot.
+ await at(targets.lagoon[0],targets.lagoon[2]);await e();assert.equal(await page.evaluate(()=>window.__GAME__.mode),'lagoon');
+ await page.waitForFunction(()=>document.querySelector('#lagoon iframe').contentWindow.__reef,null,{timeout:120000});
+ for(let i=0;i<7;i++){await page.evaluate(i=>document.querySelector('#lagoon iframe').contentWindow.__reef.throwFromCard(i),i);await page.waitForTimeout(400);}
+ await page.waitForFunction(()=>window.__GAME__.state.lagoon,null,{timeout:180000});assert.equal((await page.evaluate(()=>window.__GAME__.state)).released,7);
+ await page.screenshot({path:`${output}/lagoon.png`});console.log('shot lagoon');
+ await page.click('#lagoon-back');await step(.5);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'walk');assert(await page.locator('#lagoon').isHidden());
  await at(targets.boat[0],targets.boat[2]);await e();await step(1);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'boat');
  // An attempted early disembark at sea must be rejected. All travel uses W
  // physics, including acceleration, depth restrictions, and wave pose.
