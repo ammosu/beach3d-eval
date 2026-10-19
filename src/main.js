@@ -9,6 +9,8 @@ import { groundHeight } from './terrain.js';
 import { addCoastDetails } from './coast.js';
 import { propRoot, loadProps } from './props.js';
 const params=new URLSearchParams(location.search);
+const gaming=location.pathname.endsWith('/game.html');
+if(gaming){params.set('explore','1');params.delete('cam');if(!params.has('group'))params.set('group','B');}
 const comparing=location.pathname.endsWith('/compare.html');
 if(comparing){params.set('explore','1');params.delete('cam');}
 const renderer=new THREE.WebGLRenderer({antialias:true});
@@ -52,10 +54,11 @@ const exploreEnabled=params.get('explore')==='1'&&!params.has('cam');
 let controls;if(!exploreEnabled&&!params.has('cam')){controls=new OrbitControls(camera,renderer.domElement);controls.target.fromArray(view.target);controls.maxPolarAngle=Math.PI*.48;controls.minDistance=2;controls.maxDistance=180;controls.enableDamping=true;}
 const composer=new EffectComposer(renderer);composer.addPass(new RenderPass(scene,camera));composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.035,.4,3.0));composer.addPass(new OutputPass());
 const comparison=comparing?await (await import('./compare.js')).createComparison({scene,camera,renderer,composer,config,results,initialGroup:params.get('group')||'A'}):null;
-const explore=exploreEnabled?(await import('./explore.js')).createExplore({scene,camera,renderer,config,results,group:params.get('group')||'A',auto:params.get('auto')==='1',comparison:comparing}):null;
-let lastFrame=performance.now();
+const explore=exploreEnabled?(await import('./explore.js')).createExplore({scene,camera,renderer,config,results,group:params.get('group')||'A',auto:params.get('auto')==='1',comparison:comparing,gameMode:gaming}):null;
+const game=gaming?await (await import('./game/index.js')).createGame({scene,camera,renderer,water,config,explore,auto:params.get('auto')==='1'}):null;
+let lastFrame=performance.now(),lastWaterTime=water.material.uniforms.time.value;
 comparison?.connect(explore);
 const clock=new THREE.Clock();const fixed=params.has('time')?Number(params.get('time')):null;
-function frame(){requestAnimationFrame(frame);water.material.uniforms.time.value=window.__TIME__??fixed??clock.getElapsedTime();controls?.update();const now=performance.now();explore?.update((now-lastFrame)/1000);lastFrame=now;if(comparison)comparison.render();else composer.render();}frame();
+function frame(){requestAnimationFrame(frame);water.material.uniforms.time.value=window.__TIME__??fixed??clock.getElapsedTime();controls?.update();const now=performance.now();const gameDt=Math.max(0,Math.min(.1,water.material.uniforms.time.value-lastWaterTime));explore?.update(gaming?gameDt:(now-lastFrame)/1000);game?.update(gameDt,water.material.uniforms.time.value);lastWaterTime=water.material.uniforms.time.value;lastFrame=now;if(comparison)comparison.render();else composer.render();}frame();
 window.__SCENE__={scene,camera,water,propRoot,results,renderer};window.__READY__=true;
 addEventListener('resize',()=>{if(comparison){comparison.resize();return;}camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);});

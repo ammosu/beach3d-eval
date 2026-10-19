@@ -1,0 +1,23 @@
+{
+  "state": {
+    "shells": 8,
+    "ball": true,
+    "lounger": true,
+    "tower": true,
+    "boat": true,
+    "island": true,
+    "footprints": 6
+  },
+  "elapsed": 81.00802878150733,
+  "errors": [],
+  "checks": [
+    "all quests",
+    "boat round trip",
+    "early disembark blocked",
+    "restart",
+    "ABC keys",
+    "CPU waves seek",
+    "mobile joystick and interaction",
+    "missing assets"
+  ]
+}

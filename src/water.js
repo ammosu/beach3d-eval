@@ -253,3 +253,30 @@ export function shadeSand(material,timeUniform) {
    #include <opaque_fragment>`);
  };
 }
+
+// CPU mirror of the existing vertex field. No shader or rendering changes.
+// Caller owns `out`; hot-path queries allocate nothing. Horizontal Gerstner
+// displacement is inverted so a hull at world X/Z meets the rendered surface.
+const waveComponents = [[.22,1,.29,19,.5],[-.38,1,.16,11.3,2.4],[.72,.69,.085,6.7,4.1],[-.81,.59,.045,3.8,1.1]].map(([x,z,a,l,p])=>{const n=Math.hypot(x,z),k=6.283185/l;return [x/n,z/n,a,k,Math.sqrt(9.81*k),p];});
+const smooth=(a,b,v)=>{const u=Math.max(0,Math.min(1,(v-a)/(b-a)));return u*u*(3-2*u);};
+const fract=v=>v-Math.floor(v);
+function hashWater(x,z){let a=fract(x*.1031),b=fract(z*.1030),c=fract(x*.0973);const d=a*(b+33.33)+b*(c+33.33)+c*(a+33.33);a+=d;b+=d;c+=d;return fract((a+b)*c);}
+function noiseWater(x,z){const i=Math.floor(x),j=Math.floor(z),u=smooth(0,1,fract(x)),v=smooth(0,1,fract(z));return (hashWater(i,j)*(1-u)+hashWater(i+1,j)*u)*(1-v)+(hashWater(i,j+1)*(1-u)+hashWater(i+1,j+1)*u)*v;}
+export function swashReach(x,t){const u=fract((t*1.36+.42*Math.sin(x*.105)+.19*Math.sin(x*.29)-1.10)/6.283185);return -.35+(2.4+.45*Math.sin(x*.19)+.22*Math.sin(x*.57))*smooth(0,.28,u)*(1-smooth(.28,1,u));}
+function waterField(x,z,t,out){
+ const coast=shore(x)-z,scale=smooth(0,16,coast)*(.68+.32*smooth(15,90,coast))*(1-smooth(100,550,coast))*(1-smooth(140,500,Math.abs(x)));
+ let ox=0,oz=0,y=.035;
+ for(let i=0;i<4;i++){const w=waveComponents[i],f=w[3]*(w[0]*x+w[1]*z)-w[4]*t+w[5],a=w[2]*scale;ox+=.62*a*w[0]*Math.cos(f);oz+=.62*a*w[1]*Math.cos(f);y+=a*Math.sin(f);}
+ const ph=coast*.68+t*1.36+.42*Math.sin(x*.105)+.19*Math.sin(x*.29),envelope=smooth(0,2.2,coast)*(1-smooth(13,30,coast));
+ y+=(Math.sin(ph)+.32*Math.sin(2*ph))*.29*envelope;
+ const crest=Math.exp(-((Math.atan2(Math.sin(ph-1.10),Math.cos(ph-1.10))/.50)**2));
+ y+=(noiseWater(x*2.3,z*2.3-t*.65)-.5)*.07*crest*envelope;
+ y=Math.max(y,-Math.max(coast,0)*.12+.025);
+ const d=-coast;if(d>-.15){const beach=.75*(1-Math.exp(-Math.max(d,0)/32))+.34*Math.exp(-(((d-5.2)/2.2)**2)),sheet=beach+.012+.018*smooth(0,1,swashReach(x,t)-d);y+=(sheet-y)*smooth(-.15,.12,d);}
+ out.x=x+ox;out.z=z+oz;out.height=y;
+}
+function waterHeightAt(x,z,t,out){let u=x,v=z;for(let i=0;i<4;i++){waterField(u,v,t,out);u+=x-out.x;v+=z-out.z;}waterField(u,v,t,out);return out.height;}
+export function sampleWater(x,z,t,out){
+ const h=waterHeightAt(x,z,t,out),hx=waterHeightAt(x+.06,z,t,out),hz=waterHeightAt(x,z+.06,t,out),nx=(h-hx)/.06,nz=(h-hz)/.06,n=Math.hypot(nx,1,nz);
+ out.x=x;out.z=z;out.height=h;out.nx=nx/n;out.ny=1/n;out.nz=nz/n;return out;
+}
