@@ -27,7 +27,7 @@ def tripo_credits():
     p = ROOT / "assets" / "tripo" / "log.csv"
     if not p.exists():
         return ""
-    rows = [r for r in csv.DictReader(p.open()) if r["credits"]]
+    rows = [r for r in csv.DictReader(p.open()) if r["credits"] and not r["slot"].startswith("character")]
     main = sum(float(r["credits"]) for r in rows if "__" not in r["slot"])
     trial = sum(float(r["credits"]) for r in rows if "__" in r["slot"])
     return f"{main:.0f}（另試生成 {trial:.0f}）" if rows else ""

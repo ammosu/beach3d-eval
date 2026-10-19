@@ -8,3 +8,10 @@ time,slot,task_id,status,seconds,credits,file
 2026-10-19T02:38:15,umbrella,330238ff-4ea6-496f-9643-4597e36ff01e,TaskStatus.SUCCESS,158,20.0,/home/cw/git_project/beach3d-eval/assets/tripo/umbrella.glb
 2026-10-19T02:40:28,driftwood,7403b1e1-8b82-4df7-bb52-51b5388e69a2,TaskStatus.SUCCESS,127,20.0,/home/cw/git_project/beach3d-eval/assets/tripo/driftwood.glb
 2026-10-19T02:43:11,lifeguard,e5cae4f8-4991-40d2-9d8e-4e9c8f6b36b7,TaskStatus.SUCCESS,158,20.0,/home/cw/git_project/beach3d-eval/assets/tripo/lifeguard.glb
+2026-10-19T12:41:06,character:model,7620c213-780e-4d75-a622-4160bd5ae629,success,97,20,
+2026-10-19T12:41:29,character:rig,a05918ee-144c-430e-b5b6-c514597b60aa,success,19,25,
+2026-10-19T12:41:41,character:anim_idle,82b853b3-2629-41ac-accd-5e233fb3d6e3,success,10,10,
+2026-10-19T12:41:55,character:anim_walk,0cbb154d-5091-454e-9708-b1bedcadfb74,success,10,10,
+2026-10-19T12:42:04,character:anim_run,34b621d0-a897-4a97-92c4-2d6e616c93cc,success,5,10,
+2026-10-19T12:42:16,character:anim_jump,942cd9a5-cca7-47fd-8007-f1aa92f77232,success,9,10,
+2026-10-19T12:42:24,character:anim_climb,bd310a94-3e5e-424b-b088-d5f831b47d91,success,5,10,

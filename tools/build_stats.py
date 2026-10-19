@@ -45,7 +45,7 @@ credits, trial = 0.0, 0.0
 log = ROOT / "assets/tripo/log.csv"
 if log.exists():
     for r in csv.DictReader(log.open()):
-        if not r["credits"]:
+        if not r["credits"] or r["slot"].startswith("character"):
             continue
         if "__" in r["slot"]:
             trial += float(r["credits"])
