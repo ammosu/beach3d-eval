@@ -1,0 +1,62 @@
+{
+ "props": [
+  {
+   "key": "tripo",
+   "codex": 8.57,
+   "opus": 8.5,
+   "avg": 8.54
+  },
+  {
+   "key": "opus",
+   "codex": 8.3,
+   "opus": 8.1,
+   "avg": 8.2
+  },
+  {
+   "key": "codex2",
+   "codex": 8.67,
+   "opus": 7.63,
+   "avg": 8.15
+  },
+  {
+   "key": "codex1",
+   "codex": 7.97,
+   "opus": 7.6,
+   "avg": 7.79
+  },
+  {
+   "key": "library",
+   "codex": 5.77,
+   "opus": 4.6,
+   "avg": 5.18
+  }
+ ],
+ "props_source": "eval_props/scores.json（codex 評審 5 輪）＋scores_opus_judge.json（Opus 評審 5 輪）",
+ "models": [
+  {
+   "key": "opus",
+   "score": 8.58,
+   "minutes": 119,
+   "cost": "$26.35"
+  },
+  {
+   "key": "codex2",
+   "score": 7.88,
+   "minutes": 33,
+   "cost": "訂閱額度"
+  },
+  {
+   "key": "codex1",
+   "score": 7.08,
+   "minutes": 44,
+   "cost": "訂閱額度"
+  }
+ ],
+ "models_source": "eval_models/scores.json（codex 評審 3 輪）；耗時 timing.csv",
+ "tripo": {
+  "credits_props": 140,
+  "credits_char": 95,
+  "char_minutes": 2.6,
+  "usd_per_credit": 0.01
+ }
+}

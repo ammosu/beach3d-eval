@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 做 3D 海邊場景：驗證結果</title>
+<style>
+  :root {
+    --bg: #0b0d10; --fg: #f2f2f2; --muted: #a8adb4; --grey: #bbbbbb;
+    --codex: #F0963C; --tripo: #4696F0; --library: #5ABE6E; --opus: #966EDC;
+    font-family: "Noto Sans CJK TC", "Noto Sans TC", "PingFang TC", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); overflow: hidden; }
+  .slide { position: absolute; inset: 0; display: none; flex-direction: column; justify-content: center;
+           padding: 5vh 6vw 9vh; gap: 3vh; }
+  .slide.on { display: flex; }
+  h1 { font-size: clamp(28px, 4.4vw, 60px); margin: 0; line-height: 1.25; }
+  h2 { font-size: clamp(22px, 3vw, 40px); margin: 0; }
+  .lead { font-size: clamp(16px, 1.7vw, 24px); color: var(--muted); margin: 0; }
+  .row { display: flex; gap: 1.6vw; justify-content: center; align-items: flex-start; }
+  figure { margin: 0; flex: 1; text-align: center; min-width: 0; }
+  figure img { width: 100%; border-radius: 6px; display: block; }
+  figcaption { font-weight: 700; font-size: clamp(14px, 1.5vw, 22px); margin: .6em 0; }
+  .c-codex { color: var(--codex); } .c-tripo { color: var(--tripo); }
+  .c-library { color: var(--library); } .c-opus { color: var(--opus); }
+  .chart { display: grid; grid-template-columns: max-content 1fr; gap: 1.6vh 1.2vw; align-items: center;
+           max-width: 1100px; width: 100%; margin: 0 auto; }
+  .chart .name { text-align: right; color: var(--grey); font-size: clamp(14px, 1.5vw, 22px); }
+  .chart .name.hi { color: var(--fg); font-weight: 700; }
+  .track { display: flex; align-items: center; gap: .8em; }
+  .bar { height: clamp(18px, 3.4vh, 34px); background: var(--grey); opacity: .55; border-radius: 3px; }
+  .bar.hi { opacity: 1; }
+  .val { font-weight: 700; font-size: clamp(14px, 1.6vw, 24px); white-space: nowrap; }
+  .note { color: var(--muted); font-weight: 400; margin-left: .6em; }
+  .boxes { display: flex; gap: 2vw; justify-content: center; }
+  .box { flex: 1; max-width: 360px; border: 3px solid; border-radius: 14px; padding: 3vh 1.5vw; text-align: center; }
+  .box b { display: block; font-size: clamp(24px, 3vw, 44px); margin-bottom: .4em; }
+  .box span { font-size: clamp(15px, 1.6vw, 24px); }
+  .src { position: absolute; left: 6vw; bottom: 3.2vh; font-size: 13px; color: #7d838b; }
+  .pager { position: absolute; right: 3vw; bottom: 3vh; color: #7d838b; font-size: 14px; }
+  .nav { position: absolute; top: 0; bottom: 0; width: 18vw; cursor: pointer; }
+  .nav.prev { left: 0; } .nav.next { right: 0; }
+  @media (max-width: 700px) { .row, .boxes { flex-direction: column; align-items: stretch; } .slide { overflow-y: auto; justify-content: flex-start; } .src { position: static; } }
+</style>
+</head>
+<body>
+
+<section class="slide">
+  <h1>沒有 Tripo，AI 做的 3D 場景<br>真的就做不好嗎？</h1>
+  <div class="row">
+    <figure><figcaption class="c-codex">沒有 Tripo（AI 寫程式）</figcaption><img src="assets/close_A.jpg" alt="AI 寫程式的海灘近景"></figure>
+    <figure><figcaption class="c-tripo">有 Tripo</figcaption><img src="assets/close_B.jpg" alt="Tripo 物件的海灘近景"></figure>
+  </div>
+</section>
+
+<section class="slide">
+  <h2>同一個海灘場景，只換 8 件物件的來源</h2>
+  <div class="row">
+    <figure style="flex:1.6"><img src="assets/wide_B.jpg" alt="共用的海灘場景"></figure>
+    <figure><img src="assets/boat_A.jpg" alt="AI 寫程式的小船"><figcaption class="c-codex">AI 寫程式</figcaption></figure>
+    <figure><img src="assets/boat_B.jpg" alt="Tripo 生成的小船"><figcaption class="c-tripo">Tripo 生成</figcaption></figure>
+    <figure><img src="assets/boat_C.jpg" alt="素材庫的小船"><figcaption class="c-library">免費素材庫</figcaption></figure>
+  </div>
+  <p class="lead">8 件物件共用同一份需求；水、天空、沙灘、光線完全相同。</p>
+</section>
+
+<section class="slide">
+  <h2>兩位 AI 評審，匿名盲評</h2>
+  <div class="row"><figure style="max-width:62vw"><img src="assets/props_grid_anon.jpg" alt="匿名物件總表，五個來源各一列"></figure></div>
+  <p class="lead">評審：codex、Opus；來源換成代號、每輪輪換順序，各 5 輪取平均。</p>
+</section>
+
+<section class="slide">
+  <h2>物件盲評：Tripo 第一，AI 寫程式只差 0.3 分</h2>
+  <div class="chart" id="props-chart"></div>
+  <div class="row" style="max-width:1100px;margin:0 auto">
+    <figure><img src="assets/umb_B.jpg" alt="Tripo 草編傘"><figcaption class="c-tripo">Tripo：草編傘＋躺椅</figcaption></figure>
+    <figure><img src="assets/umb_C.jpg" alt="素材庫彩色布傘"><figcaption class="c-library">素材庫：彩色布傘</figcaption></figure>
+    <figure><img src="assets/hut_B.jpg" alt="Tripo 茅草高腳屋"><figcaption class="c-tripo">Tripo：茅草高腳屋</figcaption></figure>
+    <figure><img src="assets/hut_C.jpg" alt="素材庫木板屋"><figcaption class="c-library">素材庫：木板屋</figcaption></figure>
+  </div>
+  <div class="src">兩位評審平均（1–10 分）；素材庫低分主因：找不到符合需求的模型</div>
+</section>
+
+<section class="slide">
+  <h2>真正拉開差距的，是寫整個場景的 AI</h2>
+  <div class="row">
+    <figure><figcaption class="c-codex">codex（沙箱＋低推理）</figcaption><img src="assets/model_M1.jpg" alt="codex 低推理版本"></figure>
+    <figure><figcaption class="c-codex">codex（GPU＋高推理）</figcaption><img src="assets/model_M2.jpg" alt="codex 高推理版本"></figure>
+    <figure><figcaption class="c-opus">Opus 5.5</figcaption><img src="assets/model_M3.jpg" alt="Opus 版本"></figure>
+  </div>
+  <div class="chart" id="models-chart"></div>
+  <div class="src">整個場景盲評（codex 評審 3 輪，1–10 分）；同一份需求、同一套流程</div>
+</section>
+
+<section class="slide">
+  <h2>角色是 Tripo 的強項：3 分鐘生成＋自動綁骨架</h2>
+  <div class="row"><figure style="max-width:70vw"><img src="assets/chars_crop.jpg" alt="三組角色並排"></figure></div>
+  <div class="row" style="max-width:70vw;margin:0 auto">
+    <figure><figcaption class="c-codex">codex 寫程式</figcaption></figure>
+    <figure><figcaption class="c-tripo">Tripo（95 點）</figcaption></figure>
+    <figure><figcaption class="c-library">素材庫（CC0）</figcaption></figure>
+  </div>
+</section>
+
+<section class="slide">
+  <h2>建議分工</h2>
+  <div class="boxes">
+    <div class="box" style="border-color:var(--codex)"><b class="c-codex">codex</b><span>寫場景、介面、互動<br>快、走訂閱額度</span></div>
+    <div class="box" style="border-color:var(--tripo)"><b class="c-tripo">Tripo</b><span>角色、主角物件<br>約 $0.01／點</span></div>
+    <div class="box" style="border-color:var(--opus)"><b class="c-opus">Opus</b><span>最後收尾<br>品質最好、最慢</span></div>
+  </div>
+  <p class="lead" style="text-align:center">免費素材庫只補「有現成且符合需求」的配角。</p>
+</section>
+
+<div class="nav prev" onclick="go(-1)"></div><div class="nav next" onclick="go(1)"></div>
+<div class="pager" id="pager"></div>
+
+<script>
+// 分數取自 data.json（與影片同一份）；用 file:// 開啟時讀不到就用內嵌備份
+const FALLBACK = {"props": [{"key": "tripo", "codex": 8.57, "opus": 8.5, "avg": 8.54}, {"key": "opus", "codex": 8.3, "opus": 8.1, "avg": 8.2}, {"key": "codex2", "codex": 8.67, "opus": 7.63, "avg": 8.15}, {"key": "codex1", "codex": 7.97, "opus": 7.6, "avg": 7.79}, {"key": "library", "codex": 5.77, "opus": 4.6, "avg": 5.18}], "models": [{"key": "opus", "score": 8.58, "minutes": 119, "cost": "$26.35"}, {"key": "codex2", "score": 7.88, "minutes": 33, "cost": "訂閱額度"}, {"key": "codex1", "score": 7.08, "minutes": 44, "cost": "訂閱額度"}]};
+const NAMES = {tripo: 'Tripo AI', opus: 'Opus 寫程式', codex2: 'codex 寫程式（高推理）', codex1: 'codex 寫程式（低推理）', library: '免費素材庫'};
+const MODEL_NAMES = {opus: 'Opus 5.5', codex2: 'codex（GPU＋高推理）', codex1: 'codex（沙箱＋低推理）'};
+const COLOR = {tripo: 'var(--tripo)', opus: 'var(--opus)', codex2: 'var(--codex)', codex1: 'var(--codex)', library: 'var(--library)'};
+
+function chart(el, rows, value, name, hi, note) {
+  el.innerHTML = rows.map(r => {
+    const on = hi.includes(r.key);
+    return `<div class="name${on ? ' hi' : ''}">${name(r)}</div>
+      <div class="track"><div class="bar${on ? ' hi' : ''}" style="width:${value(r) * 8}%;${on ? 'background:' + COLOR[r.key] : ''}"></div>
+      <span class="val">${value(r).toFixed(1)}${note ? `<span class="note">${note(r)}</span>` : ''}</span></div>`;
+  }).join('');
+}
+function render(d) {
+  chart(document.getElementById('props-chart'), d.props, r => r.avg, r => NAMES[r.key], ['tripo', 'opus', 'codex2', 'library']);
+  chart(document.getElementById('models-chart'), d.models, r => r.score, r => MODEL_NAMES[r.key], ['opus', 'codex2'],
+        r => `${r.minutes} 分鐘`);
+}
+fetch('data.json').then(r => r.json()).then(render).catch(() => render(FALLBACK));
+
+const slides = [...document.querySelectorAll('.slide')];
+let i = Math.max(0, Math.min(slides.length - 1, (parseInt(location.hash.slice(1)) || 1) - 1));
+function show() {
+  slides.forEach((s, k) => s.classList.toggle('on', k === i));
+  document.getElementById('pager').textContent = `${i + 1} / ${slides.length}`;
+  history.replaceState(null, '', '#' + (i + 1));
+}
+function go(n) { i = Math.max(0, Math.min(slides.length - 1, i + n)); show(); }
+addEventListener('keydown', e => {
+  if (['ArrowRight', 'PageDown', ' ', 'Enter'].includes(e.key)) go(1);
+  if (['ArrowLeft', 'PageUp', 'Backspace'].includes(e.key)) go(-1);
+});
+show();
+</script>
+</body>
+</html>
