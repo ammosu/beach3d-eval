@@ -13,4 +13,5 @@ build() {  # $1=來源資料夾 $2=輸出名稱
 build "$here" main
 build "$git/beach3d-codex2" codex2
 build "$git/beach3d-opus" opus
+for w in codex opus; do mkdir -p "$out/reef/$w" && cp "$here/reef/$w/index.html" "$out/reef/$w/"; done   # Reef Lagoon 單檔，由 8730 直接提供
 du -sh "$out"/*

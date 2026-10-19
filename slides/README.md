@@ -8,6 +8,7 @@ python3 start.py      # 只需要 Python 3；會自動開 http://localhost:8730
 - 8731：主版本（遊戲模式、三欄比較、遊覽、角色並排、單件檢視）
 - 8732：codex 高推理版本的場景
 - 8733：Opus 5.5 版本的場景
+- 8730/live/reef/{codex,opus}/：Reef Lagoon 延伸測試的兩個單檔版本（需連網載入 Three.js）
 
 直接雙擊 index.html 也能看投影片與影片，但試玩頁需要先執行 `start.py`（瀏覽器不允許用 file:// 載入 3D 模組與模型）。
 

@@ -152,6 +152,35 @@
 </section>
 
 <section class="slide">
+  <h2>延伸測試：同一份 prompt，從零寫出互動潟湖</h2>
+  <div class="row" style="max-width:60vw;margin:0 auto">
+    <figure><figcaption class="c-codex">codex（高推理）・11 分 37 秒</figcaption><img src="assets/reef_throw_codex.jpg" alt="codex 版 Reef Lagoon：丟入四種生物後"></figure>
+    <figure><figcaption class="c-opus">Opus 5.5・33 分 24 秒・$7.47</figcaption><img src="assets/reef_throw_opus.jpg" alt="Opus 版 Reef Lagoon：丟入四種生物後"></figure>
+  </div>
+  <div class="row" style="max-width:60vw;margin:0 auto">
+    <figure><img src="assets/reef_rain_codex.jpg" alt="codex 版：下雨加漩渦"></figure>
+    <figure><img src="assets/reef_rain_opus.jpg" alt="Opus 版：下雨加漩渦"></figure>
+  </div>
+  <div class="src">「Reef Lagoon」：約 1.2 萬字元的 prompt，單一 HTML＋Three.js r128；俯視潟湖，7 種海洋生物各有不同的入水方式。上：丟入四種生物後；下：下雨＋漩渦</div>
+</section>
+
+<section class="slide">
+  <h2>Reef Lagoon：同一時間、同一組按鍵</h2>
+  <div class="row"><figure style="max-width:84vw"><video src="assets/reef_compare.mp4" muted loop playsinline preload="auto"></video></figure></div>
+  <div class="src">虛擬時鐘逐格推進：兩邊的時間、亂數種子、按鍵時間表完全相同（開場 → 1–7 丟入生物 → 下雨 → 漩渦）</div>
+</section>
+
+<section class="slide">
+  <h2>Reef Lagoon：各有所長，都漏了同一條</h2>
+  <div class="boxes">
+    <div class="box" style="border-color:var(--codex)"><b class="c-codex">codex</b><span>快約 3 倍<br>生物斑紋、胸鰭清楚<br>介面精緻<br><span style="color:var(--muted)">水色淺、少深度感<br>漩渦幾乎看不到</span></span></div>
+    <div class="box" style="border-color:var(--opus)"><b class="c-opus">Opus</b><span>水由淺綠到深藍<br>漩渦螺旋泡沫明顯<br>座頭鯨拍水有白色水簾<br><span style="color:var(--muted)">生物較素<br>深水中較難辨認</span></span></div>
+  </div>
+  <p class="lead" style="text-align:center"><span class="warn">兩邊都沒做到：prompt 要求暖色珊瑚（赭／紫／黃），結果都以墨綠為主。</span><br>寫清楚能保證架構與數值；外觀細節仍要靠截圖驗收、再要求修正。</p>
+  <div class="src">兩邊都只參考 prompt，沒用外部模型或素材；錄影與截圖腳本在 reef/</div>
+</section>
+
+<section class="slide">
   <h2>建議分工</h2>
   <div class="boxes">
     <div class="box" style="border-color:var(--codex)"><b class="c-codex">codex</b><span>寫場景、介面、互動<br>快 3.6 倍、額度寬裕</span></div>
@@ -216,6 +245,8 @@ const LIVE = [
   [8731, 'props.html?group=B', '單件物件檢視', '8 件物件逐一旋轉，切換 A／B／C 來源', 'var(--library)'],
   [8732, '', 'codex（高推理）的場景', '同一份需求、推理強度 high 做出的整個場景（可拖曳旋轉）', 'var(--codex)'],
   [8733, '', 'Opus 5.5 的場景', '同一份需求、Opus 做出的整個場景（可拖曳旋轉）', 'var(--opus)'],
+  [8730, 'live/reef/codex/', 'Reef Lagoon（codex）', '點卡片丟生物入水、拖曳、抓起再丟；R 下雨、W 漩渦（需連網載入 Three.js）', 'var(--codex)'],
+  [8730, 'live/reef/opus/', 'Reef Lagoon（Opus）', '同一份 prompt 的 Opus 版；操作相同，X 清除', 'var(--opus)'],
 ];
 const host = location.protocol === 'file:' ? 'localhost' : location.hostname;
 document.getElementById('live-cards').innerHTML = LIVE.map(([port, path, title, desc, c]) =>
