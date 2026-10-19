@@ -1,0 +1,11 @@
+time,id,task_id,status,seconds,file
+2026-10-19T18:48:08,shark,c731c96b-0103-4a4c-8efa-f5da1d770a4e,TaskStatus.SUCCESS,148,/home/cw/git_project/beach3d-eval/reef/tripo/raw/shark.glb
+2026-10-19T18:48:17,hammerhead,c2580bff-c8bd-4338-aa8a-192822c72635,TaskStatus.SUCCESS,158,/home/cw/git_project/beach3d-eval/reef/tripo/raw/hammerhead.glb
+2026-10-19T18:48:18,humpback,49884e3f-f199-417f-9557-f0254121b2a2,TaskStatus.SUCCESS,158,/home/cw/git_project/beach3d-eval/reef/tripo/raw/humpback.glb
+2026-10-19T18:48:16,orca,3bffa35d-160e-4bf9-afad-88a9dfb219e4,TaskStatus.SUCCESS,157,/home/cw/git_project/beach3d-eval/reef/tripo/raw/orca.glb
+2026-10-19T18:48:13,dolphin,c3bc267f-5369-486c-937d-ccab08353567,TaskStatus.SUCCESS,153,/home/cw/git_project/beach3d-eval/reef/tripo/raw/dolphin.glb
+2026-10-19T18:48:19,turtle,3990d97f-cd06-478b-bb7a-120ffcb1114e,TaskStatus.SUCCESS,159,/home/cw/git_project/beach3d-eval/reef/tripo/raw/turtle.glb
+2026-10-19T18:48:14,manta,7759ea19-f2f0-4511-b7da-e0b56bb036a9,TaskStatus.SUCCESS,154,/home/cw/git_project/beach3d-eval/reef/tripo/raw/manta.glb
+2026-10-19T18:53:55,hammerhead,fa6054f0-a960-44e1-996c-6b225110b799,TaskStatus.SUCCESS,102,/home/cw/git_project/beach3d-eval/reef/tripo/raw/hammerhead.glb
+2026-10-19T18:56:22,hammerhead_b,5ebc05c4-3c99-4a4e-a5c3-c2daa576bf6e,TaskStatus.SUCCESS,111,/home/cw/git_project/beach3d-eval/reef/tripo/raw/hammerhead_b.glb
+2026-10-19T18:56:16,hammerhead_c,cefe7637-6dd4-4ade-a1ab-b7bb479cb805,TaskStatus.SUCCESS,106,/home/cw/git_project/beach3d-eval/reef/tripo/raw/hammerhead_c.glb

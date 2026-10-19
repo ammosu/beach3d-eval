@@ -14,4 +14,5 @@ build "$here" main
 build "$git/beach3d-codex2" codex2
 build "$git/beach3d-opus" opus
 for w in codex opus; do mkdir -p "$out/reef/$w" && cp "$here/reef/$w/index.html" "$out/reef/$w/"; done   # Reef Lagoon 單檔，由 8730 直接提供
+mkdir -p "$out/reef/tripo" && cp -r "$here/reef/tripo_lagoon/index.html" "$here/reef/tripo_lagoon/models" "$out/reef/tripo/"   # Tripo 模型版
 du -sh "$out"/*

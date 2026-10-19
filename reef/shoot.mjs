@@ -1,7 +1,7 @@
 // 用法：node shoot.mjs <codex|opus> <port>  → shots/<who>-{start,throw,rain,mobile}.png
 import { chromium } from '../node_modules/playwright-core/index.mjs';
-const [who, port] = process.argv.slice(2);
-const url = `http://127.0.0.1:${port}/index.html`;
+const [who, port, sub] = process.argv.slice(2);
+const url = `http://127.0.0.1:${port}/${sub || "index.html"}`;
 const browser = await chromium.launch({ executablePath: `${process.env.HOME}/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome`,
   args: ['--use-gl=angle', '--use-angle=gl-egl', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
 const errs = [];

@@ -1,0 +1,38 @@
+[
+ {
+  "id": "shark",
+  "prompt": "A great white shark, realistic, slate-grey back with a ragged countershading line to a white belly, gill slits, tall triangular dorsal fin, large swept pectoral fins, crescent tail with longer upper lobe, mouth closed, body perfectly straight, full body, isolated, no base, no stand"
+ },
+ {
+  "id": "hammerhead",
+  "prompt": "A great hammerhead shark swimming level, realistic, smooth bronze-grey skin with a pale white belly, wide flat T-shaped cephalofoil head with an eye at each tip, very tall sickle-shaped dorsal fin, pectoral fins below the body, long tail with tall upper lobe, body perfectly straight and horizontal, full body side view, clean smooth surface, isolated, no base, no stand"
+ },
+ {
+  "id": "humpback",
+  "prompt": "A humpback whale, realistic, near-black back, mottled white belly with throat pleats, knobs on the head, very long scalloped white pectoral flippers spread out to the sides, small dorsal hump, serrated tail flukes spread flat, body perfectly straight, full body, isolated, no base, no stand"
+ },
+ {
+  "id": "orca",
+  "prompt": "An orca killer whale, realistic, glossy black with white eye patch, white chin and belly, white flank patch, grey saddle patch behind a towering dorsal fin, paddle-shaped pectoral fins, tail flukes spread flat, body perfectly straight, full body, isolated, no base, no stand"
+ },
+ {
+  "id": "dolphin",
+  "prompt": "A bottlenose dolphin, realistic, short beak and rounded melon forehead, dark grey cape on the back, lighter grey flanks and pale belly, curved dorsal fin, tail flukes spread flat, body perfectly straight, full body, isolated, no base, no stand"
+ },
+ {
+  "id": "turtle",
+  "prompt": "A green sea turtle, realistic, domed olive-brown shell with clear scute pattern and amber streaks, pale yellow belly plate, scaly head, long front flippers spread out to the sides, small rear flippers, swimming pose seen from above, full body, isolated, no base, no stand"
+ },
+ {
+  "id": "manta",
+  "prompt": "A giant oceanic manta ray, realistic, diamond-shaped swept-back wings spread completely flat, black top with white shoulder chevron markings, white belly with dark spots, curled horn-like cephalic fins at the mouth, thin whip tail, full body, isolated, no base, no stand"
+ },
+ {
+  "id": "hammerhead_b",
+  "prompt": "A hammerhead shark (Sphyrna mokarran), realistic, its head is a very wide flat T-shaped hammer about three times wider than the body, with one eye at each far end of the hammer, bronze-grey back and white belly, very tall sickle dorsal fin, body perfectly straight and horizontal, full body, isolated, no base, no stand"
+ },
+ {
+  "id": "hammerhead_c",
+  "prompt": "Great hammerhead shark with an extremely wide hammer-shaped head, the hammer spans left and right like a wing, eyes on the tips of the hammer, smooth grey-bronze skin, white underside, tall curved dorsal fin, swimming straight, realistic, full body, isolated, no base"
+ }
+]

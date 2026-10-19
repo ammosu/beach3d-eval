@@ -181,6 +181,13 @@
 </section>
 
 <section class="slide">
+  <h2>同一個潟湖，生物換成 Tripo 模型</h2>
+  <div class="row"><figure style="max-width:84vw"><video src="assets/reef_tripo.mp4" muted loop playsinline preload="auto"></video></figure></div>
+  <p class="lead" style="text-align:center">7 件 140 點，槌頭鯊重做 3 次才有槌狀頭，共 200 點（約 $2）；魚類不能自動綁骨，沿用 shader 的身體波動。</p>
+  <div class="src">左：Opus 程序化生物；右：Opus 場景＋Tripo v3.1 模型（Blender 減到 1.6 萬面、轉正、正規化）；水、行為、入水方式完全相同</div>
+</section>
+
+<section class="slide">
   <h2>建議分工</h2>
   <div class="boxes">
     <div class="box" style="border-color:var(--codex)"><b class="c-codex">codex</b><span>寫場景、介面、互動<br>快 3.6 倍、額度寬裕</span></div>
@@ -247,6 +254,7 @@ const LIVE = [
   [8733, '', 'Opus 5.5 的場景', '同一份需求、Opus 做出的整個場景（可拖曳旋轉）', 'var(--opus)'],
   [8730, 'live/reef/codex/', 'Reef Lagoon（codex）', '點卡片丟生物入水、拖曳、抓起再丟；R 下雨、W 漩渦（需連網載入 Three.js）', 'var(--codex)'],
   [8730, 'live/reef/opus/', 'Reef Lagoon（Opus）', '同一份 prompt 的 Opus 版；操作相同，X 清除', 'var(--opus)'],
+  [8730, 'live/reef/tripo/', 'Reef Lagoon（Tripo 模型）', 'Opus 版場景，7 種生物換成 Tripo 生成的模型', 'var(--tripo)'],
 ];
 const host = location.protocol === 'file:' ? 'localhost' : location.hostname;
 document.getElementById('live-cards').innerHTML = LIVE.map(([port, path, title, desc, c]) =>

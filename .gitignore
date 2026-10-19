@@ -7,3 +7,4 @@ assets/tripo/*__*.glb
 video/frames/
 video/*.mp4
 __pycache__/
+reef/tripo/raw/
