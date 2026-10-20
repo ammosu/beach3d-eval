@@ -9,10 +9,10 @@ try{
  await page.goto('http://localhost:5191/scene.html?explore=1&auto=1');await page.waitForFunction(()=>window.__READY__);await page.click('#begin');
  await page.keyboard.press('Space');assert(await page.evaluate(async()=>{const e=window.__EXPLORE__,y=e.player.y;e.update(.05);return e.player.y>y;}));
  await page.evaluate(()=>{for(let i=0;i<100;i++)window.__EXPLORE__.update(1/60);});
- // Approach the boat directly. Collision must stop the player before its expanded box.
+ // Approach the boat directly. Collision (real geometry at body height) must stop the player at the hull, not pass through.
  await page.evaluate(async()=>{const e=window.__EXPLORE__,b=e.colliders.find(c=>c.id==='boat').box;const {groundHeight}=await import('/src/terrain.js');e.player.set((b.min.x+b.max.x)/2,0,b.max.z+2);e.player.y=groundHeight(e.player.x,e.player.z);});
  await page.keyboard.down('KeyW');await page.evaluate(()=>{for(let i=0;i<150;i++)window.__EXPLORE__.update(1/60);});await page.keyboard.up('KeyW');
- assert(await page.evaluate(()=>{const e=window.__EXPLORE__,b=e.colliders.find(c=>c.id==='boat').box;return e.player.z>=b.max.z+.31;}));
+ assert(await page.evaluate(()=>{const e=window.__EXPLORE__,b=e.colliders.find(c=>c.id==='boat').box;return e.player.z<b.max.z+1.9&&e.player.z>(b.min.z+b.max.z)/2&&e.clearance(e.player.x,e.player.z)>=.25;}));
  await page.click('[data-group=B]');await page.waitForFunction(()=>!window.__EXPLORE__.busy&&window.__EXPLORE__.group==='B');assert.match(await page.locator('#stats').textContent(),/8 個素材/);
  await page.evaluate(async()=>{await Promise.all([window.__EXPLORE__.switchGroup('C'),window.__EXPLORE__.switchGroup('A')]);});await page.waitForFunction(()=>!window.__EXPLORE__.busy&&window.__EXPLORE__.group==='A');
  assert.equal(await page.evaluate(()=>window.__SCENE__.propRoot.children.length),8);

@@ -101,7 +101,8 @@ There is no lint or unit-test setup. Verification means running the Playwright s
   - Tide-pool hooks: `__TIDEPOOL__` (`found`, `done`, `species`, `stones`, `group`; with `?auto=1` also `lift(i)`, `observe(id)`, `step(s)`, `project`), `__READY__`, `?time=`, `?muted=1`, `?found=`. `step(0)` freezes the iframe clock for recording.
   - Creature models follow the group: A procedural (`src/tidepool/creatures.js`), B `assets/tidepool/B/<id>.glb` (Tripo), C `assets/tidepool/C/<id>.glb` (Sketchfab/Poly Pizza, CC BY, credits in `CREDITS.md`). A missing GLB falls back to A per species.
   - GLBs are normalized with `reef/tripo/prep.py <in> <out> <preview> [tris] [rot] base`: head +X, base at y=0, longest horizontal extent 1. `species.js` `display` sets the on-screen size, shared by all groups.
-- **Game camera collision** uses BVH (`three-mesh-bvh`) copies of the real prop triangles. Player and ball collision use conservative AABBs.
+- **Collision.** The game camera uses BVH (`three-mesh-bvh`) copies of the real prop triangles. The player (`src/explore.js`) is blocked by prop geometry 0.12–1.85 m above the sand, rasterised into 0.2 m cells (body radius 0.26). Ball, boat and camera-probe collision still use the whole-prop AABBs in `colliders`.
+- **Gait and footprints.** Walking downhill stays ground-snapped (`airborne` means a real jump). While moving, locomotion wins over one-shot poses. B/C clips are time-scaled to the measured clip speed (cap 5×). A's procedural gait matches its swing amplitude to speed. Footprints are stamped at the foot plants (`character.steps`).
 
 ## Conventions and gotchas
 

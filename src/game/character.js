@@ -65,19 +65,21 @@ export async function createCharacter(group='A'){
  const rest=new Map(allBones.map(b=>[b,{q:b.quaternion.clone(),p:b.position.clone(),s:b.scale.clone()}]));
  // Each clip's own ground speed (in place): sample the feet over one cycle; stride ≈ peak foot separation,
  // two steps per cycle. Playback is later scaled to the avatar's real speed so the feet don't slide.
- const nativeSpeed={};
+ // The same sweep finds each foot's plant: the phase where it is lowest and furthest forward (heel strike).
+ const nativeSpeed={},contact={};
  for(const name of ['walk','run']){const action=actions.get(name),feet=rig.foot;if(!action||!feet?.[0]||!feet?.[1])continue;
-  const duration=action.getClip().duration,a=V(),b=V();let sep=0;idle?.stop();action.reset().play();
-  for(let k=0;k<=24;k++){action.time=duration*k/24;mixer.update(0);root.updateMatrixWorld(true);feet[0].getWorldPosition(a);feet[1].getWorldPosition(b);sep=Math.max(sep,Math.hypot(a.x-b.x,a.z-b.z));}
-  action.stop();nativeSpeed[name]=2*sep/duration;}
+  const duration=action.getClip().duration,a=V(),b=V(),samples=[[],[]];let sep=0;idle?.stop();action.reset().play();
+  for(let k=0;k<48;k++){action.time=duration*k/48;mixer.update(0);root.updateMatrixWorld(true);feet[0].getWorldPosition(a);feet[1].getWorldPosition(b);sep=Math.max(sep,Math.hypot(a.x-b.x,a.z-b.z));samples[0].push([a.y,a.z]);samples[1].push([b.y,b.z]);}
+  action.stop();nativeSpeed[name]=2*sep/duration;
+  contact[name]=samples.map(list=>{const low=Math.min(...list.map(v=>v[0])),high=Math.max(...list.map(v=>v[0]));let best=0,score=-Infinity;list.forEach(([y,z],k)=>{const s=z-(y-low)/(high-low||1)*sep*2;if(y-low<(high-low)*.35&&s>score){score=s;best=k;}});return best/48;});}
  idle?.reset().play();mixer.update(0);for(const [bone,r] of rest){bone.quaternion.copy(r.q);bone.position.copy(r.p);bone.scale.copy(r.s);}root.updateMatrixWorld(true);
  // Directions expressed in each bone's local frame make procedural poses portable
  // across the three rigs' different bone rolls and coordinate systems.
  const axes=new Map(),q=new T.Quaternion(),parentQ=new T.Quaternion(),turn=new T.Quaternion(),dir=V(),from=V(),to=V();
  function axis(b,end){if(!b)return;const a=end?end.getWorldPosition(V()).sub(b.getWorldPosition(V())):V(0,1,0);axes.set(b,a.normalize().applyQuaternion(b.getWorldQuaternion(new T.Quaternion()).invert()));}
  for(let i=0;i<2;i++){axis(rig.thigh[i],rig.calf[i]);axis(rig.calf[i],source==='C'?rig.calf[i]?.children[0]:rig.foot[i]);axis(rig.arm[i],rig.fore[i]);axis(rig.fore[i],rig.hand[i]);}axis(rig.spine,rig.head);
- const hipY=rig.hip?.getWorldPosition(V()).y??.91;
- let posed=false,active='idle',age=0,actionAge=0,oneShot='',oneAge=0,opacity=1;
+ const hipY=rig.hip?.getWorldPosition(V()).y??.91,legLength=rig.thigh?.[0]&&rig.foot?.[0]?rig.thigh[0].getWorldPosition(V()).distanceTo(rig.foot[0].getWorldPosition(V())):hipY*.9;
+ let posed=false,active='idle',age=0,actionAge=0,oneShot='',oneAge=0,opacity=1,lastPhase=null,stride=0;const steps=[];
  const previousPose=new Map(allBones.map(b=>[b,{q:b.quaternion.clone(),p:b.position.clone()}]));
  const poseRotation=new T.Quaternion(),posePosition=V(),bodyRotation=new T.Quaternion(),bodyPosition=V(),headWorld=V();
  function aim(b,x,y,z,weight=1){if(!b||!axes.has(b))return;b.updateWorldMatrix(true,false);b.getWorldQuaternion(q);from.copy(axes.get(b)).applyQuaternion(q);dir.set(x,y,z).normalize().applyQuaternion(root.getWorldQuaternion(parentQ));turn.setFromUnitVectors(from,dir);q.premultiply(turn);b.parent.getWorldQuaternion(parentQ).invert();q.premultiply(parentQ);b.quaternion.slerp(q,weight);b.updateWorldMatrix(false,true);}
@@ -89,16 +91,26 @@ export async function createCharacter(group='A'){
   // the rest pose on screen: three.js PropertyMixer skips writing values that did not change since its last apply.
   if(!dt&&posed&&!animation)return;posed=true;
   age+=dt;actionAge+=dt;oneAge+=dt;if(oneAge>.85)oneShot='';
-  const selected=animation??(pose==='climb'?'climb':pose==='paddle'?'paddle':pose==='lie'?'lie':pose==='sit'||pose==='sand'?'sit':airborne?'jump':oneShot||(speed>3.4?'run':speed>.12?'walk':'idle'));
+  // While moving, locomotion wins: a pickup only layers its arm reach on top, a kick is skipped.
+  const gait=speed>3.4?'run':speed>.12?'walk':'idle',layered=gait!=='idle'&&oneShot==='interact'&&!animation;
+  const selected=animation??(pose==='climb'?'climb':pose==='paddle'?'paddle':pose==='lie'?'lie':pose==='sit'||pose==='sand'?'sit':airborne?'jump':gait!=='idle'?gait:oneShot||gait);
   play(selected);
-  if(nativeSpeed[selected]&&!animation)actions.get(selected).setEffectiveTimeScale(T.MathUtils.clamp(speed/nativeSpeed[selected],.5,3.5));
+  if(nativeSpeed[selected]&&!animation)actions.get(selected).setEffectiveTimeScale(T.MathUtils.clamp(speed/nativeSpeed[selected],.5,5));
   restore();mixer.update(dt);
+  // Foot plants: report each foot whose contact phase the clip passed this frame.
+  steps.length=0;const clipAction=actions.get(selected);
+  if(contact[selected]&&clipAction&&dt){const phase=(clipAction.time/clipAction.getClip().duration)%1;if(lastPhase!==null&&lastPhase[0]===selected){const from=lastPhase[1];contact[selected].forEach((c,i)=>{if(phase>=from?c>from&&c<=phase:c>from||c<=phase)steps.push(i);});}lastPhase=[selected,phase];}else lastPhase=null;
+  if(layered){const w=Math.sin(Math.PI*Math.min(oneAge/.85,1));for(let i=0;i<2;i++){const sign=i?1:-1;aim(rig.arm[i],sign*.2,-.6,.9,w);aim(rig.fore[i],0,-.3,1,w);}}
   const proceduralPose=!actions.has(selected),seated=selected==='sit'||selected==='paddle',lying=selected==='lie';
   // Reset the outer transform before posing. All anatomical directions are avatar-local.
   pivot.position.set(0,0,0);pivot.quaternion.identity();root.updateMatrixWorld(true);
   if(proceduralPose){
-   const gait=selected==='run'?1:selected==='walk'?.62:0,cycle=age*(selected==='run'?12:8),swing=Math.sin(cycle)*gait;
-   for(let i=0;i<2;i++){const sign=i?1:-1,s=i?swing:-swing;let thigh=[0,-Math.cos(s),Math.sin(s)],calf=[0,-1,Math.max(0,-s)*.7],arm=[sign*.15,-1,-s*.7],fore=[0,-1,.12];
+   // Procedural gait (no clip): fixed cadence; the stance leg stays straight and its amplitude is matched to speed so
+   // the foot sweeps back at ground speed as it passes under the hip (leg·amplitude·ω = speed). That moment is the plant.
+   const rate=selected==='run'?10:selected==='walk'?7:0,gait=rate?T.MathUtils.clamp(speed/(legLength*rate),.15,1.1):0;
+   if(rate&&dt){const before=stride;stride+=rate*dt;if(Math.floor(stride/Math.PI)!==Math.floor(before/Math.PI))steps.push(Math.floor(stride/Math.PI)%2?1:0);}
+   const cycle=rate?stride:age*8,swing=Math.sin(cycle)*gait;
+   for(let i=0;i<2;i++){const sign=i?1:-1,s=i?swing:-swing,stance=rate&&(i?Math.cos(cycle):-Math.cos(cycle))<0;let thigh=[0,-Math.cos(s),Math.sin(s)],calf=stance?thigh:[0,-1,Math.max(0,-s)*.7],arm=[sign*.15,-1,-s*.7],fore=[0,-1,.12];
     if(seated){thigh=[0,-.12,1];calf=pose==='sand'?[0,-.05,1]:[0,-1,.08];arm=[sign*.3,-1,.45];fore=[0,-.15,1];if(selected==='paddle'){arm=[sign*.4,-.4,.8+Math.sin(age*6+i)*.5];fore=[sign*.25,-.2,.9];}}
     if(lying){thigh=[0,-1,0];calf=[0,-1,.05];arm=[sign*.14,-1,0];fore=[0,-1,.08];}
     if(selected==='jump'){thigh=[0,-1,.45];calf=[0,-.8,-.5];arm=[sign*.3,.2,.9];fore=[0,.8,.3];}
@@ -125,7 +137,8 @@ export async function createCharacter(group='A'){
   root.updateMatrixWorld(true);
  }
  function info(){return {group,source:CHARACTER_SOURCES[source],fallback,triangles,clips:clips.map(c=>c.name),animation:active,actionTime:actionAge,skinnedMeshes:meshes.filter(m=>m.isSkinnedMesh).length,bones:allBones.length,height:1.75,headHidden:rig.head?.scale.x<.01,poseSample:rig.thigh.map(b=>b?.quaternion.toArray()),clipTime:actions.get(active)?.time??null,footSep:rig.foot?.[0]&&rig.foot?.[1]?rig.foot[0].getWorldPosition(V()).distanceTo(rig.foot[1].getWorldPosition(V())):null,calfSep:rig.calf?.[0]&&rig.calf?.[1]?rig.calf[0].getWorldPosition(V()).distanceTo(rig.calf[1].getWorldPosition(V())):null,nativeSpeed,timeScale:actions.get(active)?.getEffectiveTimeScale()??null};}
+ function footWorld(i,out=V()){return rig.foot?.[i]?rig.foot[i].getWorldPosition(out):null;}
  function head(out=headWorld){return rig.head?rig.head.getWorldPosition(out):out.copy(root.position).add(V(0,1.6,0));}
  update(0);
- return {root,update,trigger,info,head,mixer,rig,meshes,dispose(){mixer.stopAllAction();mixer.uncacheRoot(model);disposeModel(model);root.removeFromParent();},animations:[...new Set(['idle','walk','run','jump','climb','sit','lie','paddle','kick','interact',...actions.keys()])]};
+ return {root,update,trigger,info,head,footWorld,steps,get plants(){return !!contact[active]||!actions.has(active)&&(active==='walk'||active==='run');},mixer,rig,meshes,dispose(){mixer.stopAllAction();mixer.uncacheRoot(model);disposeModel(model);root.removeFromParent();},animations:[...new Set(['idle','walk','run','jump','climb','sit','lie','paddle','kick','interact',...actions.keys()])]};
 }
