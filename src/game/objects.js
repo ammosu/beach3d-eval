@@ -37,12 +37,15 @@ export function createObjects(scene, timeUniform, config) {
  function burst(x,y,z,t){const b=bursts[burstIndex++%4];b.x=x;b.y=y;b.z=z;b.born=t;}
  function footprint(x,z,yaw,t,exact=false){const i=footIndex++%128,side=exact?0:footIndex%2?-.13:.13;feet[i].x=x+Math.cos(yaw)*side;feet[i].z=z-Math.sin(yaw)*side;dummy.position.set(feet[i].x,groundHeight(feet[i].x,feet[i].z)+.026,feet[i].z);dummy.rotation.set(0,yaw,0);dummy.scale.set(.105,1,.22);dummy.updateMatrix();footprints.setMatrixAt(i,dummy.matrix);born[i]=t;life[i]=20;footprintGeo.attributes.born.needsUpdate=true;footprintGeo.attributes.life.needsUpdate=true;footprints.instanceMatrix.needsUpdate=true;}
  function update(t){
-  for(let i=0;i<8;i++){const item=items[i],age=t-item.born,picking=item.collected&&age>=0&&age<.65;dummy.position.set(item.x,item.y+(picking?Math.sin(age/.65*Math.PI)*.8:0),item.z);dummy.rotation.set(0,i*1.7,0);dummy.scale.setScalar(item.collected?(picking?1-age/.65:0):1);dummy.updateMatrix();(i%2?stars:shells).setMatrixAt(Math.floor(i/2),dummy.matrix);dummy.position.y=item.y+.025;if(item.y<.04){sampleWater(item.x,item.z,t,wave);dummy.position.y=Math.max(dummy.position.y,wave.height+.04);}dummy.rotation.set(-Math.PI/2,0,0);dummy.scale.setScalar(item.collected?0:1);dummy.updateMatrix();glow.setMatrixAt(i,dummy.matrix);}
+  for(let i=0;i<8;i++){const item=items[i],age=t-item.born,picking=item.collected&&age>=0&&age<.65;dummy.position.set(item.x,item.y+(picking?Math.sin(age/.65*Math.PI)*.8:0),item.z);dummy.rotation.set(0,i*1.7,0);dummy.scale.setScalar(item.collected?(picking?1-age/.65:0):1);
+   // A shell in the hand follows it (set by the game's pickup).
+   if(item.held){dummy.position.copy(item.held);dummy.position.y-=.03;dummy.scale.setScalar(.32);}
+   dummy.updateMatrix();(i%2?stars:shells).setMatrixAt(Math.floor(i/2),dummy.matrix);dummy.position.y=item.y+.025;if(item.y<.04){sampleWater(item.x,item.z,t,wave);dummy.position.y=Math.max(dummy.position.y,wave.height+.04);}dummy.rotation.set(-Math.PI/2,0,0);dummy.scale.setScalar(item.collected?0:1);dummy.updateMatrix();glow.setMatrixAt(i,dummy.matrix);}
   shells.instanceMatrix.needsUpdate=stars.instanceMatrix.needsUpdate=glow.instanceMatrix.needsUpdate=true;
   for(let i=0;i<48;i++){const b=bursts[Math.floor(i/12)],age=t-b.born,a=i*2.399;dummy.position.set(b.x+Math.cos(a)*age,b.y+age*2.3-age*age,b.z+Math.sin(a)*age);dummy.rotation.set(age,age,age);dummy.scale.setScalar(age>=0&&age<.9?1-age/.9:0);dummy.updateMatrix();sparkle.setMatrixAt(i,dummy.matrix);}sparkle.instanceMatrix.needsUpdate=true;
   let washed=false;for(let i=0;i<128;i++){if(t-born[i]<life[i]&&feet[i].z-shore(feet[i].x)<swashReach(feet[i].x,t)){life[i]=Math.min(life[i],Math.max(.15,t-born[i])+.55);washed=true;}}if(washed)footprintGeo.attributes.life.needsUpdate=true;
  }
- function reset(){for(const item of items){item.collected=false;item.born=-100;}for(const b of bursts)b.born=-100;born.fill(-100);life.fill(20);footprintGeo.attributes.born.needsUpdate=footprintGeo.attributes.life.needsUpdate=true;footIndex=0;}
+ function reset(){for(const item of items){item.collected=false;item.born=-100;item.held=null;}for(const b of bursts)b.born=-100;born.fill(-100);life.fill(20);footprintGeo.attributes.born.needsUpdate=footprintGeo.attributes.life.needsUpdate=true;footIndex=0;}
  return {root,items,ball,halo,burst,footprint,update,reset};
 }
 

@@ -18,11 +18,11 @@ try{
  await page.keyboard.down('KeyW');await step(1.5);await page.keyboard.up('KeyW');assert((await page.evaluate(()=>window.__GAME__.state)).footprints>0);
  const targets=await page.evaluate(()=>window.__GAME__.targets());console.log('targets',JSON.stringify(targets));
  await at(targets.shells[0].x,targets.shells[0].z+1);await shot('shells');
- for(const shell of targets.shells){await at(shell.x,shell.z+.8);await e();await step(.75);}
+ for(const shell of targets.shells){await at(shell.x,shell.z+.8);await e();await step(1.3);}
  assert.equal((await page.evaluate(()=>window.__GAME__.state)).shells,8);
  await at(targets.ball[0],targets.ball[2]+3);await page.keyboard.down('KeyW');await step(.6);await page.keyboard.up('KeyW');await shot('B_walking-ball');await at(targets.ball[0],targets.ball[2]+1.3);await e();await step(4);assert((await page.evaluate(()=>window.__GAME__.state)).ball,'ball must reach deep water');await at(-4,-12);await shot('ball');
  await at(targets.umbrella[0],targets.umbrella[2]);await e();await step(2);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'rest');assert((await page.evaluate(()=>window.__GAME__.state)).lounger);await shot('lounger');await e();
- await at(targets.lifeguard[0],targets.lifeguard[2]);await e();await step(2);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'tower');assert((await page.evaluate(()=>window.__GAME__.state)).tower);await shot('tower');await e();
+ await at(targets.lifeguard[0],targets.lifeguard[2]);await e();await step(5.5);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'tower');assert((await page.evaluate(()=>window.__GAME__.state)).tower);await shot('tower');await e();await step(5.5);
  // The rock pool records six small intertidal species, with progress surviving iframe unload.
  await at(targets.tidepool[0],targets.tidepool[2]);await e();assert.equal(await page.evaluate(()=>window.__GAME__.mode),'tidepool');
  await page.waitForFunction(()=>document.querySelector('#lagoon iframe').contentWindow.__READY__,null,{timeout:120000});
@@ -71,16 +71,16 @@ try{
   await page.keyboard.press('Space');await step(.12);assert.equal((await page.evaluate(()=>window.__GAME__.character)).animation,'jump');await step(.9);
   characterChecks.push(info);
   for(const [id,name] of [['umbrella','lounger'],['lifeguard','tower'],['boat','boat']]){
-   await page.evaluate(id=>{const g=window.__GAME__,p=g.targets()[id];g.teleport(p[0],p[2]);g.step(.2);g.interact();g.step(.4);if(id==='lifeguard'&&g.character.animation!=='climb')throw Error('Ladder did not animate');g.step(1.6);},id);
+   await page.evaluate(id=>{const g=window.__GAME__,p=g.targets()[id];g.teleport(p[0],p[2]);g.step(.2);g.interact();g.step(.4);if(id==='lifeguard'&&g.character.animation!=='climb')throw Error('Ladder did not animate');g.step(id==="lifeguard"?5.3:1.6);},id);
    const contact=await page.evaluate(()=>window.__GAME__.contact());console.log('contact',group,name,JSON.stringify(contact));assert(contact,`${group}/${id}`);assert(contact.inside,`${group}/${id} outside prop bounds`);assert(Math.abs(contact.gap)<.1,`${group}/${id} contact gap ${contact.gap}`);if(group!=='C'||id!=='umbrella')assert(contact.real,`${group}/${id} must hit source geometry`);
    if(id==='lifeguard')for(const foot of contact.feet)assert(Math.abs(foot[1]-contact.contactY)<.15,`${group} foot not on deck: ${foot[1]-contact.contactY}`);
    contacts.push({group,...contact});if(id!=='boat'||group==='B')await shot(`${group}_${name}`);
-   await e();await step(.25);
+   await e();await step(id==="lifeguard"?5.5:.25);
   }
  }
  await page.keyboard.press('KeyV');await step(.1);assert(await page.evaluate(()=>window.__EXPLORE__.first&&window.__GAME__.character.headHidden));await page.keyboard.press('KeyV');await step(.1);assert.equal(await page.evaluate(()=>window.__GAME__.character.headHidden),false);
  await page.evaluate(()=>{const g=window.__GAME__,p=g.targets().ball;g.teleport(p[0],p[2]+1.3);g.interact();g.step(.12);});assert.equal((await page.evaluate(()=>window.__GAME__.character)).animation,'kick');await step(1);
- await page.evaluate(()=>{const g=window.__GAME__,p=g.targets().shells[0];g.teleport(p.x,p.z+.8);g.interact();g.step(.12);});assert.equal((await page.evaluate(()=>window.__GAME__.character)).animation,'interact');await step(1);
+ await page.evaluate(()=>{const g=window.__GAME__,p=g.targets().shells[0];g.teleport(p.x,p.z+.8);g.interact();g.step(.35);});assert.equal((await page.evaluate(()=>window.__GAME__.character)).animation,'interact');await step(1);
  // With dt frozen, neither clips nor procedural poses advance.
  const frozen=await page.evaluate(()=>{const g=window.__GAME__,before=g.character;g.step(0);return [before,g.character];});assert.deepEqual(frozen[0],frozen[1]);
  // Exercise the shoreline and positions within broad foliage bounds: never collapse the boom.
@@ -92,7 +92,7 @@ try{
  await page.close();
  const mobile=await browser.newPage({viewport:{width:390,height:844},hasTouch:true,isMobile:true});monitor(mobile);await mobile.goto('http://localhost:5191/game.html?auto=1&time=4');await mobile.waitForFunction(()=>window.__READY__);await mobile.tap('#begin');
  const before=await mobile.evaluate(()=>window.__EXPLORE__.player.z);await mobile.locator('#stick').dispatchEvent('pointerdown',{pointerId:1,clientX:75,clientY:680});await mobile.locator('#stick').dispatchEvent('pointermove',{pointerId:1,clientX:75,clientY:635});await mobile.evaluate(()=>window.__GAME__.step(1));await mobile.locator('#stick').dispatchEvent('pointerup',{pointerId:1});assert((await mobile.evaluate(()=>window.__EXPLORE__.player.z))<before-1);
- await mobile.evaluate(()=>{const g=window.__GAME__,s=g.targets().shells[0];g.teleport(s.x,s.z+.8);g.step(.5);});await mobile.tap('#interact');assert.equal((await mobile.evaluate(()=>window.__GAME__.state)).shells,1);await mobile.evaluate(()=>window.__GAME__.step(1));await mobile.screenshot({path:`${output}/mobile.png`});assert(await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await mobile.close();
+ await mobile.evaluate(()=>{const g=window.__GAME__,s=g.targets().shells[0];g.teleport(s.x,s.z+.8);g.step(.5);});await mobile.tap('#interact');await mobile.evaluate(()=>window.__GAME__.step(1.3));assert.equal((await mobile.evaluate(()=>window.__GAME__.state)).shells,1);await mobile.evaluate(()=>window.__GAME__.step(1));await mobile.screenshot({path:`${output}/mobile.png`});assert(await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await mobile.close();
  // Missing meshes still expose every slot interaction and a usable boat.
  const missing=await browser.newPage({viewport:{width:800,height:600}});monitor(missing,true);await missing.route('**/assets/tripo/*.glb',r=>r.fulfill({status:404,body:'unavailable'}));await missing.route('**/assets/character/*.glb',r=>r.fulfill({status:404,body:'unavailable'}));await missing.goto('http://localhost:5191/game.html?auto=1&time=4');await missing.waitForFunction(()=>window.__READY__);await missing.click('#begin');assert.equal(await missing.evaluate(()=>window.__GAME__.character.fallback),true);
  for(const [id,mode] of [['umbrella','rest'],['lifeguard','tower'],['boat','boat']]){await missing.evaluate(id=>{const g=window.__GAME__,p=g.targets()[id];g.teleport(p[0],p[2]);g.step(.2);g.interact();g.step(2);},id);assert.equal(await missing.evaluate(()=>window.__GAME__.mode),mode);await missing.keyboard.press('KeyE');await missing.evaluate(()=>window.__GAME__.step(.2));}

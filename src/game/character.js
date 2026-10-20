@@ -62,6 +62,45 @@ export async function createCharacter(group='A'){
  model.traverse(o=>{if(o.isBone)allBones.push(o);if(o.isMesh){meshes.push(o);o.castShadow=o.receiveShadow=true;o.frustumCulled=false;triangles+=(o.geometry.index?.count??o.geometry.attributes.position.count)/3;o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();for(const m of Array.isArray(o.material)?o.material:[o.material])materials.push({mat:m,opacity:m.opacity,transparent:m.transparent,depthWrite:m.depthWrite});}});
  const names=source==='A'?{hip:'hips',spine:'spine',head:'head',thigh:['thighL','thighR'],calf:['calfL','calfR'],foot:['footL','footR'],arm:['armL','armR'],fore:['foreL','foreR'],hand:['handL','handR']}:source==='B'?{hip:'Hip',spine:'Waist',head:'Head',thigh:['L_Thigh','R_Thigh'],calf:['L_Calf','R_Calf'],foot:['L_Foot','R_Foot'],arm:['L_Upperarm','R_Upperarm'],fore:['L_Forearm','R_Forearm'],hand:['L_Hand','R_Hand']}:{hip:'Body',spine:'Hips',head:'Head',thigh:['UpperLeg.L','UpperLeg.R'],calf:['LowerLeg.L','LowerLeg.R'],foot:['Foot.L','Foot.R'],arm:['UpperArm.L','UpperArm.R'],fore:['LowerArm.L','LowerArm.R'],hand:['Wrist.L','Wrist.R']};
  const get=n=>allBones.find(b=>b.name===n||b.name===n.replaceAll('.','')),rig={};for(const [k,n] of Object.entries(names))rig[k]=Array.isArray(n)?n.map(get):get(n);
+ // The Tripo climb clip carries root motion (the hips rise about a metre per loop). The game moves the body itself,
+ // so take out the hips' linear drift and keep only the in-place bob.
+ for(const clip of clips)if(clip.name==='climb')for(const track of clip.tracks){if(!rig.hip||track.name!==`${rig.hip.name}.position`)continue;const v=track.values,t=track.times,n=t.length,d=t[n-1]-t[0]||1;
+  for(let k=0;k<n;k++)for(let c=0;c<3;c++)v[k*3+c]-=(v[(n-1)*3+c]-v[c])*(t[k]-t[0])/d;}
+ // Rigs without finger bones (the Tripo skin) get one knuckle bone per hand: the front of the palm is re-skinned to
+ // it in bind space, so the hand can close around a grip like a mitten. The rest of the skin is untouched.
+ const grip=[null,null];
+ // Re-skin a fraction f(p) of a hand's own weight onto a new child bone of the hand.
+ function addBone(mesh,hand,name,position,list,share){const sk=mesh.skeleton,hi=sk.bones.indexOf(hand),si=mesh.geometry.attributes.skinIndex,sw=mesh.geometry.attributes.skinWeight;
+  const bone=new T.Bone();bone.name=name;bone.position.copy(position);hand.add(bone);allBones.push(bone);
+  const fi=sk.bones.length,inverse=new T.Matrix4().makeTranslation(-position.x,-position.y,-position.z).multiply(sk.boneInverses[hi]);
+  for(const [k,p] of list){const f=share(p)*T.MathUtils.smoothstep(p.w,.85,.98);if(!f)continue;let wh=0,free=0,low=Infinity;
+   for(let c=0;c<4;c++){const w=sw.getComponent(k,c),j=si.getComponent(k,c);if(j===hi)wh+=w;else if(w<low){low=w;free=c;}}
+   for(let c=0;c<4;c++)if(si.getComponent(k,c)===hi)sw.setComponent(k,c,sw.getComponent(k,c)*(1-f));
+   si.setComponent(k,free,fi);sw.setComponent(k,free,wh*f);}
+  si.needsUpdate=sw.needsUpdate=true;mesh.bind(new T.Skeleton([...sk.bones,bone],[...sk.boneInverses,inverse]),mesh.bindMatrix);return bone;}
+ const skinned=meshes.find(m=>m.isSkinnedMesh&&rig.hand.every(h=>m.skeleton.bones.includes(h)));
+ if(skinned&&rig.hand.every(h=>h&&!h.children.some(c=>c.isBone))){
+  const hands=[0,1].map(i=>{const hand=rig.hand[i],sk=skinned.skeleton,hi=sk.bones.indexOf(hand),pos=skinned.geometry.attributes.position,si=skinned.geometry.attributes.skinIndex,sw=skinned.geometry.attributes.skinWeight,toHand=new T.Matrix4().multiplyMatrices(sk.boneInverses[hi],skinned.bindMatrix),list=[];
+   for(let k=0;k<pos.count;k++){let w=0;for(let c=0;c<4;c++)if(si.getComponent(k,c)===hi)w+=sw.getComponent(k,c);if(w>.5){const p=V().fromBufferAttribute(pos,k).applyMatrix4(toHand);p.w=w;list.push([k,p]);}}
+   if(list.length<20)return null;
+   const dir=list.reduce((sum,[,p])=>sum.add(p),V()).normalize(),length=Math.max(...list.map(([,p])=>p.dot(dir)));
+   // The bind (T) pose holds the palms down.
+   const normal=V(0,-1,0).transformDirection(sk.boneInverses[hi]);normal.addScaledVector(dir,-normal.dot(dir)).normalize();const across=V().crossVectors(dir,normal);
+   const band=list.filter(([,p])=>p.dot(dir)>length*.3&&p.dot(dir)<length*.8).map(([,p])=>p.dot(across));
+   return {hand,list,dir,normal,across,length,asym:-Math.min(...band)-Math.max(...band)};}).filter(Boolean);
+  if(hands.length===2){
+   // The thumb sticks out further than the little finger; the hands mirror each other, so read the clearer one.
+   const clear=Math.abs(hands[0].asym)>Math.abs(hands[1].asym)?0:1,sigma=[0,0];sigma[clear]=hands[clear].asym>0?-1:1;sigma[1-clear]=-sigma[clear];
+   hands.forEach((h,i)=>{const {hand,list,dir,normal,across,length}=h,knuckle=length*.5,thumbSide=sigma[i];
+    const reach=Math.max(...list.map(([,p])=>p.dot(across)*thumbSide));
+    const isThumb=p=>p.dot(dir)>length*.15&&p.dot(dir)<length*.85?T.MathUtils.smoothstep(p.dot(across)*thumbSide,reach*.45,reach*.7):0;
+    const thumbBase=V().copy(dir).multiplyScalar(length*.2).addScaledVector(across,thumbSide*reach*.35);
+    const thumb=addBone(skinned,hand,`${hand.name}_thumb`,thumbBase,list,isThumb);
+    const finger=addBone(skinned,hand,`${hand.name}_grip`,V().copy(dir).multiplyScalar(knuckle),list,p=>isThumb(p)>.5?0:T.MathUtils.smoothstep(p.dot(dir),knuckle*.8,knuckle*1.15));
+    // Curling turns the fingertips toward the palm; the thumb folds under the palm about the hand's long axis.
+    grip[i]={bone:finger,thumb,dir,normal,axis:V().crossVectors(dir,normal).normalize(),thumbAxis:V().copy(dir).multiplyScalar(-thumbSide)};});
+  }
+ }
  const rest=new Map(allBones.map(b=>[b,{q:b.quaternion.clone(),p:b.position.clone(),s:b.scale.clone()}]));
  // Each clip's own ground speed (in place): sample the feet over one cycle; stride ≈ peak foot separation,
  // two steps per cycle. Playback is later scaled to the avatar's real speed so the feet don't slide.
@@ -86,7 +125,70 @@ export async function createCharacter(group='A'){
  function play(name){if(name===active)return;const previous=actions.get(active),next=actions.get(name);if(next){next.reset().setEffectiveTimeScale(1).setEffectiveWeight(1).play();if(previous)next.crossFadeFrom(previous,.25,false);else next.fadeIn(.25);}else previous?.fadeOut(.25);active=name;actionAge=0;}
  function trigger(name){oneShot=name;oneAge=0;}
  function restore(){for(const [b,r] of rest){b.quaternion.copy(r.q);b.position.copy(r.p);b.scale.copy(r.s);}}
- function update(dt,{speed=0,airborne=false,pose='stand',first=false,fade=1,animation=null}={}){
+ // IK layer, shared by all three rigs and applied after the clip/procedural pose. Targets are world points; each
+ // limb has its own weight so callers can ease contacts in and out.
+ const endOf=(i,leg)=>leg?(source==='C'?rig.calf[i]?.children[0]:rig.foot[i]):rig.hand[i];
+ // Rig sides differ (A's index 0 sits at -x, the GLB rigs may not): side[i] is the avatar-local x sign of limb i.
+ const side=[0,1].map(i=>Math.sign(root.worldToLocal(rig.arm[i]?.getWorldPosition(V())??V(i?1:-1)).x)||(i?1:-1));
+ // Ankle height above the sole in the rest pose, for feet planted on a floor.
+ const ankle=[0,1].map(i=>{const e=endOf(i,true);return e?root.worldToLocal(e.getWorldPosition(V())).y:.08;});
+ const headForward=rig.head?V(0,0,1).applyQuaternion(rig.head.getWorldQuaternion(new T.Quaternion()).invert().multiply(root.getWorldQuaternion(new T.Quaternion()))):null;
+ const mw=new T.Matrix4(),ml=new T.Matrix4(),cross=V(),A1=V(),B1=V(),C1=V(),goal=V(),knee=V(),bendDir=V(),worldUp=V(0,1,0),local=V(),rootQ=new T.Quaternion();
+ const armLength=rig.arm[0]&&rig.fore[0]&&rig.hand[0]?rig.arm[0].getWorldPosition(V()).distanceTo(rig.fore[0].getWorldPosition(B1))+B1.distanceTo(rig.hand[0].getWorldPosition(C1)):.55;
+ // Rotate bone b about its origin so the direction toward `tip` points at `point`.
+ function swing(b,tip,point,weight=1){b.getWorldPosition(A1);from.copy(tip.getWorldPosition(B1)).sub(A1);dir.copy(point).sub(A1);if(from.lengthSq()<1e-10||dir.lengthSq()<1e-10)return;turn.setFromUnitVectors(from.normalize(),dir.normalize());b.getWorldQuaternion(q);q.premultiply(turn);b.parent.getWorldQuaternion(parentQ).invert();q.premultiply(parentQ);b.quaternion.slerp(q,weight);b.updateWorldMatrix(false,true);}
+ // Rotate bone b about a world axis.
+ function twist(b,axis,angle){if(!b||!angle)return;turn.setFromAxisAngle(axis,angle);b.getWorldQuaternion(q);q.premultiply(turn);b.parent.getWorldQuaternion(parentQ).invert();q.premultiply(parentQ);b.quaternion.copy(q);b.updateWorldMatrix(false,true);}
+ // Analytic two-bone IK; the middle joint bends toward the world point `pole`.
+ function reach(upper,lower,end,target,pole,weight=1){
+  if(!upper||!lower||!end||!target||weight<=0)return null;upper.updateWorldMatrix(true,true);
+  const a=upper.getWorldPosition(V()),l1=a.distanceTo(lower.getWorldPosition(B1)),l2=B1.distanceTo(end.getWorldPosition(C1));
+  goal.copy(target).sub(a);const d=T.MathUtils.clamp(goal.length(),Math.abs(l1-l2)+1e-3,(l1+l2)*.999);goal.normalize();
+  bendDir.copy(pole).sub(a);bendDir.addScaledVector(goal,-bendDir.dot(goal));if(bendDir.lengthSq()<1e-8)bendDir.copy(B1).sub(a).addScaledVector(goal,-B1.clone().sub(a).dot(goal));bendDir.normalize();
+  const cos=T.MathUtils.clamp((l1*l1+d*d-l2*l2)/(2*l1*d),-1,1);knee.copy(a).addScaledVector(goal,l1*cos).addScaledVector(bendDir,l1*Math.sqrt(1-cos*cos));
+  swing(upper,lower,knee,weight);swing(lower,end,goal.multiplyScalar(d).add(a),weight);return end.getWorldPosition(V()).distanceTo(target);
+ }
+ const toWorld=(x,y,z)=>local.set(x,y,z).applyMatrix4(root.matrixWorld);
+ const toWorldDir=(x,y,z)=>V(x,y,z).applyQuaternion(root.getWorldQuaternion(rootQ));
+ const error={hands:[null,null],feet:[null,null]};
+ function solve({hands,feet,handWeight=1,footWeight=1,pelvis=0,ground,floor,spine,look,lookWeight=1,handAim,curl}){
+  root.updateWorldMatrix(true,true);
+  // Terrain-following feet: each foot keeps the clip's lift above its own patch of ground; the pelvis drops to the
+  // lower foot so the legs only ever shorten.
+  let feetTargets=feet;
+  if(!feet&&ground){const rootY=root.getWorldPosition(A1).y,out=[];let drop=0;
+   for(let i=0;i<2;i++){const e=endOf(i,true);if(!e){out.push(null);continue;}const p=e.getWorldPosition(V()),g=ground(p.x,p.z)-rootY;out.push(p.setY(p.y+g));drop=Math.min(drop,g);}
+   pelvis+=drop;feetTargets=out;}
+  // Seated feet rest on a floor (boat hull) instead; the body stays on its seat.
+  if(!feet&&floor)feetTargets=[0,1].map(i=>{const e=endOf(i,true);if(!e)return null;const p=e.getWorldPosition(V()),y=floor(p.x,p.z);return y==null?null:p.setY(y+ankle[i]);});
+  // Crouch: lower the body, then let foot IK bend the knees back down to the planted feet.
+  if(pelvis){if(!feetTargets)feetTargets=[0,1].map(i=>endOf(i,true)?.getWorldPosition(V())??null);pivot.position.y+=pelvis;root.updateMatrixWorld(true);}
+  if(spine&&rig.spine){const fwd=toWorldDir(0,0,1),right=toWorldDir(1,0,0);
+   if(spine.lean)twist(rig.spine,right,spine.lean);if(spine.roll)twist(rig.spine,fwd,spine.roll);if(spine.twist)twist(rig.spine,toWorldDir(0,1,0),spine.twist);}
+  const fwd=toWorldDir(0,0,1),up=toWorldDir(0,1,0);
+  for(let i=0;i<2;i++){
+   const s=side[i],target=hands?.[i];
+   if(target){const elbow=rig.fore[i]?.getWorldPosition(V())??toWorld(s*.3,1.1,0);const pole=elbow.add(toWorldDir(s*.6,-.5,-.35));const w=Array.isArray(handWeight)?handWeight[i]:handWeight;error.hands[i]=reach(rig.arm[i],rig.fore[i],endOf(i,false),target,pole,w);}else error.hands[i]=null;
+   const foot=feetTargets?.[i];
+   if(foot){const kneeAt=rig.calf[i]?.getWorldPosition(V())??toWorld(s*.1,.5,0);const pole=kneeAt.addScaledVector(fwd,1).addScaledVector(up,.1);const w=Array.isArray(footWeight)?footWeight[i]:footWeight;error.feet[i]=reach(rig.thigh[i],rig.calf[i],endOf(i,true),foot,pole,w);
+    if(source==='C'&&rig.foot[i]){endOf(i,true).getWorldPosition(to);rig.foot[i].parent.worldToLocal(to);rig.foot[i].position.copy(to);}}else error.feet[i]=null;
+  }
+  // Wrists: point the fingers along `dir` with the palm facing `palm` (world), then close the knuckle bones.
+  for(let i=0;i<2;i++){const aimAt=handAim?.[i],g=grip[i],hand=rig.hand[i];
+   if(aimAt&&g&&hand){const w=Array.isArray(handWeight)?handWeight[i]:handWeight;mw.makeBasis(aimAt.dir,aimAt.palm,cross.crossVectors(aimAt.dir,aimAt.palm));ml.makeBasis(g.dir,g.normal,cross.crossVectors(g.dir,g.normal)).transpose();const want=new T.Quaternion().setFromRotationMatrix(mw.multiply(ml));
+    // Pronation belongs to the forearm (a wrist that rolls far tears the skin), so roll the forearm about its own axis
+    // by the twist part of the change, then bend the wrist the rest of the way, within a natural range.
+    const fore=rig.fore[i],axisW=hand.getWorldPosition(A1).sub(fore.getWorldPosition(B1)).normalize();
+    const delta=want.clone().multiply(hand.getWorldQuaternion(q).invert()),proj=axisW.dot(V(delta.x,delta.y,delta.z));
+    const roll=new T.Quaternion(axisW.x*proj,axisW.y*proj,axisW.z*proj,delta.w).normalize();turn.identity().slerp(roll,w);
+    fore.getWorldQuaternion(q).premultiply(turn);fore.parent.getWorldQuaternion(parentQ).invert();fore.quaternion.copy(q.premultiply(parentQ));fore.updateWorldMatrix(false,true);
+    const bend=want.clone().multiply(hand.getWorldQuaternion(q).invert()),angle=2*Math.acos(Math.min(1,Math.abs(bend.w)));turn.identity().slerp(bend,w*Math.min(1,1.1/Math.max(angle,1e-6)));
+    hand.getWorldQuaternion(q).premultiply(turn);hand.parent.getWorldQuaternion(parentQ).invert();hand.quaternion.copy(q.premultiply(parentQ));hand.updateWorldMatrix(false,true);}
+   if(g){g.bone.quaternion.setFromAxisAngle(g.axis,(curl?.[i]??0)*1.7);g.thumb.quaternion.setFromAxisAngle(g.thumbAxis,(curl?.[i]??0)*(window.__THUMB__??1.1));}}
+  // Head turns toward a point of interest, within a comfortable neck range.
+  if(look&&rig.head&&headForward){const h=rig.head.getWorldPosition(A1);rig.head.getWorldQuaternion(q);from.copy(headForward).applyQuaternion(q);dir.copy(look).sub(h).normalize();const angle=from.angleTo(dir);if(angle>1e-4){const limit=Math.min(angle,1.05)/angle;turn.setFromUnitVectors(from,dir);const partial=new T.Quaternion().slerp(turn,limit*lookWeight);q.premultiply(partial);rig.head.parent.getWorldQuaternion(parentQ).invert();q.premultiply(parentQ);rig.head.quaternion.copy(q);rig.head.updateWorldMatrix(false,true);}}
+ }
+ function update(dt,{speed=0,airborne=false,pose='stand',first=false,fade=1,animation=null,ik=null}={}){
   // A dt=0 call (a render between offline steps) keeps the current pose. Re-running restore() there would leave
   // the rest pose on screen: three.js PropertyMixer skips writing values that did not change since its last apply.
   if(!dt&&posed&&!animation)return;posed=true;
@@ -131,14 +233,16 @@ export async function createCharacter(group='A'){
   else if(seated)posePosition.set(0,-hipY+.10,0);
   bodyRotation.slerp(poseRotation,dt?blend:1);bodyPosition.lerp(posePosition,dt?blend:1);
   pivot.quaternion.copy(bodyRotation);pivot.position.copy(bodyPosition);
+  if(ik)solve(ik);else{error.hands.fill(null);error.feet.fill(null);}
   // Hide the head through its bone (also covers a unified Tripo skin).
   if(rig.head&&first)rig.head.scale.multiplyScalar(.001);
   opacity=T.MathUtils.damp(opacity,fade,12,dt);for(const m of materials){m.mat.opacity=m.opacity*opacity;m.mat.transparent=m.transparent||opacity<.995;m.mat.depthWrite=m.depthWrite&&opacity>.5;}
   root.updateMatrixWorld(true);
  }
- function info(){return {group,source:CHARACTER_SOURCES[source],fallback,triangles,clips:clips.map(c=>c.name),animation:active,actionTime:actionAge,skinnedMeshes:meshes.filter(m=>m.isSkinnedMesh).length,bones:allBones.length,height:1.75,headHidden:rig.head?.scale.x<.01,poseSample:rig.thigh.map(b=>b?.quaternion.toArray()),clipTime:actions.get(active)?.time??null,footSep:rig.foot?.[0]&&rig.foot?.[1]?rig.foot[0].getWorldPosition(V()).distanceTo(rig.foot[1].getWorldPosition(V())):null,calfSep:rig.calf?.[0]&&rig.calf?.[1]?rig.calf[0].getWorldPosition(V()).distanceTo(rig.calf[1].getWorldPosition(V())):null,nativeSpeed,timeScale:actions.get(active)?.getEffectiveTimeScale()??null};}
+ function info(){return {group,source:CHARACTER_SOURCES[source],fallback,triangles,clips:clips.map(c=>c.name),animation:active,actionTime:actionAge,skinnedMeshes:meshes.filter(m=>m.isSkinnedMesh).length,bones:allBones.length,height:1.75,headHidden:rig.head?.scale.x<.01,poseSample:rig.thigh.map(b=>b?.quaternion.toArray()),clipTime:actions.get(active)?.time??null,footSep:rig.foot?.[0]&&rig.foot?.[1]?rig.foot[0].getWorldPosition(V()).distanceTo(rig.foot[1].getWorldPosition(V())):null,calfSep:rig.calf?.[0]&&rig.calf?.[1]?rig.calf[0].getWorldPosition(V()).distanceTo(rig.calf[1].getWorldPosition(V())):null,nativeSpeed,ik:{hands:[...error.hands],feet:[...error.feet]},side,timeScale:actions.get(active)?.getEffectiveTimeScale()??null};}
  function footWorld(i,out=V()){return rig.foot?.[i]?rig.foot[i].getWorldPosition(out):null;}
+ function palm(i,out=V()){const h=rig.hand[i];if(!h)return head(out);h.getWorldPosition(out);return grip[i]?out.lerp(grip[i].bone.getWorldPosition(A1),.8):out;}
  function head(out=headWorld){return rig.head?rig.head.getWorldPosition(out):out.copy(root.position).add(V(0,1.6,0));}
  update(0);
- return {root,update,trigger,info,head,footWorld,steps,get plants(){return !!contact[active]||!actions.has(active)&&(active==='walk'||active==='run');},mixer,rig,meshes,dispose(){mixer.stopAllAction();mixer.uncacheRoot(model);disposeModel(model);root.removeFromParent();},animations:[...new Set(['idle','walk','run','jump','climb','sit','lie','paddle','kick','interact',...actions.keys()])]};
+ return {root,update,trigger,info,head,palm,footWorld,steps,side,armLength,get gripReach(){return grip[0]?grip[0].bone.getWorldPosition(V()).distanceTo(rig.hand[0].getWorldPosition(V())):0;},hasGrip:!!grip[0],grip,get plants(){return !!contact[active]||!actions.has(active)&&(active==='walk'||active==='run');},mixer,rig,meshes,dispose(){mixer.stopAllAction();mixer.uncacheRoot(model);disposeModel(model);root.removeFromParent();},animations:[...new Set(['idle','walk','run','jump','climb','sit','lie','paddle','kick','interact',...actions.keys()])]};
 }
