@@ -55,8 +55,8 @@ try {
   await hold(2.5); await page.click('#begin'); await hold(0.5);
   // 2. 撿兩個貝殼（實際走過去），其餘黑幕中撿完
   const shells = [...t.shells].sort((a, b) => a.z - b.z).reverse();
-  for (const s of shells.slice(0, 2)) { await walkTo(s.x, s.z, 0.9); await press('KeyE'); await hold(1); }
-  await cut(async () => { for (const s of shells.slice(2)) { await teleport(s.x, s.z + .8); await press('KeyE'); await ffwd(.8); } });
+  for (const s of shells.slice(0, 2)) { await walkTo(s.x, s.z, 0.9); await press('KeyE'); await hold(1.4); }
+  await cut(async () => { for (const s of shells.slice(2)) { await teleport(s.x, s.z + .8); await press('KeyE'); await ffwd(1.4); } });
   await hold(1);
   // 3. 踢沙灘球進海
   await cut(() => teleport(t.ball[0], t.ball[2] + 4, 0));
@@ -66,7 +66,9 @@ try {
   await walkTo(t.umbrella[0], t.umbrella[2], 0.6, 3); await press('KeyE'); await hold(4); await press('KeyE'); await hold(.5);
   // 5. 救生塔看海
   await cut(() => teleport(t.lifeguard[0] - 2, t.lifeguard[2] + 5, Math.atan2(-2, 5)));
-  await walkTo(t.lifeguard[0], t.lifeguard[2], 0.6, 3); await press('KeyE'); await hold(4); await press('KeyE'); await hold(.5);
+  await walkTo(t.lifeguard[0], t.lifeguard[2], 0.6, 3); await press('KeyE'); await hold(6);
+  // 下塔沿梯子倒著爬：錄開頭一段，其餘黑幕中快轉
+  await press('KeyE'); await hold(2.5); await cut(() => ffwd(3.5));
   // 6. 上船划向小島（錄一段），黑幕中划到小島再回來，錄靠岸下船
   await cut(() => teleport(t.boat[0] - 1, t.boat[2] + 3, Math.atan2(-1, 3)));
   await walkTo(t.boat[0], t.boat[2], 0.6, 3); await press('KeyE'); await hold(1);
