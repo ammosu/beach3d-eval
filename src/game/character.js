@@ -141,7 +141,7 @@ export async function createCharacter(group='A'){
  function axis(b,end){if(!b)return;const a=end?end.getWorldPosition(V()).sub(b.getWorldPosition(V())):V(0,1,0);axes.set(b,a.normalize().applyQuaternion(b.getWorldQuaternion(new T.Quaternion()).invert()));}
  for(let i=0;i<2;i++){axis(rig.thigh[i],rig.calf[i]);axis(rig.calf[i],source==='C'?rig.calf[i]?.children[0]:rig.foot[i]);axis(rig.arm[i],rig.fore[i]);axis(rig.fore[i],rig.hand[i]);}axis(rig.spine,rig.head);
  const hipY=rig.hip?.getWorldPosition(V()).y??.91,legLength=rig.thigh?.[0]&&rig.foot?.[0]?rig.thigh[0].getWorldPosition(V()).distanceTo(rig.foot[0].getWorldPosition(V())):hipY*.9;
- let settle=null,pace=0,locoPhase=0,locoSync=false,posed=false,active='idle',age=0,actionAge=0,oneShot='',oneAge=0,opacity=1,lastPhase=null,stride=0;const steps=[];
+ let settle=null,stance=null,pace=0,locoPhase=0,locoSync=false,posed=false,active='idle',age=0,actionAge=0,oneShot='',oneAge=0,opacity=1,lastPhase=null,stride=0;const steps=[];
  const previousPose=new Map(allBones.map(b=>[b,{q:b.quaternion.clone(),p:b.position.clone()}]));
  const poseRotation=new T.Quaternion(),posePosition=V(),bodyRotation=new T.Quaternion(),bodyPosition=V(),headWorld=V();
  function aim(b,x,y,z,weight=1){if(!b||!axes.has(b))return;b.updateWorldMatrix(true,false);b.getWorldQuaternion(q);from.copy(axes.get(b)).applyQuaternion(q);dir.set(x,y,z).normalize().applyQuaternion(root.getWorldQuaternion(parentQ));turn.setFromUnitVectors(from,dir);q.premultiply(turn);b.parent.getWorldQuaternion(parentQ).invert();q.premultiply(parentQ);b.quaternion.slerp(q,weight);b.updateWorldMatrix(false,true);}
@@ -195,6 +195,13 @@ export async function createCharacter(group='A'){
     for(let i=0;i<2;i++){if(!out[i])continue;const start=i===settle.first?.05:.3,t=T.MathUtils.clamp((settle.age-start)/.26,0,1),k=T.MathUtils.smoothstep(t,0,1),far=settle.plant[i].distanceTo(out[i])>.05;
      out[i].lerpVectors(settle.plant[i],out[i],far?k:1);if(far)out[i].y+=Math.sin(Math.PI*t)*.06;}
     if(settle.age>.65)settle=null;}
+   // Standing still: the feet stay where they landed. The Tripo idle clip slides them about while the hips stay put,
+   // so pin them (any weight shift stays in the upper body). Moving off the spot, or a teleport, releases them.
+   if(active==='idle'&&!settle&&out[0]&&out[1]){const at=root.getWorldPosition(C1);
+    // Both soles on the sand: each ankle at its standing (rest pose) height above the ground under it.
+    if(!stance||stance.at.distanceTo(at)>.01)stance={at:at.clone(),feet:out.map((p,i)=>p.clone().setY(ground(p.x,p.z)+ankle[i]))};
+    for(let i=0;i<2;i++)out[i].copy(stance.feet[i]);}
+   else stance=null;
    pelvis+=drop;feetTargets=out;}
   // Seated feet rest on a floor (boat hull) instead; the body stays on its seat.
   if(!feet&&floor)feetTargets=[0,1].map(i=>{const e=endOf(i,true);if(!e)return null;const p=e.getWorldPosition(V()),y=floor(p.x,p.z);return y==null?null:p.setY(y+ankle[i]);});
