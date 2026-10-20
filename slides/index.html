@@ -193,14 +193,14 @@
   <h2>遊戲中的潮池：翻石頭找生物、記入圖鑑</h2>
   <div class="row"><figure style="max-width:64vw"><video src="assets/game_tidepool.mp4" muted loop playsinline preload="auto"></video></figure></div>
   <p class="lead" style="text-align:center">走到潮池按 E 蹲下看；點生物記入圖鑑，翻開石頭找躲起來的寄居蟹、小章魚、海蛞蝓。6 種都找到，任務完成。</p>
-  <div class="src">原本潮池放的是鯊魚、鯨魚等大型生物，生態上不合理；改成真正的潮間帶生物，大型生物移到「外海放生」任務（划船到浮標）。畫面為 B 組（Tripo 模型）</div>
+  <div class="src">原本潮池放的是鯊魚、鯨魚等大型生物，生態上不合理；改成真正的潮間帶生物，大型生物移到「外海觀察」任務（划船到浮標）。畫面為 B 組（Tripo 模型）</div>
 </section>
 
 <section class="slide">
   <h2>潮池：同一個小遊戲，6 種生物換三種來源</h2>
   <div class="row"><figure style="max-width:64vw"><video src="assets/tidepool_abc.mp4" muted loop playsinline preload="auto"></video></figure></div>
   <p class="lead" style="text-align:center">Tripo 6 件 120 點（約 $1.2），並行約 3 分鐘，風格最一致；素材庫免費但要標註作者，<br>海星原檔三隻一組要拆、章魚是站立姿勢，和池底的趴姿不合。</p>
-  <div class="src">三組時間與操作表相同。潮池由 codex 依 brief 寫成，視覺修飾因 codex 額度用完改由 Claude 完成；大型海洋生物移到「外海」（划船到浮標按 E）</div>
+  <div class="src">三組時間與操作表相同。潮池由 codex 依 brief 寫成，視覺修飾因 codex 額度用完改由 Claude 完成；大型海洋生物移到「外海」（划船到浮標，牠們浮出水面時按 E 觀察）</div>
 </section>
 
 <section class="slide">
@@ -293,7 +293,7 @@ zv.addEventListener('timeupdate', () => {
 });
 // 實際試玩：各版本在不同 port（slides/start.py 一次啟動）
 const LIVE = [
-  [8731, 'game.html', '遊戲模式', '海灘 7 個小任務：貝殼、踢球、躺椅、救生塔、潮池觀察、外海放生、划船；1／2／3 切換組別', 'var(--tripo)'],
+  [8731, 'game.html', '遊戲模式', '海灘 7 個小任務：貝殼、踢球、躺椅、救生塔、潮池觀察、外海觀察、划船；1／2／3 切換組別', 'var(--tripo)'],
   [8731, 'tidepool.html?group=B', '潮池觀察', '翻石頭找 6 種潮間帶生物、記入圖鑑；網址 group=A／B／C 切換程序化／Tripo／素材庫模型', 'var(--tripo)'],
   [8731, 'compare.html?groups=A,B,C', '三欄同步比較', '一個人走、三個畫面同步移動：codex／Tripo／素材庫物件', 'var(--tripo)'],
   [8731, 'scene.html?explore=1&group=B', '遊覽模式', '第三人稱散步，V 切換第一人稱，P 拍照模式', 'var(--tripo)'],

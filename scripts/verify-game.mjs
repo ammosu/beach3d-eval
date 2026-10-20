@@ -38,17 +38,21 @@ try{
  async function paddleTo(goal){for(let i=0;i<100;i++){const v=await page.evaluate(()=>window.__GAME__.vessel),dx=goal.x-v.x,dz=goal.z-v.z,d=Math.hypot(dx,dz);if(d<7)return;await page.evaluate(a=>window.__GAME__.steer(a),Math.atan2(-dx,-dz));await page.keyboard.down('KeyW');await step(Math.min(1.5,(d-5)/9));await page.keyboard.up('KeyW');}throw Error('Boat failed to reach target');}
  await paddleTo({x:12,z:-65});await e();assert.equal(await page.evaluate(()=>window.__GAME__.mode),'boat');await shot('boat');
  await paddleTo(targets.island);assert((await page.evaluate(()=>window.__GAME__.state)).island);assert.equal((await page.evaluate(()=>window.__GAME__.state)).boat,false);
- // At the offshore buoy each E releases the next animal into the beach sea, without leaving the boat or opening an overlay.
- assert.match(await page.locator('#nav-text').innerText(),/E 放生/);
+ // Around the buoy the animals already swim in the beach sea; E observes one while it is above the water in view, without
+ // leaving the boat or opening an overlay. Wait, and turn the boat now and then, until all 7 have shown themselves.
+ assert.match(await page.locator('#nav-text').innerText(),/按 E 觀察/);
  await page.evaluate(()=>window.__GAME__.sea.ready);
- for(let i=0;i<7;i++){await e();await step(.9);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'boat');assert(await page.locator('#lagoon').isHidden());}
- await step(3);assert.equal((await page.evaluate(()=>window.__GAME__.state)).released,7);assert((await page.evaluate(()=>window.__GAME__.state)).opensea);
+ for(let i=0,idle=0,yaw=0;i<400&&(await page.evaluate(()=>window.__GAME__.state)).spotted<7;i++){
+  if(!await page.locator('#target-prompt').isHidden()&&/觀察/.test(await page.locator('#target-prompt').innerText())){await e();idle=0;assert.equal(await page.evaluate(()=>window.__GAME__.mode),'boat');assert(await page.locator('#lagoon').isHidden());}
+  else if(++idle%12===0){yaw+=1.2;await page.evaluate(a=>window.__GAME__.steer(a),yaw);}
+  await step(.5);}
+ assert.equal((await page.evaluate(()=>window.__GAME__.state)).spotted,7);assert((await page.evaluate(()=>window.__GAME__.state)).opensea);
  assert.deepEqual(await page.evaluate(()=>window.__GAME__.sea.creatures.map(c=>c.source)),Array(7).fill('B'));
  assert(await page.evaluate(()=>window.__GAME__.sea.creatures.every(c=>c.holder.visible)));const v=await page.evaluate(()=>window.__GAME__.vessel);assert(Math.hypot(v.x-targets.island.x,v.z-targets.island.z)<14);
- await shot('opensea');await e();assert.equal((await page.evaluate(()=>window.__GAME__.state)).released,7);
+ await shot('opensea');await e();assert.equal((await page.evaluate(()=>window.__GAME__.state)).spotted,7);
  await paddleTo({x:12,z:-65});await paddleTo(targets.dock);await e();await step(1);assert((await page.evaluate(()=>window.__GAME__.state)).boat);assert(await page.evaluate(()=>window.__GAME__.completed));assert(await page.locator('#complete').isVisible());await shot('complete');
  const result=await page.evaluate(()=>({state:window.__GAME__.state,elapsed:window.__GAME__.elapsed}));
- await page.click('#replay');assert.equal((await page.evaluate(()=>window.__GAME__.state)).shells,0);assert.equal((await page.evaluate(()=>window.__GAME__.state)).observed,0);assert.equal((await page.evaluate(()=>window.__GAME__.state)).released,0);assert.equal(await page.evaluate(()=>window.__GAME__.completed),false);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'walk');
+ await page.click('#replay');assert.equal((await page.evaluate(()=>window.__GAME__.state)).shells,0);assert.equal((await page.evaluate(()=>window.__GAME__.state)).observed,0);assert.equal((await page.evaluate(()=>window.__GAME__.state)).spotted,0);assert.equal(await page.evaluate(()=>window.__GAME__.completed),false);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'walk');
  // Switching uses keyboard and must retain progress/player position.
  const beforeSwitch=await page.evaluate(()=>({position:window.__EXPLORE__.player.toArray(),state:window.__GAME__.state}));
  for(const key of ['Digit1','Digit3','Digit2']){await page.keyboard.press(key);await page.waitForFunction(()=>!window.__EXPLORE__.busy);}
@@ -94,5 +98,5 @@ try{
  for(const [id,mode] of [['umbrella','rest'],['lifeguard','tower'],['boat','boat']]){await missing.evaluate(id=>{const g=window.__GAME__,p=g.targets()[id];g.teleport(p[0],p[2]);g.step(.2);g.interact();g.step(2);},id);assert.equal(await missing.evaluate(()=>window.__GAME__.mode),mode);await missing.keyboard.press('KeyE');await missing.evaluate(()=>window.__GAME__.step(.2));}
  await missing.route('**/assets/character_C/character.glb',r=>r.fulfill({status:404,body:'unavailable'}));await missing.goto('http://localhost:5191/game.html?group=C&auto=1&time=4');await missing.waitForFunction(()=>window.__READY__);assert.equal(await missing.evaluate(()=>window.__GAME__.character.fallback),true);
  await missing.close();
- assert.deepEqual(errors,[]);await writeFile(`${output}/results.json`,JSON.stringify({...result,errors,characterChecks,contacts,cpuUpdates,checks:['seven quests','six tide-pool observations','tide-pool progress survives iframe unload','offshore release at buoy','Esc and back preserve boat mode and vessel','overlay iframe unload','boat round trip','early disembark blocked','restart','ABC keys','CPU waves seek','mobile joystick and interaction','missing assets and characters','ABC real surface contacts','ABC skeleton idle walk run jump','minimum camera boom across scripted run','frozen animation clock']},null,2));console.log('Game verification passed',result);
+ assert.deepEqual(errors,[]);await writeFile(`${output}/results.json`,JSON.stringify({...result,errors,characterChecks,contacts,cpuUpdates,checks:['seven quests','six tide-pool observations','tide-pool progress survives iframe unload','offshore observation at buoy','Esc and back preserve boat mode and vessel','overlay iframe unload','boat round trip','early disembark blocked','restart','ABC keys','CPU waves seek','mobile joystick and interaction','missing assets and characters','ABC real surface contacts','ABC skeleton idle walk run jump','minimum camera boom across scripted run','frozen animation clock']},null,2));console.log('Game verification passed',result);
 }finally{await browser.close();}
