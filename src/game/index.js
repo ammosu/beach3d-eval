@@ -202,7 +202,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   const along=(h,out)=>out.copy(l.bottom).addScaledVector(l.axis,h/l.axis.y);
   const level=x=>Math.floor(x)+T.MathUtils.smoothstep(x-Math.floor(x),.5,1),swing=x=>{const f=x-Math.floor(x);return f>.5?Math.sin(Math.PI*(f-.5)*2):0;};
   // Height of rung k (k = 0 is the sand); fractional k moves between rungs; beyond the top, keep the spacing.
-  const rungAt=k=>{const at=j=>j<=0?0:j<=top?l.rungs[j-1]:(l.rungs[top-1]??0)+(j-top)*sp,f=Math.floor(k);return at(f)+(at(f+1)-at(f))*(k-f);},handRungs=Math.round(1.35/sp);
+  const rungAt=k=>{const at=j=>j<=0?0:j<=top?l.rungs[j-1]:(l.rungs[top-1]??0)+(j-top)*sp,f=Math.floor(k);return at(f)+(at(f+1)-at(f))*(k-f);},handRungs=Math.round(1.2/sp);
   const u=T.MathUtils.clamp(t/k.up,0,1)*k.climbH,m=T.MathUtils.clamp((t-k.up)/k.mantle,0,1),turn=T.MathUtils.smoothstep(t-k.up-k.mantle,0,k.turn);
   const reach=character.gripReach||0,down=new T.Vector3(0,-1,0),fingers=n.clone().negate().multiplyScalar(.9).addScaledVector(down,.44).normalize(),palm=new T.Vector3().crossVectors(r,fingers);if(palm.y>0)palm.negate();
   const ladderYaw=Math.atan2(-n.x,-n.z),u0=Math.min(t,k.up)/k.up*k.climbH;
@@ -223,7 +223,9 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   // The body hangs a little below the rung line and close in, so the legs reach the rungs.
   const body=(h,out)=>along(h,out).addScaledVector(n,.26).setY(out.y-.1);
   const start=body(k.climbH,new T.Vector3()),end=l.stand,deckY=l.stand.y-.015,railY=l.bottom.y+l.over;
-  body(u0,climb.root);climb.duck=0;climb.lean=.12;
+  // On a leaning ladder the torso leans in with it, or the hands cannot reach the rungs ahead.
+  const tilt=Math.acos(T.MathUtils.clamp(l.axis.y,-1,1));
+  body(u0,climb.root);climb.duck=0;climb.lean=.12+.8*tilt;
   if(m>0){
    const across=T.MathUtils.smoothstep(m,.15,.85),drop=T.MathUtils.smoothstep(m,.35,.95);
    climb.root.set(start.x+(end.x-start.x)*across,start.y+(end.y-start.y)*drop,start.z+(end.z-start.z)*across);
@@ -235,7 +237,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
     const s0=i?.45:.1,f=T.MathUtils.smoothstep(m,s0,s0+.4),from=climb.feet[i].clone(),to=end.clone().addScaledVector(r,sideSign*.12),mid=railLine.clone().addScaledVector(r,sideSign*.14);to.y=deckY+.08;mid.y=railY+.16;
     climb.feet[i].set(0,0,0).addScaledVector(from,(1-f)**2).addScaledVector(mid,2*f*(1-f)).addScaledVector(to,f*f);
    }
-   climb.lean=.12+.45*Math.sin(Math.PI*across);
+   climb.lean=.12+.8*tilt*(1-across)+.45*Math.sin(Math.PI*across);
    if(l.roof!=null)climb.duck=T.MathUtils.clamp((climb.root.y+1.75-l.roof)/.5,0,1)*T.MathUtils.smoothstep(m,.3,.6);
   }
   let toSea=Math.PI-ladderYaw;toSea=Math.atan2(Math.sin(toSea),Math.cos(toSea));climb.yaw=ladderYaw+toSea*turn;

@@ -33,7 +33,9 @@ export async function loadProps(group='A') {
    marker.add(model);let triangles=0;model.traverse(o=>{if(o.isMesh)triangles+=(o.geometry.index?.count??o.geometry.attributes.position.count)/3;});
    marker.userData.triangles=triangles;return {id:slot.id,status:'procedural',triangles};
   }
-  const path=slot.paths?.[group];
+  // Trial variants without touching props.json: ?swapB=<slot>:<glb path> replaces one B prop (same fit rule).
+  const swap=group==='B'?new URLSearchParams(location.search).getAll('swapB').map(v=>v.split(':')).find(([id])=>id===slot.id):null;
+  const path=swap?.[1]??slot.paths?.[group];
   if(!path) return {id:slot.id,status:'missing-path'};
   try {
    const {scene:model}=await loader.loadAsync(path);

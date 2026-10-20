@@ -29,7 +29,7 @@ const info=()=>page.evaluate(()=>window.__GAME__.character);
 for(const g of groups){
  // A fresh page per group: modes like the boat cannot be left anywhere.
  await page?.close();page=await browser.newPage({viewport:{width:960,height:640}});page.on('pageerror',e=>errors.push(e.message));
- await page.goto('http://localhost:5191/game.html?auto=1&time=4');await page.waitForFunction(()=>window.__READY__);await page.evaluate(()=>window.__TIME__=4);await page.click('#begin');if(process.env.THUMB)await page.evaluate(v=>window.__THUMB__=+v,process.env.THUMB);
+ await page.goto('http://localhost:5191/game.html?auto=1&time=4'+(process.env.QS??''));await page.waitForFunction(()=>window.__READY__);await page.evaluate(()=>window.__TIME__=4);await page.click('#begin');if(process.env.THUMB)await page.evaluate(v=>window.__THUMB__=+v,process.env.THUMB);
  await page.evaluate(async g=>{await window.__EXPLORE__.switchGroup(g);window.__GAME__.teleport(-22,10);window.__GAME__.step(.3);},g);
  if(action==='shell'){
   await page.evaluate(()=>{const G=window.__GAME__,s=G.targets().shells[0];G.teleport(s.x+.9,s.z+.9);G.step(.3);G.interact();});

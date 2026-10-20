@@ -21,3 +21,4 @@ time,slot,task_id,status,seconds,credits,file
 2026-10-20T15:54:07,character:anim_v3_run,41f66a13-6357-480d-8ce9-e3096a74d86c,success,19,10,
 2026-10-20T15:54:14,character:anim_v3_jump,e5c8eeb8-e605-44b4-b3f0-31ed4a1620ff,success,5,10,
 2026-10-20T15:54:26,character:anim_v3_climb,8676bd60-3119-4a9b-95d4-c9e78f17e7e6,success,10,10,
+2026-10-20T18:15:03,lifeguard_ladder,e5b2bbbe-42f5-4a80-9f30-ab0ec52138d8,success,160,30,image_to_model from Codex reference
