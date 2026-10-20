@@ -41,7 +41,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  const followCamera=createGameCamera(camera,propRoot);e.setCameraController(followCamera);
  for(const child of e.avatar.children)child.visible=false;
  const characterCache=new Map();let character=await createCharacter(e.group);characterCache.set(e.group,character);e.avatar.add(character.root);
- let boatSeat=null;const climbStart=new T.Vector3();
+ let boatSeat=null;const boat={draft:0,mask:null};const climbStart=new T.Vector3();
  async function switchCharacter(group){sea.setGroup(group);character.root.removeFromParent();if(!characterCache.has(group))characterCache.set(group,await createCharacter(group));character=characterCache.get(group);e.avatar.add(character.root);syncAnchors();followCamera.refresh();if(mode==='rest'){e.player.copy(anchors.umbrella.surface.point);e.avatar.rotation.set(0,anchors.umbrella.surface.yaw,0);}if(mode==='tower')e.player.copy(anchors.lifeguard.surface.point);updateCharacter(0);}
  e.onGroupChange(switchCharacter);
  // World-space contacts for the character's IK layer in the current mode.
@@ -283,7 +283,14 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   if(boatModel)vessel.remove(boatModel);
   const source=propRoot.children.find(c=>c.name==='boat');
   if(source?.children.length){boatModel=source.clone(true);boatModel.position.set(0,-groundHeight(4,8),0);// Turn the hull so its long axis runs along the direction of travel (local z); the slot may hold it at any yaw.
-   const box=new T.Box3(),base=boatModel.rotation.y;let best=base,narrow=Infinity;for(let k=0;k<36;k++){boatModel.rotation.y=base+k*Math.PI/36;box.setFromObject(boatModel,true);const w=(box.max.x-box.min.x)/(box.max.z-box.min.z);if(w<narrow){narrow=w;best=boatModel.rotation.y;}}boatModel.rotation.y=best;}
+   // The long axis comes from the spread of the vertices, not the box: thin parts that stick out (C's oars) have few
+   // vertices but would widen the box and skew it.
+   const box=new T.Box3(),base=boatModel.rotation.y,pts=[],vtx=new T.Vector3();boatModel.updateMatrixWorld(true);boatModel.traverse(o=>{if(!o.isMesh)return;const p=o.geometry.attributes.position,step=Math.max(1,Math.floor(p.count/4000));for(let i=0;i<p.count;i+=step){vtx.fromBufferAttribute(p,i).applyMatrix4(o.matrixWorld);pts.push(vtx.x,vtx.z);}});
+   let best=base,narrow=Infinity;for(let k=0;k<72;k++){const a=k*Math.PI/72,c=Math.cos(a),sn=Math.sin(a);let m=0,m2=0,n=0;for(let i=0;i<pts.length;i+=2){const x=c*pts[i]+sn*pts[i+1];m+=x;m2+=x*x;n++;}const spread=m2/n-(m/n)**2;if(spread<narrow){narrow=spread;best=base+a;}}boatModel.rotation.y=best;
+   // Single-skin hulls (C) are culled from inside; draw both faces so the inside of the hull shows, not the sea.
+   boatModel.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.side=T.DoubleSide;}});
+   // Float with a draft: the keel a quarter of the hull height under the water line (local y 0), not on top of it.
+   boatModel.updateMatrixWorld(true);box.setFromObject(boatModel,true);boat.draft=T.MathUtils.clamp(.25*(box.max.y-box.min.y),.12,.25);boatModel.position.y-=box.min.y+boat.draft;}
   else boatModel=fallbackModel??=fallbackBoat();vessel.add(boatModel);
   vessel.updateMatrixWorld(true);const oldPosition=vessel.position.clone(),oldRotation=vessel.quaternion.clone();vessel.position.set(0,0,0);vessel.quaternion.identity();vessel.updateMatrixWorld(true);boatSeat=findSurface(boatModel,'boat',e.group,{x:0,z:0});{const hull=new T.Box3().setFromObject(boatModel,true);
    // The hull proper, without oars or other parts that stick out (C's model carries its oars, which widen and shift
@@ -307,7 +314,16 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
    // The floor where the feet go: the highest upward face under the seat at the foot spots (the inner floor, not the
    // keel), plus the ankle's height above the sole; the guess above stays when nothing is found.
    {const fz=Math.max(boatSeat.point.z-.55,hull.min.z+.45),floors=[-1,1].map(k=>surfacesAt(boatModel,boatSeat.point.x+k*.13,fz,hull).filter(h2=>h2.point.y<boatSeat.point.y-.12).reduce((m,h2)=>Math.max(m,h2.point.y),-Infinity)).filter(Number.isFinite);
-    if(floors.length)row.floorY=Math.max(...floors)+(character.ankleHeight??.08);}row.dip=Math.asin(T.MathUtils.clamp((boatSeat.point.y+.48+.1)/1.22,.3,.55));}vessel.position.copy(oldPosition);vessel.quaternion.copy(oldRotation);vessel.updateMatrixWorld(true);
+    if(floors.length)row.floorY=Math.max(...floors)+(character.ankleHeight??.08);}
+   // The water is one opaque plane, so a hull sitting in it would show water inside. A depth-only cap over the hull's
+   // inside, 8 cm above the water line, drawn after the boat and before the water, keeps the water out of view there.
+   // Its outline: the inner faces of the hull walls at that height, probed sideways from the centre line.
+   {if(boat.mask){vessel.remove(boat.mask);boat.mask.geometry.dispose();boat.mask=null;}
+    const y=.08,cx=(hull.min.x+hull.max.x)/2,left=[],right=[],probe=new T.Raycaster();
+    for(let z=hull.min.z+.02;z<hull.max.z;z+=.05){const o=new T.Vector3(cx,y,z);const side=d=>{probe.set(o,new T.Vector3(d,0,0));probe.far=hull.max.x-hull.min.x;return probe.intersectObject(boatModel,true)[0]?.distance;};
+     const l=side(-1),r=side(1);if(l==null||r==null||l>(hull.max.x-hull.min.x)*.7||r>(hull.max.x-hull.min.x)*.7)continue;left.push([cx-l,z]);right.push([cx+r,z]);}
+    if(left.length>2){const shape=new T.Shape([...left,...right.reverse()].map(([x,z])=>new T.Vector2(x,-z)));const g=new T.ShapeGeometry(shape).rotateX(-Math.PI/2).translate(0,y,0);
+     boat.mask=new T.Mesh(g,new T.MeshBasicMaterial({colorWrite:false,side:T.DoubleSide}));boat.mask.renderOrder=1;boat.mask.name='hull-water-mask';vessel.add(boat.mask);water.renderOrder=2;}}row.dip=Math.asin(T.MathUtils.clamp((boatSeat.point.y+.48+.1)/1.22,.3,.55));}vessel.position.copy(oldPosition);vessel.quaternion.copy(oldRotation);vessel.updateMatrixWorld(true);
   if(mode==='boat'&&source){source.visible=false;hiddenBoat=source;}
  }
  syncAnchors();
@@ -414,7 +430,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   // Keep out of both existing island meshes (which are separate from terrain.js).
   if(((x-114)/66)**2+((z+58)/80)**2<1||((x-90)/108)**2+((z+340)/43)**2<1)allowed=false;
   if(allowed){vessel.position.x=x;vessel.position.z=z;}else boatSpeed=0;
-  sampleWater(vessel.position.x,vessel.position.z,t,wave);vessel.position.y=wave.height+.06;
+  sampleWater(vessel.position.x,vessel.position.z,t,wave);vessel.position.y=wave.height;
   const c=Math.cos(boatYaw),sine=Math.sin(boatYaw),localNX=c*wave.nx-sine*wave.nz,localNZ=sine*wave.nx+c*wave.nz;vessel.rotation.set(Math.atan2(localNZ,wave.ny),boatYaw,-Math.atan2(localNX,wave.ny),'YXZ');
   vessel.updateMatrixWorld(true);e.player.copy(boatSeat.point).applyMatrix4(vessel.matrixWorld);e.avatar.position.copy(e.player);e.avatar.rotation.set(vessel.rotation.x,boatYaw+Math.PI,vessel.rotation.z,'YXZ');
   rowPaddle(dt,t,f);
@@ -497,6 +513,6 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
    }});
   return [...targets,sand].map(t=>({id:t.id,n:t.n,max:+t.max.toFixed(3),worst:t.worst}));
  }
- if(auto){Object.assign(api,{penetration,ladder(){return anchors.lifeguard.ladder;},climbState(){return {towerT,towerDir,root:climb.root.toArray(),hands:climb.hands.map(h=>h.toArray()),player:e.player.toArray(),total:towerTotal()};},handWorld(i){return character.rig.hand[i].getWorldPosition(new T.Vector3());},teleport(x,z){if(mode!=='walk')throw Error('Teleport is only available on foot');e.player.set(x,groundHeight(x,z),z);lastPlayer.copy(e.player);},targets(){return {shells:objects.items.map(s=>({x:s.x,y:s.y,z:s.z,collected:s.collected})),ball:objects.ball.position.toArray(),umbrella:anchors.umbrella.point.toArray(),tidepool:pool.point.toArray(),lagoon:pool.point.toArray(),lifeguard:anchors.lifeguard.point.toArray(),boat:anchors.boat.point.toArray(),dock,island};},step(seconds){let remaining=seconds;while(remaining>1e-6){const dt=Math.min(1/60,remaining);window.__TIME__=time()+dt;water.material.uniforms.time.value=window.__TIME__;e.update(dt);update(dt,window.__TIME__);remaining-=dt;}},steer(angle){if(mode!=='boat')throw Error('Not in boat');boatYaw=angle;},view(yaw){e.setView(yaw);},wave(x,z,t){return {...sampleWater(x,z,t,{})};}});Object.defineProperty(api,'vessel',{get(){return {x:vessel.position.x,y:vessel.position.y,z:vessel.position.z,yaw:boatYaw,speed:boatSpeed};}});window.__GAME__=api;}
+ if(auto){Object.assign(api,{penetration,boatInfo(){const b=new T.Box3().setFromObject(boatModel,true);return {draft:boat.draft,mask:boat.mask?boat.mask.geometry.attributes.position.count:0,keelBelowWater:+(vessel.position.y-b.min.y).toFixed(3),gunwaleAboveWater:+(b.max.y-vessel.position.y).toFixed(3)};},ladder(){return anchors.lifeguard.ladder;},climbState(){return {towerT,towerDir,root:climb.root.toArray(),hands:climb.hands.map(h=>h.toArray()),player:e.player.toArray(),total:towerTotal()};},handWorld(i){return character.rig.hand[i].getWorldPosition(new T.Vector3());},teleport(x,z){if(mode!=='walk')throw Error('Teleport is only available on foot');e.player.set(x,groundHeight(x,z),z);lastPlayer.copy(e.player);},targets(){return {shells:objects.items.map(s=>({x:s.x,y:s.y,z:s.z,collected:s.collected})),ball:objects.ball.position.toArray(),umbrella:anchors.umbrella.point.toArray(),tidepool:pool.point.toArray(),lagoon:pool.point.toArray(),lifeguard:anchors.lifeguard.point.toArray(),boat:anchors.boat.point.toArray(),dock,island};},step(seconds){let remaining=seconds;while(remaining>1e-6){const dt=Math.min(1/60,remaining);window.__TIME__=time()+dt;water.material.uniforms.time.value=window.__TIME__;e.update(dt);update(dt,window.__TIME__);remaining-=dt;}},steer(angle){if(mode!=='boat')throw Error('Not in boat');boatYaw=angle;},view(yaw){e.setView(yaw);},wave(x,z,t){return {...sampleWater(x,z,t,{})};}});Object.defineProperty(api,'vessel',{get(){return {x:vessel.position.x,y:vessel.position.y,z:vessel.position.z,yaw:boatYaw,speed:boatSpeed};}});window.__GAME__=api;}
  update(0,time());return api;
 }

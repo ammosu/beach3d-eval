@@ -39,7 +39,11 @@ const sky=new THREE.Mesh(new THREE.SphereGeometry(1800,32,16),new THREE.ShaderMa
 const sun=new THREE.Vector3(.45,.38,-.8).normalize();
 scene.add(new THREE.HemisphereLight(0xb8dfff,0xc9a777,1.25));
 const light=new THREE.DirectionalLight(0xffd7a0,3.4);light.position.copy(sun).multiplyScalar(100);scene.add(light);
-light.castShadow=true;light.shadow.mapSize.set(2048,2048);Object.assign(light.shadow.camera,{left:-65,right:65,top:65,bottom:-65});light.shadow.bias=-.0004;
+// Shadows: the depth range spans only the scene (the light sits 100 m out along the sun; the beach, props and the
+// headland lie within about 95 m of the origin), so the bias stays about a centimetre. The old default range (500 m)
+// turned bias -.0004 into ~20 cm along a 22° sun, i.e. shadows starting half a metre from each prop's base, which
+// made props look afloat. A small normal offset keeps the sand free of acne.
+light.castShadow=true;light.shadow.mapSize.set(4096,4096);Object.assign(light.shadow.camera,{left:-65,right:65,top:65,bottom:-65,near:5,far:200});light.shadow.bias=-.00005;light.shadow.normalBias=.03;
 const geo=new THREE.PlaneGeometry(2,2,500,500);geo.rotateX(-Math.PI/2);
 const pos=geo.attributes.position;for(let i=0;i<pos.count;i++){const x=Math.sign(pos.getX(i))*pos.getX(i)**2*2200,z=Math.sign(pos.getZ(i))*pos.getZ(i)**2*2200;pos.setXYZ(i,x,groundHeight(x,z),z);}geo.computeVertexNormals();
 const sandMat=new THREE.MeshStandardMaterial({color:0xf4d7ab,roughness:.92});
