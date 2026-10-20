@@ -267,7 +267,7 @@ Open **http://localhost:5191/game.html** (also linked as **遊戲模式** on the
 
 ## Tide pool（2026-10-20）
 
-- 遊戲改為 **7 個任務**：貝殼、球、躺椅、救生塔、潮池觀察、外海放生、小船往返，預估 6–9 分鐘。岩池開啟獨立 `/tidepool.html?group=A|B|C`（three r185）；8 顆可翻石頭中有 3 顆藏寄居蟹、小章魚、海蛞蝓，另有可直接觀察的海星、海葵、海膽。點生物開近看卡並記入六格圖鑑。
+- 遊戲改為 **7 個任務**：貝殼、球、躺椅、救生塔、潮池觀察、外海放生、小船往返，預估 8–12 分鐘（2026-10-20 走路改為 1.8 m/s 後）。岩池開啟獨立 `/tidepool.html?group=A|B|C`（three r185）；8 顆可翻石頭中有 3 顆藏寄居蟹、小章魚、海蛞蝓，另有可直接觀察的海星、海葵、海膽。點生物開近看卡並記入六格圖鑑。
 - `src/tidepool/` 提供濕岩、藤壺、藻叢、碎石、魚群、池底光紋、輕量離屏折射與點水漣漪；近看與主池共用 WebGL renderer。A 為程序化，B/C 載入 `assets/tidepool/<group>/<id>.glb`，依 6／15／8／8／25／5 cm 尺寸統一放大 1.65 倍。逐種載入失敗就使用 A，統計列顯示備援名稱；本次 B 六種實際載入成功，C 尚缺檔且備援正常。
 - `__TIDEPOOL__` 提供 `found/species/stones/group/done`，僅 `?auto=1` 增加 `lift(i)`、`observe(id)`、`step(seconds)`、截圖用 `project(id或石頭索引)`。未翻開不能觀察；重新開啟仍能近看已找到的圖鑑。`?muted=1` 靜音，`?time=N`／`__TIME__` 控制同一動畫時間；保留 `__SCENE__`、`__READY__`。
 - `lagoon.js` 共用覆蓋層分別保存觀察／放生進度，關閉即卸載 iframe。小船距外海浮標 11 m 內按 E 開啟原 Reef Lagoon（A/C → Opus，B → Tripo），沿用投入／重新抓起後進入 `entry` 的計數方式；返回保留船位、朝向與 `boat` 模式，仍須回岸邊圓環才能下船。遊戲 state 使用 `tidepool/observed/opensea/released`，入口為 `targets().tidepool`；舊 `lagoon` 介面及目標別名保留相容。
