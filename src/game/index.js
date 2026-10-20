@@ -9,6 +9,7 @@ import {findSurface,surfacesAt} from './surfaces.js';
 import {createGameCamera,MIN_BOOM} from './camera.js';
 import {MeshBVH,acceleratedRaycast} from 'three-mesh-bvh';
 import {createTidePool,createLagoon} from './lagoon.js';
+import {createSea,SEA} from './sea.js';
 import '../game.css';
 
 export async function createGame({scene,camera,renderer,water,config,explore:e,auto}) {
@@ -21,22 +22,24 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  const objects=createObjects(scene,water.material.uniforms.time,config);
  const state={shells:0,ball:false,lounger:false,tower:false,tidepool:false,observed:0,opensea:false,released:0,boat:false,island:false,footprints:0};
  const pool=createTidePool(scene);
- const lagoon=createLagoon({onRelease(sp,count){state.released=count;e.sfx('pickup');if(count===7)state.opensea=true;renderHud();},onObserve(id,count){state.observed=count;state.tidepool=count===6;renderHud();},onClose(kind){e.clearInput();if(kind==='tidepool')leave();if(running&&!completed&&!auto)e.start();}});
+ const lagoon=createLagoon({onObserve(id,count){state.observed=count;state.tidepool=count===6;renderHud();},onClose(){e.clearInput();leave();if(running&&!completed&&!auto)e.start();}});
  let running=false,completed=false,elapsed=0,mode='walk',modeAge=0,toastUntil=-1,fadeAt=-100,lastHud='',near=null,currentGroup=e.group,paddleClock=0,boatSpeed=0,boatYaw=0,footDistance=0;
  const lastPlayer=e.player.clone(),returnPoint=e.player.clone(),target=new T.Vector3(),camGoal=new T.Vector3(),camLook=new T.Vector3(),screen=new T.Vector3(),input={},wave={};
  const anchors={};for(const id of ['umbrella','lifeguard','boat']){const slot=config.slots.find(s=>s.id===id);anchors[id]={id,x:slot.pos[0],z:slot.pos[2],y:groundHeight(slot.pos[0],slot.pos[2]),box:null,point:new T.Vector3()};}
  const anchorList=Object.values(anchors),interaction={kind:'',label:'',position:null,item:null};
  const dock={x:4,z:shore(4)-9},island={x:60,z:-286};
+ // Open sea: released animals swim around the buoy (north of it, clear of the island mesh) and stay there.
+ const sea=createSea(scene,{center:new T.Vector3(island.x,0,island.z+6),boat:()=>vessel.visible?vessel.position:null,onRelease(i){const count=sea.released.length;state.released=count;e.sfx('pickup');toast(count===7?'7 種海洋生物都回到大海了！划回岸邊吧。':`${SEA[i].name}回到海裡了（${count} / 7）`);if(count===7)state.opensea=true;renderHud();}});sea.setGroup(e.group);
  const vessel=new T.Group();vessel.name='game-rowboat';scene.add(vessel);vessel.visible=false;
  // Double-bladed paddle along its local x. One stroke phase drives it, both hands, the torso and the boat's thrust.
  const oar=new T.Group(),oarMat=new T.MeshStandardMaterial({color:0xc7a075});const shaft=new T.Mesh(new T.CylinderGeometry(.03,.03,2.6,6),oarMat);shaft.rotation.z=Math.PI/2;oar.add(shaft);for(const x of [-1.22,1.22]){const blade=new T.Mesh(new T.BoxGeometry(.42,.19,.025),oarMat);blade.position.x=x;oar.add(blade);}oar.rotation.order='YZX';vessel.add(oar);
  const row={phase:0,amount:0,dip:.6,hands:[new T.Vector3(),new T.Vector3()],feet:[new T.Vector3(),new T.Vector3()],aim:[0,1].map(()=>({dir:new T.Vector3(),palm:new T.Vector3()})),axis:new T.Vector3(),p:new T.Vector3(),dir:new T.Vector3(),palm:new T.Vector3(),twist:0,lean:0,floorY:0};
- let boatModel=null,hiddenBoat=null,fallbackModel=null;
+ let boatModel=null,hiddenBoat=null,fallbackModel=null,lastRelease=-100;
  const followCamera=createGameCamera(camera,propRoot);e.setCameraController(followCamera);
  for(const child of e.avatar.children)child.visible=false;
  const characterCache=new Map();let character=await createCharacter(e.group);characterCache.set(e.group,character);e.avatar.add(character.root);
  let boatSeat=null;const climbStart=new T.Vector3();
- async function switchCharacter(group){character.root.removeFromParent();if(!characterCache.has(group))characterCache.set(group,await createCharacter(group));character=characterCache.get(group);e.avatar.add(character.root);syncAnchors();followCamera.refresh();if(mode==='rest'){e.player.copy(anchors.umbrella.surface.point);e.avatar.rotation.set(0,anchors.umbrella.surface.yaw,0);}if(mode==='tower')e.player.copy(anchors.lifeguard.surface.point);updateCharacter(0);}
+ async function switchCharacter(group){sea.setGroup(group);character.root.removeFromParent();if(!characterCache.has(group))characterCache.set(group,await createCharacter(group));character=characterCache.get(group);e.avatar.add(character.root);syncAnchors();followCamera.refresh();if(mode==='rest'){e.player.copy(anchors.umbrella.surface.point);e.avatar.rotation.set(0,anchors.umbrella.surface.yaw,0);}if(mode==='tower')e.player.copy(anchors.lifeguard.surface.point);updateCharacter(0);}
  e.onGroupChange(switchCharacter);
  // World-space contacts for the character's IK layer in the current mode.
  function poseIK(){
@@ -280,12 +283,12 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  $('#begin').onclick=()=>{e.start();begin();};
  function fade(){fadeAt=time();}
  function seated(){/* Poses are blended on the active skeleton in updateCharacter. */}
- function enter(next){e.setFirstPerson(false);returnPoint.copy(e.player);mode=next;modeAge=0;e.setDriven(true);e.clearInput();fade();if(next==='rest'){e.player.copy(anchors.umbrella.surface.point);e.avatar.rotation.set(0,anchors.umbrella.surface.yaw,0);toast('聽一會兒海浪。按 E 或「互動」起身。');}if(next==='tower'){climbStart.copy(anchors.lifeguard.climb);e.player.copy(climbStart);towerT=0;towerDir=1;e.avatar.rotation.set(0,anchors.lifeguard.ladder?Math.atan2(-anchors.lifeguard.ladder.normal.x,-anchors.lifeguard.ladder.normal.z):Math.PI,0);toast('從高處看看整座海灣。按 E 下塔。');}if(next==='tidepool'){camGoal.copy(pool.center).add(new T.Vector3(0,9,7));camLook.copy(pool.center);document.exitPointerLock?.();lagoon.open(e.group,'tidepool',{muted:e.muted,auto});}if(next==='boat'){vessel.visible=true;vessel.position.set(dock.x,0,dock.z);boatSpeed=0;boatYaw=0;seated(true);syncAnchors();$('.game-controls').innerHTML='W / S 划行　A / D 轉向　E 靠岸下船<br>抵達浮標按 E 往海裡看，放生後再返回';toast('W / S 划行，A / D 轉向。向金色浮標出發！');}}
+ function enter(next){e.setFirstPerson(false);returnPoint.copy(e.player);mode=next;modeAge=0;e.setDriven(true);e.clearInput();fade();if(next==='rest'){e.player.copy(anchors.umbrella.surface.point);e.avatar.rotation.set(0,anchors.umbrella.surface.yaw,0);toast('聽一會兒海浪。按 E 或「互動」起身。');}if(next==='tower'){climbStart.copy(anchors.lifeguard.climb);e.player.copy(climbStart);towerT=0;towerDir=1;e.avatar.rotation.set(0,anchors.lifeguard.ladder?Math.atan2(-anchors.lifeguard.ladder.normal.x,-anchors.lifeguard.ladder.normal.z):Math.PI,0);toast('從高處看看整座海灣。按 E 下塔。');}if(next==='tidepool'){camGoal.copy(pool.center).add(new T.Vector3(0,9,7));camLook.copy(pool.center);document.exitPointerLock?.();lagoon.open(e.group,{muted:e.muted,auto});}if(next==='boat'){vessel.visible=true;vessel.position.set(dock.x,0,dock.z);boatSpeed=0;boatYaw=0;seated(true);syncAnchors();$('.game-controls').innerHTML='W / S 划行　A / D 轉向　E 靠岸下船<br>抵達浮標按 E 放生海洋生物，再划回岸邊';toast('W / S 划行，A / D 轉向。向金色浮標出發！');}}
  function leave(done=false){if(mode==='tidepool'&&lagoon.isOpen){lagoon.close();return;}
   // Off the tower by the ladder: play the climb backward, then step off at its foot.
   if(mode==='tower'&&anchors.lifeguard.ladder&&!done){towerDir=-1;return;}if(mode==='boat'){if(Math.hypot(vessel.position.x-dock.x,vessel.position.z-dock.z)>11){toast('先回到岸邊的金色圓環，才能下船。');return;}if(state.island){state.boat=true;toast('小島往返完成，歡迎回岸！');}vessel.visible=false;if(hiddenBoat)hiddenBoat.visible=true;hiddenBoat=null;}mode='walk';$('.game-controls').innerHTML='WASD 移動　滑鼠／←→ 轉視角　E 互動　Shift 跑步<br>1 / 2 / 3 素材　M 靜音　Esc 暫停';e.player.copy(returnPoint);e.avatar.rotation.set(0,Math.PI,0);if(done&&anchors.lifeguard.ladder){const l=anchors.lifeguard.ladder;e.player.copy(l.bottom).addScaledVector(l.normal,.55);e.player.y=groundHeight(e.player.x,e.player.z);e.avatar.rotation.set(0,Math.atan2(l.normal.x,l.normal.z),0);}seated(false);e.setDriven(false);e.setView(0);e.clearInput();lastPlayer.copy(e.player);fade();}
  function setNear(kind,label,position,item=null){interaction.kind=kind;interaction.label=label;interaction.position=position;interaction.item=item;return interaction;}
- function nearTarget(){if(lagoon.isOpen)return null;if(mode==='boat'&&Math.hypot(vessel.position.x-island.x,vessel.position.z-island.z)<11)return setNear('opensea','往海裡看：放生大型海洋生物',vessel.position);if(mode==='boat'&&Math.hypot(vessel.position.x-dock.x,vessel.position.z-dock.z)>11)return null;if(mode!=='walk')return setNear('leave',mode==='rest'?'起身，繼續散步':mode==='tower'?'走下救生塔':mode==='tidepool'?'回到沙灘':'靠岸下船',e.player);let best=2.4,result=null;for(const item of objects.items){if(item.collected)continue;const d=Math.hypot(item.x-e.player.x,item.z-e.player.z);if(d<best){best=d;result=item;}}
+ function nearTarget(){if(lagoon.isOpen)return null;if(mode==='boat'&&sea.thrown<SEA.length&&Math.hypot(vessel.position.x-island.x,vessel.position.z-island.z)<11)return setNear('opensea',`放生${SEA[sea.thrown].name}（${sea.thrown+1} / 7）`,vessel.position);if(mode==='boat'&&Math.hypot(vessel.position.x-dock.x,vessel.position.z-dock.z)>11)return null;if(mode!=='walk')return setNear('leave',mode==='rest'?'起身，繼續散步':mode==='tower'?'走下救生塔':mode==='tidepool'?'回到沙灘':'靠岸下船',e.player);let best=2.4,result=null;for(const item of objects.items){if(item.collected)continue;const d=Math.hypot(item.x-e.player.x,item.z-e.player.z);if(d<best){best=d;result=item;}}
   if(result)return setNear('shell','撿起貝殼',result,result);
   if(e.player.distanceTo(objects.ball.position)<2.3)return setNear('ball','踢球，朝海邊！',objects.ball.position);
   if(e.player.distanceTo(pool.point)<2.6)return setNear('tidepool','蹲下看看潮池',pool.point);
@@ -329,14 +332,14 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  }
  function interact(){if(!running||completed||!e.active||e.busy||lagoon.isOpen||pickup)return;near=nearTarget();if(!near){if(mode==='boat')toast('划回岸邊的金色圓環，就能下船。');return;}
   if(near.kind==='leave'){leave();return;}
-  if(near.kind==='opensea'){e.clearInput();document.exitPointerLock?.();lagoon.open(e.group,'opensea',{muted:e.muted,auto});return;}
+  if(near.kind==='opensea'){if(time()-lastRelease>.8){lastRelease=time();sea.release(lastRelease,vessel.position,boatYaw);e.sfx('paddle');}return;}
   if(near.kind==='shell'&&!near.item.collected)startPickup(near.item);
   if(near.kind==='ball'){ball.kick(e.player);character.trigger('kick');e.sfx('kick');}
   if(near.kind==='umbrella')enter('rest');if(near.kind==='lifeguard')enter('tower');if(near.kind==='boat')enter('boat');if(near.kind==='tidepool')enter('tidepool');renderHud();
  }
  addEventListener('keydown',event=>{if(event.code==='KeyE'&&!event.repeat){event.preventDefault();interact();}});$('#interact').onclick=interact;$('#game-audio').onclick=()=>e.mute();
  function complete(){camera.position.fromArray(config.cameras.wide.pos);target.fromArray(config.cameras.wide.target);camera.lookAt(target);completed=true;running=false;e.setDriven(true);e.clearInput();document.exitPointerLock?.();$('#start').hidden=true;$('#complete').hidden=false;document.body.classList.add('game-complete');$('#finish-time').textContent=`這次的海邊時光　${formatTime(elapsed)}`;$('#finish-bonus').textContent=state.footprints?'還留下了一串會消失的腳印。':'下次來，試著在沙灘上留一串腳印。';$('#replay').focus();}
- function reset(){if(pickup){pickup=null;e.setHold(false);}if(hiddenBoat)hiddenBoat.visible=true;hiddenBoat=null;vessel.visible=false;mode='walk';completed=false;running=false;elapsed=0;boatSpeed=0;footDistance=0;for(const key of Object.keys(state))state[key]=['shells','footprints','released','observed'].includes(key)?0:false;lagoon.reset();objects.reset();ball.reset();e.player.set(-7,groundHeight(-7,12),12);lastPlayer.copy(e.player);e.avatar.rotation.set(0,0,0);seated(false);e.setDriven(false);e.setView(.15);e.clearInput();$('#complete').hidden=true;document.body.classList.remove('game-complete');lastHud='';$('#footnote').textContent='額外的小紀念：在沙上留下腳印';e.start();begin();fade();}
+ function reset(){if(pickup){pickup=null;e.setHold(false);}if(hiddenBoat)hiddenBoat.visible=true;hiddenBoat=null;vessel.visible=false;mode='walk';completed=false;running=false;elapsed=0;boatSpeed=0;footDistance=0;for(const key of Object.keys(state))state[key]=['shells','footprints','released','observed'].includes(key)?0:false;lagoon.reset();sea.reset();lastRelease=-100;objects.reset();ball.reset();e.player.set(-7,groundHeight(-7,12),12);lastPlayer.copy(e.player);e.avatar.rotation.set(0,0,0);seated(false);e.setDriven(false);e.setView(.15);e.clearInput();$('#complete').hidden=true;document.body.classList.remove('game-complete');lastHud='';$('#footnote').textContent='額外的小紀念：在沙上留下腳印';e.start();begin();fade();}
  $('#replay').onclick=reset;
  document.addEventListener('pointerlockchange',()=>{if(completed||mode==='tidepool'||lagoon.isOpen)$('#start').hidden=true;});
  // Kayak stroke: over one cycle each blade enters forward of the hip, pulls back and lifts out (phase 0..π: +x blade).
@@ -376,11 +379,12 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   const c=Math.cos(boatYaw),sine=Math.sin(boatYaw),localNX=c*wave.nx-sine*wave.nz,localNZ=sine*wave.nx+c*wave.nz;vessel.rotation.set(Math.atan2(localNZ,wave.ny),boatYaw,-Math.atan2(localNX,wave.ny),'YXZ');
   vessel.updateMatrixWorld(true);e.player.copy(boatSeat.point).applyMatrix4(vessel.matrixWorld);e.avatar.position.copy(e.player);e.avatar.rotation.set(vessel.rotation.x,boatYaw+Math.PI,vessel.rotation.z,'YXZ');
   rowPaddle(dt,t,f);
-  const dist=Math.hypot(vessel.position.x-island.x,vessel.position.z-island.z);if(!state.island&&dist<11){state.island=true;objects.burst(vessel.position.x,vessel.position.y+1,vessel.position.z,t);e.sfx('pickup');toast('抵達浮標！按 E 往海裡看，放生後再划回岸邊。');}
+  const dist=Math.hypot(vessel.position.x-island.x,vessel.position.z-island.z);if(!state.island&&dist<11){state.island=true;objects.burst(vessel.position.x,vessel.position.y+1,vessel.position.z,t);e.sfx('pickup');toast('抵達浮標！按 E 把海洋生物一隻隻放回海裡。');}
   camGoal.set(vessel.position.x+Math.sin(boatYaw)*9,vessel.position.y+4.8,vessel.position.z+Math.cos(boatYaw)*9);camLook.set(vessel.position.x-Math.sin(boatYaw)*7,1,vessel.position.z-Math.cos(boatYaw)*7);
  }
  function update(dt,t){
   if(lagoon.isOpen){document.body.classList.remove('game-paused');return;}
+  sea.update(t);
   if(e.group!==currentGroup&&!e.busy){currentGroup=e.group;if(mode==='rest')e.player.copy(anchors.umbrella.surface.point);else if(mode==='tower')e.player.copy(anchors.lifeguard.surface.point);}
   document.body.classList.toggle('game-paused',running&&!e.active&&!completed&&mode!=='tidepool');
   const active=running&&e.active&&!e.busy&&!completed,simDt=active?dt:0;
@@ -424,7 +428,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   const contactY=surface.kind==='sand'&&mode!=='boat'?groundHeight(e.player.x,e.player.z):nearest?.point.y;
   return {id,mode,real:mode==='boat'?!!nearest:surface.real,kind:surface.kind,player:e.player.toArray(),contactY,gap:contactY==null?null:e.player.y-contactY,inside:!box||(e.player.x>=box.min.x&&e.player.x<=box.max.x&&e.player.z>=box.min.z&&e.player.z<=box.max.z),feet:character.rig.foot.map(b=>b?.getWorldPosition(new T.Vector3()).toArray()),head:character.head().toArray(),box};
  }
- const api={update,interact,reset,contact,get character(){return character.info();},get cameraAudit(){return {minimum:MIN_BOOM,distance:followCamera.distance,minObserved:followCamera.minObserved};},surfaces(){return Object.fromEntries(anchorList.map(a=>[a.id,{kind:a.surface.kind,real:a.surface.real,point:a.surface.point.toArray(),box:a.surface.box?.clone(),player:e.player.toArray()}]));},get state(){return {...state};},lagoon,overlay:lagoon,tidepool:{get found(){return lagoon.observed;}},opensea:{get released(){return lagoon.released;}},get suspended(){return lagoon.isOpen;},get mode(){return mode;},get completed(){return completed;},get elapsed(){return elapsed;}};
+ const api={update,interact,reset,contact,get character(){return character.info();},get cameraAudit(){return {minimum:MIN_BOOM,distance:followCamera.distance,minObserved:followCamera.minObserved};},surfaces(){return Object.fromEntries(anchorList.map(a=>[a.id,{kind:a.surface.kind,real:a.surface.real,point:a.surface.point.toArray(),box:a.surface.box?.clone(),player:e.player.toArray()}]));},get state(){return {...state};},lagoon,overlay:lagoon,tidepool:{get found(){return lagoon.observed;}},opensea:{get released(){return sea.released;}},sea,get suspended(){return lagoon.isOpen;},get mode(){return mode;},get completed(){return completed;},get elapsed(){return elapsed;}};
  if(auto){Object.assign(api,{ladder(){return anchors.lifeguard.ladder;},climbState(){return {towerT,towerDir,root:climb.root.toArray(),player:e.player.toArray(),total:towerTotal()};},handWorld(i){return character.rig.hand[i].getWorldPosition(new T.Vector3());},teleport(x,z){if(mode!=='walk')throw Error('Teleport is only available on foot');e.player.set(x,groundHeight(x,z),z);lastPlayer.copy(e.player);},targets(){return {shells:objects.items.map(s=>({x:s.x,y:s.y,z:s.z,collected:s.collected})),ball:objects.ball.position.toArray(),umbrella:anchors.umbrella.point.toArray(),tidepool:pool.point.toArray(),lagoon:pool.point.toArray(),lifeguard:anchors.lifeguard.point.toArray(),boat:anchors.boat.point.toArray(),dock,island};},step(seconds){let remaining=seconds;while(remaining>1e-6){const dt=Math.min(1/60,remaining);window.__TIME__=time()+dt;water.material.uniforms.time.value=window.__TIME__;e.update(dt);update(dt,window.__TIME__);remaining-=dt;}},steer(angle){if(mode!=='boat')throw Error('Not in boat');boatYaw=angle;},view(yaw){e.setView(yaw);},wave(x,z,t){return {...sampleWater(x,z,t,{})};}});Object.defineProperty(api,'vessel',{get(){return {x:vessel.position.x,y:vessel.position.y,z:vessel.position.z,yaw:boatYaw,speed:boatSpeed};}});window.__GAME__=api;}
  update(0,time());return api;
 }

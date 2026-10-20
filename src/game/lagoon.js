@@ -2,9 +2,7 @@ import * as T from 'three';
 import {groundHeight,shore} from '../terrain.js';
 import {SPECIES as TIDE_SPECIES} from '../tidepool/species.js';
 
-// Shared, disposable iframe host; quest progress outlives its WebGL context.
-export const SPECIES=['大白鯊','槌頭鯊','座頭鯨','虎鯨','海豚','海龜','蝠鱝'];
-const SOURCES={A:'reef/opus/index.html',B:'reef/tripo_lagoon/index.html',C:'reef/opus/index.html'};
+// Disposable iframe host for the tide pool; quest progress outlives its WebGL context. (The open sea lives in the beach scene: sea.js.)
 
 export function createTidePool(scene){
  const x=-26,z=shore(x)+4.5,y=groundHeight(x,z),root=new T.Group();root.name='game-tidepool';root.position.set(x,y,z);scene.add(root);
@@ -19,40 +17,27 @@ export function createTidePool(scene){
  return {root,point,center:new T.Vector3(x,y,z)};
 }
 
-export function createLagoon({onRelease,onObserve,onClose}){
+export function createLagoon({onObserve,onClose}){
  const overlay=document.createElement('section');overlay.id='lagoon';overlay.hidden=true;
  overlay.innerHTML=`<iframe allow="autoplay"></iframe><div class="lagoon-bar"><div><strong></strong><span id="lagoon-count"></span></div><ol></ol><button id="lagoon-back"></button></div>`;
  document.body.append(overlay);
- const frame=overlay.querySelector('iframe'),released=new Set(),observed=new Set();
- let timer=0,known=false,kind='tidepool',seen=new WeakSet(),thrown=new WeakSet();
- const entries=()=>kind==='tidepool'?TIDE_SPECIES.map(s=>({id:s.id,name:s.name})):SPECIES.map((name,id)=>({id,name}));
- const progress=()=>kind==='tidepool'?observed:released;
- function render(){const done=progress(),list=entries();overlay.querySelector('#lagoon-count').textContent=`${done.size} / ${list.length}`;overlay.querySelectorAll('li').forEach((li,i)=>li.classList.toggle('done',done.has(list[i].id)));overlay.classList.toggle('complete',done.size===list.length);}
- function poll(){
-  if(kind==='tidepool'){
-   for(const id of frame.contentWindow?.__TIDEPOOL__?.found??[]){if(!TIDE_SPECIES.some(s=>s.id===id)||observed.has(id))continue;observed.add(id);onObserve(id,observed.size);}render();return;
-  }
-  const reef=frame.contentWindow?.__reef;if(!reef)return;
-  // Initial swimmers do not count. A newly thrown/re-grabbed animal must enter water.
-  for(const c of reef.creatures){if(!known)seen.add(c);else if(!seen.has(c)||c.state==='held')thrown.add(c);
-   if(thrown.has(c)&&c.state==='entry'&&!released.has(c.sp)){released.add(c.sp);render();onRelease(c.sp,released.size);}}
-  known=true;
- }
+ const frame=overlay.querySelector('iframe'),observed=new Set(),title='潮池觀察：尋找 6 種潮池生物';
+ let timer=0;
+ function render(){overlay.querySelector('#lagoon-count').textContent=`${observed.size} / ${TIDE_SPECIES.length}`;overlay.querySelectorAll('li').forEach((li,i)=>li.classList.toggle('done',observed.has(TIDE_SPECIES[i].id)));overlay.classList.toggle('complete',observed.size===TIDE_SPECIES.length);}
+ function poll(){for(const id of frame.contentWindow?.__TIDEPOOL__?.found??[]){if(!TIDE_SPECIES.some(s=>s.id===id)||observed.has(id))continue;observed.add(id);onObserve(id,observed.size);}render();}
  function keys(event){if(event.key==='Escape'){event.preventDefault();close();}}
- function open(group,nextKind='opensea',{muted=false,auto=false}={}){
-  kind=nextKind;known=false;seen=new WeakSet();thrown=new WeakSet();
-  const tide=kind==='tidepool',title=tide?'潮池觀察：尋找 6 種潮池生物':'外海：放生 7 種大型海洋生物';
+ function open(group,{muted=false,auto=false}={}){
   overlay.setAttribute('aria-label',title);frame.title=title;overlay.querySelector('strong').textContent=title;
-  overlay.querySelector('ol').innerHTML=entries().map((s,i)=>`<li><kbd>${i+1}</kbd>${s.name}</li>`).join('');
-  overlay.querySelector('#lagoon-back').innerHTML=`回到${tide?'沙灘':'小船'} <kbd>Esc</kbd>`;
-  const query=new URLSearchParams({group,muted:muted?'1':'0',embedded:'1'});if(auto)query.set('auto','1');if(tide)query.set('found',[...observed].join(','));
-  frame.onload=()=>{known=false;frame.contentWindow.addEventListener('keydown',keys);if(!tide&&muted){const sound=frame.contentDocument.querySelector('[data-t="sound"].on');sound?.click();}poll();};
-  frame.src=tide?`tidepool.html?${query}`:`${SOURCES[group]??SOURCES.A}`;
+  overlay.querySelector('ol').innerHTML=TIDE_SPECIES.map((s,i)=>`<li><kbd>${i+1}</kbd>${s.name}</li>`).join('');
+  overlay.querySelector('#lagoon-back').innerHTML='回到沙灘 <kbd>Esc</kbd>';
+  const query=new URLSearchParams({group,muted:muted?'1':'0',embedded:'1',found:[...observed].join(',')});if(auto)query.set('auto','1');
+  frame.onload=()=>{frame.contentWindow.addEventListener('keydown',keys);poll();};
+  frame.src=`tidepool.html?${query}`;
   overlay.hidden=false;document.body.classList.add('lagoon-open');render();clearInterval(timer);timer=setInterval(poll,50);frame.focus();
  }
  // Unload on close: concurrent WebGL contexts can blank the beach under SwiftShader.
- function close(){if(overlay.hidden)return;poll();const previous=kind;overlay.hidden=true;frame.onload=null;frame.src='about:blank';document.body.classList.remove('lagoon-open');clearInterval(timer);onClose(previous);}
- function reset(){released.clear();observed.clear();render();}
+ function close(){if(overlay.hidden)return;poll();overlay.hidden=true;frame.onload=null;frame.src='about:blank';document.body.classList.remove('lagoon-open');clearInterval(timer);onClose();}
+ function reset(){observed.clear();render();}
  overlay.querySelector('#lagoon-back').onclick=close;addEventListener('keydown',e=>{if(!overlay.hidden)keys(e);});
- return {open,close,reset,frame,get kind(){return kind;},get isOpen(){return !overlay.hidden;},get released(){return [...released];},get observed(){return [...observed];}};
+ return {open,close,reset,frame,get isOpen(){return !overlay.hidden;},get observed(){return [...observed];}};
 }

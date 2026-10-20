@@ -38,19 +38,14 @@ try{
  async function paddleTo(goal){for(let i=0;i<100;i++){const v=await page.evaluate(()=>window.__GAME__.vessel),dx=goal.x-v.x,dz=goal.z-v.z,d=Math.hypot(dx,dz);if(d<7)return;await page.evaluate(a=>window.__GAME__.steer(a),Math.atan2(-dx,-dz));await page.keyboard.down('KeyW');await step(Math.min(1.5,(d-5)/9));await page.keyboard.up('KeyW');}throw Error('Boat failed to reach target');}
  await paddleTo({x:12,z:-65});await e();assert.equal(await page.evaluate(()=>window.__GAME__.mode),'boat');await shot('boat');
  await paddleTo(targets.island);assert((await page.evaluate(()=>window.__GAME__.state)).island);assert.equal((await page.evaluate(()=>window.__GAME__.state)).boat,false);
- // Only at the offshore buoy can E open Reef Lagoon, without leaving the boat.
+ // At the offshore buoy each E releases the next animal into the beach sea, without leaving the boat or opening an overlay.
  assert.match(await page.locator('#nav-text').innerText(),/E 放生/);
- const vesselBefore=await page.evaluate(()=>window.__GAME__.vessel);
- await e();assert.equal(await page.evaluate(()=>window.__GAME__.mode),'boat');
- await page.waitForFunction(()=>document.querySelector('#lagoon iframe').contentWindow.__reef,null,{timeout:120000});
- assert.match(await page.locator('#lagoon iframe').getAttribute('src'),/reef\/tripo_lagoon/);
- await page.waitForTimeout(200);
- for(let i=0;i<7;i++){await page.evaluate(i=>document.querySelector('#lagoon iframe').contentWindow.__reef.throwFromCard(i),i);await page.waitForTimeout(400);}
- await page.waitForFunction(()=>window.__GAME__.state.opensea,null,{timeout:180000});assert.equal((await page.evaluate(()=>window.__GAME__.state)).released,7);
- await page.screenshot({path:`${output}/opensea.png`});console.log('shot opensea');
- await page.evaluate(()=>document.querySelector('#lagoon iframe').contentWindow.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
- assert.equal(await page.evaluate(()=>window.__GAME__.mode),'boat');assert.deepEqual(await page.evaluate(()=>window.__GAME__.vessel),vesselBefore);assert.equal(await page.locator('#lagoon iframe').getAttribute('src'),'about:blank');
- await e();await page.waitForFunction(()=>document.querySelector('#lagoon iframe').contentWindow.__reef,null,{timeout:120000});await page.click('#lagoon-back');assert.equal(await page.evaluate(()=>window.__GAME__.mode),'boat');assert.equal((await page.evaluate(()=>window.__GAME__.state)).released,7);
+ await page.evaluate(()=>window.__GAME__.sea.ready);
+ for(let i=0;i<7;i++){await e();await step(.9);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'boat');assert(await page.locator('#lagoon').isHidden());}
+ await step(3);assert.equal((await page.evaluate(()=>window.__GAME__.state)).released,7);assert((await page.evaluate(()=>window.__GAME__.state)).opensea);
+ assert.deepEqual(await page.evaluate(()=>window.__GAME__.sea.creatures.map(c=>c.source)),Array(7).fill('B'));
+ assert(await page.evaluate(()=>window.__GAME__.sea.creatures.every(c=>c.holder.visible)));const v=await page.evaluate(()=>window.__GAME__.vessel);assert(Math.hypot(v.x-targets.island.x,v.z-targets.island.z)<14);
+ await shot('opensea');await e();assert.equal((await page.evaluate(()=>window.__GAME__.state)).released,7);
  await paddleTo({x:12,z:-65});await paddleTo(targets.dock);await e();await step(1);assert((await page.evaluate(()=>window.__GAME__.state)).boat);assert(await page.evaluate(()=>window.__GAME__.completed));assert(await page.locator('#complete').isVisible());await shot('complete');
  const result=await page.evaluate(()=>({state:window.__GAME__.state,elapsed:window.__GAME__.elapsed}));
  await page.click('#replay');assert.equal((await page.evaluate(()=>window.__GAME__.state)).shells,0);assert.equal((await page.evaluate(()=>window.__GAME__.state)).observed,0);assert.equal((await page.evaluate(()=>window.__GAME__.state)).released,0);assert.equal(await page.evaluate(()=>window.__GAME__.completed),false);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'walk');
