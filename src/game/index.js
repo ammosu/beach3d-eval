@@ -136,6 +136,15 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   const normal=dir.clone().negate();
   return {kind:'stairs',dir,normal,right:side,bottom,top,stand,slope,c,height:deckY-bottom.y,over:deckY-bottom.y,rungs:[],spacing:.28,axis:dir,own:true};
  }
+ // What a climber grabs above the top rung: on each side (sign of right) the nearest upright beside the ladder's
+ // centre line, i.e. the ladder's own rails or the posts of a railing opening, found with sideways probes from the rung
+ // line (and a little either side of it). Each side lists {h (height above the ladder foot via y), point (inner face)}.
+ function handrails(root,at,right,normal,from,to){
+  return [-1,1].map(sign=>{const dir=right.clone().multiplyScalar(sign),out=[];
+   for(let y=from;y<to;y+=.05){let best=null;for(const d of [0,-.05,.05,-.1,.1]){const o=at(y).addScaledVector(normal,d);ray.set(o,dir);ray.far=.7;const hit=ray.intersectObject(root,true).find(h=>h.distance>.12);if(hit&&(!best||hit.distance<best.distance))best=hit;}
+    if(best)out.push({y,point:best.point.clone()});}
+   return out;});
+ }
  // Headroom above a deck point: the underside of whatever roof is overhead (null: open sky).
  function roofOver(root,point){ray.set(new T.Vector3(point.x,point.y+.1,point.z),new T.Vector3(0,1,0));ray.far=3;const hit=ray.intersectObject(root,true)[0];return hit?hit.point.y:null;}
  function ownLadder(root,box,deckY,railAt){
@@ -175,7 +184,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   const hit=surfacesAt(root,stand.x,stand.z,box).find(h=>Math.abs(h.point.y-deckY)<.12);stand.y=(hit?.point.y??deckY)+.015;
   const over=Math.max(rail?rail.top:deckY,bottom.y+(rungs.at(-1)??0))-bottom.y;
   const edgePoint=edge==null?top.clone():new T.Vector3(normal.x?edge*normal.x:u,deckY,normal.z?edge*normal.z:u);
-  return {normal,right,top,edge:edgePoint,bottom,axis,stand,rungs,spacing:gap,height:deckY-bottom.y,over,railDepth:rail?.depth??0,roof:roofOver(root,stand),own:true};
+  return {normal,right,top,edge:edgePoint,bottom,axis,stand,rungs,spacing:gap,height:deckY-bottom.y,over,railDepth:rail?.depth??0,roof:roofOver(root,stand),own:true,handrails:handrails(root,at,right,normal,bottom.y+(rungs.at(-1)??0)+.1,deckY+1.2)};
  }
  function buildLadder(l){
   ladderMesh.clear();if(!l||l.own)return;
@@ -215,22 +224,29 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   // Which way along the rungs is each limb's side? The climber faces the ladder, so its own +x runs along -right;
   // read it from the facing rather than assume, or hands and feet cross over.
   const avatarX=Math.cos(ladderYaw)*r.x-Math.sin(ladderYaw)*r.z;
+  // The handrail on a side nearest a point (within 35 cm), or at world height y: the rail centre, a couple of
+  // centimetres past its inner face. Null when there is none.
+  const rail=(sideSign,want)=>{const list=l.handrails?.[sideSign<0?0:1];if(!list?.length)return null;let best=null,d=typeof want==='number'?.08:.35;
+   for(const p of list){const e=typeof want==='number'?Math.abs(p.y-want):p.point.distanceTo(want);if(e<d){d=e;best=p;}}return best?best.point.clone().addScaledVector(r,sideSign*.02):null;};
   for(let i=0;i<2;i++){const sideSign=Math.sign(character.side[i])*Math.sign(avatarX||1);
    // Feet: rung k sits at k·spacing; level 0 is the sand.
    const fx=u0/sp+(i?.5:0),fl=Math.min(level(fx),top);along(rungAt(fl),climb.feet[i]).addScaledVector(r,sideSign*.12).addScaledVector(n,.03+.12*swing(fx)).y+=.07;
    // Hands: about five rungs above the feet, then up the rails above the deck.
-   const hx=u0/sp+(i?0:.5),hl=level(hx)+handRungs,h=Math.min(rungAt(hl),l.over+.22);along(h,climb.hands[i]).addScaledVector(r,sideSign*(hl>top?.26:.17)).addScaledVector(n,.1*swing(hx));
+   // Above the top rung the hands take the handrails (the ladder's rails or the posts beside the opening) if any.
+   const hx=u0/sp+(i?0:.5),hl=level(hx)+handRungs,h=Math.min(rungAt(hl),l.over+.22),held=hl>top?rail(sideSign,along(h,new T.Vector3()).addScaledVector(r,sideSign*.2)):null;
+   if(held)climb.hands[i].copy(held).addScaledVector(n,.1*swing(hx));else along(h,climb.hands[i]).addScaledVector(r,sideSign*(hl>top?.26:.17)).addScaledVector(n,.1*swing(hx));
    if(reach)climb.hands[i].addScaledVector(fingers,-reach*.85).addScaledVector(palm,-.04);else climb.hands[i].addScaledVector(n,.06);
    climb.aim[i].dir.copy(fingers);climb.aim[i].palm.copy(palm);
    climb.footWeight[i]=1-T.MathUtils.smoothstep(m,.9,1);climb.handWeight[i]=1-T.MathUtils.smoothstep(m,.7,.92);climb.curl[i]=climb.handWeight[i];
   }
   // Over the top like a person: hands on the top rail (or deck edge), hips just high enough to clear it, the lead foot
   // arcs over and down onto the deck and the other follows, leaning in under a low roof. Then turn to face the sea.
-  // The body hangs a little below the rung line, hips about 38 cm off the ladder plane (measured square to it, 0.9 m
+  // The body hangs 25 cm below the rung line, so both knees bend (the lower leg a little, the upper one more; any
+  // higher and the lower leg locks straight), hips about 38 cm off the ladder plane (measured square to it, 0.9 m
   // above the feet). On a leaning ladder that puts the hips nearly over the feet, as on steep stairs; a fixed level
   // offset would leave the hips far out and the torso folded forward to reach the rungs.
   const tilt=Math.acos(T.MathUtils.clamp(l.axis.y,-1,1)),out=(.38-.9*Math.sin(tilt))/Math.cos(tilt);
-  const body=(h,o)=>along(h,o).addScaledVector(n,out).setY(o.y-.1);
+  const body=(h,o)=>along(h,o).addScaledVector(n,out).setY(o.y-.25);
   const start=body(k.climbH,new T.Vector3()),end=l.stand,deckY=l.stand.y-.015,railY=l.bottom.y+l.over;
   // The torso leans in a little with the ladder, so the hands reach the rungs ahead.
   body(u0,climb.root);climb.duck=0;climb.lean=.12+.4*tilt;
@@ -239,7 +255,9 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
    climb.root.set(start.x+(end.x-start.x)*across,start.y+(end.y-start.y)*drop,start.z+(end.z-start.z)*across);
    const railLine=l.edge.clone().addScaledVector(n,-l.railDepth);
    for(let i=0;i<2;i++){const sideSign=Math.sign(character.side[i])*Math.sign(avatarX||1);
-    const grip=railLine.clone().addScaledVector(r,sideSign*.24);grip.y=railY;
+    // Hands on the posts beside the opening at about waist height on the deck, else on the top rail or deck edge.
+    let grip=null;for(const y of [deckY+.7,deckY+.6,deckY+.8,deckY+.5,deckY+.9])if(!grip)grip=rail(sideSign,y);
+    if(!grip){grip=railLine.clone().addScaledVector(r,sideSign*.24);grip.y=railY;}
     if(reach)grip.addScaledVector(fingers,-reach*.85).addScaledVector(palm,-.04);else grip.addScaledVector(n,.06);
     climb.hands[i].lerp(grip,T.MathUtils.smoothstep(m,0,.15));
     const s0=i?.45:.1,f=T.MathUtils.smoothstep(m,s0,s0+.4),from=climb.feet[i].clone(),to=end.clone().addScaledVector(r,sideSign*.12),mid=railLine.clone().addScaledVector(r,sideSign*.14);to.y=deckY+.08;mid.y=railY+.16;
@@ -434,6 +452,6 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   return {id,mode,real:mode==='boat'?!!nearest:surface.real,kind:surface.kind,player:e.player.toArray(),contactY,gap:contactY==null?null:e.player.y-contactY,inside:!box||(e.player.x>=box.min.x&&e.player.x<=box.max.x&&e.player.z>=box.min.z&&e.player.z<=box.max.z),feet:character.rig.foot.map(b=>b?.getWorldPosition(new T.Vector3()).toArray()),head:character.head().toArray(),box};
  }
  const api={update,interact,reset,contact,get character(){return character.info();},get cameraAudit(){return {minimum:MIN_BOOM,distance:followCamera.distance,minObserved:followCamera.minObserved};},surfaces(){return Object.fromEntries(anchorList.map(a=>[a.id,{kind:a.surface.kind,real:a.surface.real,point:a.surface.point.toArray(),box:a.surface.box?.clone(),player:e.player.toArray()}]));},get state(){return {...state};},lagoon,overlay:lagoon,tidepool:{get found(){return lagoon.observed;}},opensea:{get spotted(){return sea.seen;}},sea,get suspended(){return lagoon.isOpen;},get mode(){return mode;},get completed(){return completed;},get elapsed(){return elapsed;}};
- if(auto){Object.assign(api,{ladder(){return anchors.lifeguard.ladder;},climbState(){return {towerT,towerDir,root:climb.root.toArray(),player:e.player.toArray(),total:towerTotal()};},handWorld(i){return character.rig.hand[i].getWorldPosition(new T.Vector3());},teleport(x,z){if(mode!=='walk')throw Error('Teleport is only available on foot');e.player.set(x,groundHeight(x,z),z);lastPlayer.copy(e.player);},targets(){return {shells:objects.items.map(s=>({x:s.x,y:s.y,z:s.z,collected:s.collected})),ball:objects.ball.position.toArray(),umbrella:anchors.umbrella.point.toArray(),tidepool:pool.point.toArray(),lagoon:pool.point.toArray(),lifeguard:anchors.lifeguard.point.toArray(),boat:anchors.boat.point.toArray(),dock,island};},step(seconds){let remaining=seconds;while(remaining>1e-6){const dt=Math.min(1/60,remaining);window.__TIME__=time()+dt;water.material.uniforms.time.value=window.__TIME__;e.update(dt);update(dt,window.__TIME__);remaining-=dt;}},steer(angle){if(mode!=='boat')throw Error('Not in boat');boatYaw=angle;},view(yaw){e.setView(yaw);},wave(x,z,t){return {...sampleWater(x,z,t,{})};}});Object.defineProperty(api,'vessel',{get(){return {x:vessel.position.x,y:vessel.position.y,z:vessel.position.z,yaw:boatYaw,speed:boatSpeed};}});window.__GAME__=api;}
+ if(auto){Object.assign(api,{ladder(){return anchors.lifeguard.ladder;},climbState(){return {towerT,towerDir,root:climb.root.toArray(),hands:climb.hands.map(h=>h.toArray()),player:e.player.toArray(),total:towerTotal()};},handWorld(i){return character.rig.hand[i].getWorldPosition(new T.Vector3());},teleport(x,z){if(mode!=='walk')throw Error('Teleport is only available on foot');e.player.set(x,groundHeight(x,z),z);lastPlayer.copy(e.player);},targets(){return {shells:objects.items.map(s=>({x:s.x,y:s.y,z:s.z,collected:s.collected})),ball:objects.ball.position.toArray(),umbrella:anchors.umbrella.point.toArray(),tidepool:pool.point.toArray(),lagoon:pool.point.toArray(),lifeguard:anchors.lifeguard.point.toArray(),boat:anchors.boat.point.toArray(),dock,island};},step(seconds){let remaining=seconds;while(remaining>1e-6){const dt=Math.min(1/60,remaining);window.__TIME__=time()+dt;water.material.uniforms.time.value=window.__TIME__;e.update(dt);update(dt,window.__TIME__);remaining-=dt;}},steer(angle){if(mode!=='boat')throw Error('Not in boat');boatYaw=angle;},view(yaw){e.setView(yaw);},wave(x,z,t){return {...sampleWater(x,z,t,{})};}});Object.defineProperty(api,'vessel',{get(){return {x:vessel.position.x,y:vessel.position.y,z:vessel.position.z,yaw:boatYaw,speed:boatSpeed};}});window.__GAME__=api;}
  update(0,time());return api;
 }
