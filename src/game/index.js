@@ -202,7 +202,10 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   const u=T.MathUtils.clamp(t/k.up,0,1)*k.climbH,m=T.MathUtils.clamp((t-k.up)/k.mantle,0,1),turn=T.MathUtils.smoothstep(t-k.up-k.mantle,0,k.turn);
   const reach=character.gripReach||0,down=new T.Vector3(0,-1,0),fingers=n.clone().negate().multiplyScalar(.9).addScaledVector(down,.44).normalize(),palm=new T.Vector3().crossVectors(r,fingers);if(palm.y>0)palm.negate();
   const ladderYaw=Math.atan2(-n.x,-n.z),u0=Math.min(t,k.up)/k.up*k.climbH;
-  for(let i=0;i<2;i++){const s=character.side[i],sideSign=Math.sign(s);
+  // Which way along the rungs is each limb's side? The climber faces the ladder, so its own +x runs along -right;
+  // read it from the facing rather than assume, or hands and feet cross over.
+  const avatarX=Math.cos(ladderYaw)*r.x-Math.sin(ladderYaw)*r.z;
+  for(let i=0;i<2;i++){const sideSign=Math.sign(character.side[i])*Math.sign(avatarX||1);
    // Feet: rung k sits at k·spacing; level 0 is the sand.
    const fx=u0/sp+(i?.5:0),fl=Math.min(level(fx),top);along(rungAt(fl),climb.feet[i]).addScaledVector(r,sideSign*.12).addScaledVector(n,.03+.12*swing(fx)).y+=.07;
    // Hands: about five rungs above the feet, then up the rails above the deck.
