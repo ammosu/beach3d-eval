@@ -122,12 +122,18 @@ export async function createCharacter(group='A'){
  // Each clip's own ground speed (in place): sample the feet over one cycle; stride ≈ peak foot separation,
  // two steps per cycle. Playback is later scaled to the avatar's real speed so the feet don't slide.
  // The same sweep finds each foot's plant: the phase where it is lowest and furthest forward (heel strike).
- const nativeSpeed={},contact={};
+ const nativeSpeed={},contact={},cycles={};
  for(const name of ['walk','run']){const action=actions.get(name),feet=rig.foot;if(!action||!feet?.[0]||!feet?.[1])continue;
-  const duration=action.getClip().duration,a=V(),b=V(),samples=[[],[]];let sep=0;idle?.stop();action.reset().play();
-  for(let k=0;k<48;k++){action.time=duration*k/48;mixer.update(0);root.updateMatrixWorld(true);feet[0].getWorldPosition(a);feet[1].getWorldPosition(b);sep=Math.max(sep,Math.hypot(a.x-b.x,a.z-b.z));samples[0].push([a.y,a.z]);samples[1].push([b.y,b.z]);}
-  action.stop();nativeSpeed[name]=2*sep/duration;
-  contact[name]=samples.map(list=>{const low=Math.min(...list.map(v=>v[0])),high=Math.max(...list.map(v=>v[0]));let best=0,score=-Infinity;list.forEach(([y,z],k)=>{const s=z-(y-low)/(high-low||1)*sep*2;if(y-low<(high-low)*.35&&s>score){score=s;best=k;}});return best/48;});}
+  const duration=action.getClip().duration,a=V(),b=V(),samples=[[],[]],N=96;let sep=0;idle?.stop();action.reset().play();
+  for(let k=0;k<N;k++){action.time=duration*k/N;mixer.update(0);root.updateMatrixWorld(true);feet[0].getWorldPosition(a);feet[1].getWorldPosition(b);sep=Math.max(sep,Math.hypot(a.x-b.x,a.z-b.z));samples[0].push([a.y,a.z]);samples[1].push([b.y,b.z]);}
+  action.stop();
+  // A clip may hold several gait cycles (the Tripo walk has two): a foot swings forward and back once per cycle.
+  const z=samples[0].map(v=>v[1]),mean=z.reduce((p,v)=>p+v,0)/N;let cross=0;for(let k=0;k<N;k++)if(Math.sign(z[k]-mean)!==Math.sign(z[(k+1)%N]-mean))cross++;
+  const n=Math.max(1,Math.round(cross/2));cycles[name]=n;nativeSpeed[name]=2*n*sep/duration;
+  // Heel strikes, one per cycle and foot: the lowest, furthest-forward sample in each cycle's window.
+  contact[name]=samples.map(list=>{const low=Math.min(...list.map(v=>v[0])),high=Math.max(...list.map(v=>v[0])),phases=[];
+   for(let w=0;w<n;w++){let best=-1,score=-Infinity;for(let k=Math.floor(w*N/n);k<Math.floor((w+1)*N/n);k++){const [y,zz]=list[k],s=zz-(y-low)/(high-low||1)*sep*2;if(y-low<(high-low)*.35&&s>score){score=s;best=k;}}if(best>=0)phases.push(best/N);}
+   return phases;});}
  idle?.reset().play();mixer.update(0);for(const [bone,r] of rest){bone.quaternion.copy(r.q);bone.position.copy(r.p);bone.scale.copy(r.s);}root.updateMatrixWorld(true);
  // Directions expressed in each bone's local frame make procedural poses portable
  // across the three rigs' different bone rolls and coordinate systems.
@@ -135,7 +141,7 @@ export async function createCharacter(group='A'){
  function axis(b,end){if(!b)return;const a=end?end.getWorldPosition(V()).sub(b.getWorldPosition(V())):V(0,1,0);axes.set(b,a.normalize().applyQuaternion(b.getWorldQuaternion(new T.Quaternion()).invert()));}
  for(let i=0;i<2;i++){axis(rig.thigh[i],rig.calf[i]);axis(rig.calf[i],source==='C'?rig.calf[i]?.children[0]:rig.foot[i]);axis(rig.arm[i],rig.fore[i]);axis(rig.fore[i],rig.hand[i]);}axis(rig.spine,rig.head);
  const hipY=rig.hip?.getWorldPosition(V()).y??.91,legLength=rig.thigh?.[0]&&rig.foot?.[0]?rig.thigh[0].getWorldPosition(V()).distanceTo(rig.foot[0].getWorldPosition(V())):hipY*.9;
- let pace=0,locoPhase=0,locoSync=false,posed=false,active='idle',age=0,actionAge=0,oneShot='',oneAge=0,opacity=1,lastPhase=null,stride=0;const steps=[];
+ let settle=null,pace=0,locoPhase=0,locoSync=false,posed=false,active='idle',age=0,actionAge=0,oneShot='',oneAge=0,opacity=1,lastPhase=null,stride=0;const steps=[];
  const previousPose=new Map(allBones.map(b=>[b,{q:b.quaternion.clone(),p:b.position.clone()}]));
  const poseRotation=new T.Quaternion(),posePosition=V(),bodyRotation=new T.Quaternion(),bodyPosition=V(),headWorld=V();
  function aim(b,x,y,z,weight=1){if(!b||!axes.has(b))return;b.updateWorldMatrix(true,false);b.getWorldQuaternion(q);from.copy(axes.get(b)).applyQuaternion(q);dir.set(x,y,z).normalize().applyQuaternion(root.getWorldQuaternion(parentQ));turn.setFromUnitVectors(from,dir);q.premultiply(turn);b.parent.getWorldQuaternion(parentQ).invert();q.premultiply(parentQ);b.quaternion.slerp(q,weight);b.updateWorldMatrix(false,true);}
@@ -177,7 +183,7 @@ export async function createCharacter(group='A'){
  }
  const toWorld=(x,y,z)=>local.set(x,y,z).applyMatrix4(root.matrixWorld);
  const toWorldDir=(x,y,z)=>V(x,y,z).applyQuaternion(root.getWorldQuaternion(rootQ));
- const error={hands:[null,null],feet:[null,null]};
+ const error={hands:[null,null],feet:[null,null]},lastFeet=[V(),V()];
  function solve({hands,feet,handWeight=1,footWeight=1,pelvis=0,ground,floor,spine,look,lookWeight=1,handAim,curl}){
   root.updateWorldMatrix(true,true);markAnkles();
   // Terrain-following feet: each foot keeps the clip's lift above its own patch of ground; the pelvis drops to the
@@ -185,6 +191,10 @@ export async function createCharacter(group='A'){
   let feetTargets=feet;
   if(!feet&&ground){const rootY=root.getWorldPosition(A1).y,out=[];let drop=0;
    for(let i=0;i<2;i++){const e=endOf(i,true);if(!e){out.push(null);continue;}const p=e.getWorldPosition(V()),g=ground(p.x,p.z)-rootY;out.push(p.setY(p.y+g));drop=Math.min(drop,g);}
+   if(settle){if(settle.first==null)settle.first=out[0]&&out[1]&&settle.plant[1].distanceTo(out[1])>settle.plant[0].distanceTo(out[0])?1:0;
+    for(let i=0;i<2;i++){if(!out[i])continue;const start=i===settle.first?.05:.3,t=T.MathUtils.clamp((settle.age-start)/.26,0,1),k=T.MathUtils.smoothstep(t,0,1),far=settle.plant[i].distanceTo(out[i])>.05;
+     out[i].lerpVectors(settle.plant[i],out[i],far?k:1);if(far)out[i].y+=Math.sin(Math.PI*t)*.06;}
+    if(settle.age>.65)settle=null;}
    pelvis+=drop;feetTargets=out;}
   // Seated feet rest on a floor (boat hull) instead; the body stays on its seat.
   if(!feet&&floor)feetTargets=[0,1].map(i=>{const e=endOf(i,true);if(!e)return null;const p=e.getWorldPosition(V()),y=floor(p.x,p.z);return y==null?null:p.setY(y+ankle[i]);});
@@ -225,20 +235,25 @@ export async function createCharacter(group='A'){
   pace=dt?T.MathUtils.damp(pace,speed,4,dt):speed;const blendRun=T.MathUtils.smoothstep(pace,2.9,4.3);
   const gait=speed>.12?(blendRun>.5?'run':'walk'):'idle',layered=gait!=='idle'&&oneShot==='interact'&&!animation;
   const selected=animation??(pose==='climb'?'climb':pose==='paddle'?'paddle':pose==='lie'?'lie':pose==='sit'||pose==='sand'?'sit':airborne?'jump':gait!=='idle'?gait:oneShot||gait);
-  play(selected);
+  // Stopping: crossfading walk into idle would slide the planted feet across the sand. Pin them where they are and
+  // step them into the idle stance one at a time (the further one first).
+  const was=active;play(selected);
+  if(selected!=='idle'||animation)settle=null;else if(loco(was)&&dt)settle={plant:lastFeet.map(v=>v.clone()),age:0,first:null};
+  if(settle)settle.age+=dt;
   const walkA=actions.get('walk'),runA=actions.get('run'),both=!animation&&loco(selected)&&walkA&&runA&&nativeSpeed.walk&&nativeSpeed.run;
   if(both&&(locoSync||actionAge>.25)){
-   // Phase in walk-cycle units; the run clip is offset so both put the same foot down together.
-   const shift=(contact.run?.[0]??0)-(contact.walk?.[0]??0),cycle=T.MathUtils.lerp(nativeSpeed.walk*walkA.getClip().duration,nativeSpeed.run*runA.getClip().duration,blendRun);
-   if(!locoSync)locoPhase=active==='run'?runA.time/runA.getClip().duration-shift:walkA.time/walkA.getClip().duration;
-   locoSync=true;locoPhase=((locoPhase+dt*Math.min(speed,cycle*3)/cycle)%1+1)%1;
-   for(const [a,w,off] of [[walkA,1-blendRun,0],[runA,blendRun,shift]]){a.enabled=true;if(!a.isRunning())a.play();a.setEffectiveTimeScale(0).setEffectiveWeight(w);a.time=((locoPhase+off)%1+1)%1*a.getClip().duration;}
+   // One shared gait phase (0 = the first foot's heel strike); each clip plays the matching moment of its first cycle.
+   const frac=x=>(x%1+1)%1,lead=n=>frac((contact[n]?.[0]?.[0]??0)*cycles[n]),stride=n=>nativeSpeed[n]*actions.get(n).getClip().duration/cycles[n];
+   const cycle=T.MathUtils.lerp(stride('walk'),stride('run'),blendRun);
+   if(!locoSync){const n=active==='run'?'run':'walk',a=actions.get(n);locoPhase=frac(a.time/a.getClip().duration*cycles[n]-lead(n));}
+   locoSync=true;locoPhase=frac(locoPhase+dt*Math.min(speed,cycle*3)/cycle);
+   for(const [a,w,n] of [[walkA,1-blendRun,'walk'],[runA,blendRun,'run']]){a.enabled=true;if(!a.isRunning())a.play();a.setEffectiveTimeScale(0).setEffectiveWeight(w);a.time=frac(locoPhase+lead(n))/cycles[n]*a.getClip().duration;}
   }
   else if(nativeSpeed[selected]&&!animation)actions.get(selected).setEffectiveTimeScale(T.MathUtils.clamp(speed/nativeSpeed[selected],.5,5));
   restore();mixer.update(dt);
   // Foot plants: report each foot whose contact phase the clip passed this frame.
   steps.length=0;const clipAction=actions.get(selected);
-  if(contact[selected]&&clipAction&&dt){const phase=(clipAction.time/clipAction.getClip().duration)%1;if(lastPhase!==null&&lastPhase[0]===selected){const from=lastPhase[1];contact[selected].forEach((c,i)=>{if(phase>=from?c>from&&c<=phase:c>from||c<=phase)steps.push(i);});}lastPhase=[selected,phase];}else lastPhase=null;
+  if(contact[selected]&&clipAction&&dt){const phase=(clipAction.time/clipAction.getClip().duration)%1;if(lastPhase!==null&&lastPhase[0]===selected){const from=lastPhase[1];contact[selected].forEach((list,i)=>{for(const c of list)if(phase>=from?c>from&&c<=phase:c>from||c<=phase)steps.push(i);});}lastPhase=[selected,phase];}else lastPhase=null;
   if(layered){const w=Math.sin(Math.PI*Math.min(oneAge/.85,1));for(let i=0;i<2;i++){const sign=i?1:-1;aim(rig.arm[i],sign*.2,-.6,.9,w);aim(rig.fore[i],0,-.3,1,w);}}
   const proceduralPose=!actions.has(selected),seated=selected==='sit'||selected==='paddle',lying=selected==='lie';
   // Reset the outer transform before posing. All anatomical directions are avatar-local.
@@ -271,6 +286,7 @@ export async function createCharacter(group='A'){
   bodyRotation.slerp(poseRotation,dt?blend:1);bodyPosition.lerp(posePosition,dt?blend:1);
   pivot.quaternion.copy(bodyRotation);pivot.position.copy(bodyPosition);
   if(ik)solve(ik);else{error.hands.fill(null);error.feet.fill(null);}
+  for(let i=0;i<2;i++)endOf(i,true)?.getWorldPosition(lastFeet[i]);
   // Hide the head through its bone (also covers a unified Tripo skin).
   if(rig.head&&first)rig.head.scale.multiplyScalar(.001);
   opacity=T.MathUtils.damp(opacity,fade,12,dt);for(const m of materials){m.mat.opacity=m.opacity*opacity;m.mat.transparent=m.transparent||opacity<.995;m.mat.depthWrite=m.depthWrite&&opacity>.5;}
