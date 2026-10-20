@@ -60,18 +60,18 @@ try {
   await hold(1);
   // 3. 踢沙灘球進海
   await cut(() => teleport(t.ball[0], t.ball[2] + 4, 0));
-  await walkTo(t.ball[0], t.ball[2] + 1.3, 0.3, 3); await press('KeyE'); await hold(4);
+  await walkTo(t.ball[0], t.ball[2] + 1.3, 0.3, 5); await press('KeyE'); await hold(4);
   // 4. 躺椅休息
   await cut(() => teleport(t.umbrella[0] + 2, t.umbrella[2] + 4, Math.atan2(2, 4)));
-  await walkTo(t.umbrella[0], t.umbrella[2], 0.6, 3); await press('KeyE'); await hold(4); await press('KeyE'); await hold(.5);
+  await walkTo(t.umbrella[0], t.umbrella[2], 0.6, 5); await press('KeyE'); await hold(4); await press('KeyE'); await hold(.5);
   // 5. 救生塔看海
   await cut(() => teleport(t.lifeguard[0] - 2, t.lifeguard[2] + 5, Math.atan2(-2, 5)));
-  await walkTo(t.lifeguard[0], t.lifeguard[2], 0.6, 3); await press('KeyE'); await hold(6);
+  await walkTo(t.lifeguard[0], t.lifeguard[2], 0.6, 5); await press('KeyE'); await hold(6);
   // 下塔沿梯子倒著爬：錄開頭一段，其餘黑幕中快轉
   await press('KeyE'); await hold(2.5); await cut(() => ffwd(3.5));
   // 6. 上船划向小島（錄一段），黑幕中划到小島再回來，錄靠岸下船
   await cut(() => teleport(t.boat[0] - 1, t.boat[2] + 3, Math.atan2(-1, 3)));
-  await walkTo(t.boat[0], t.boat[2], 0.6, 3); await press('KeyE'); await hold(1);
+  await walkTo(t.boat[0], t.boat[2], 0.6, 5); await press('KeyE'); await hold(1);
   const paddle = async (goal, rec, maxS) => {
     await page.keyboard.down('KeyW');
     for (let i = 0; i < maxS * FPS; i++) {
