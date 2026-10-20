@@ -26,10 +26,11 @@ Sibling worktrees `../beach3d-codex2` (port 5193) and `../beach3d-opus` (port 51
 
 ```sh
 npx vite --port 5191 --strictPort      # dev server (npm run dev); many scripts assume 5191
-npm run build                          # 5 entries: index, scene, compare, props, game → dist/ (copies assets/, report/)
+npm run build                          # 6 entries: index, scene, compare, props, game, tidepool → dist/ (copies assets/, report/, reef/{opus,tripo_lagoon})
 node scripts/shoot.mjs <A|B|C>         # fixed-camera stills → shots/<g>/{wide,beach,closeup}.png (SwiftShader)
 node scripts/shoot-props.mjs <g> [slot]   # solo prop renders → shots/<g>/props/
-node scripts/verify-game.mjs           # full game regression (quests, boat, A/B/C, mobile, missing GLBs)
+node scripts/verify-game.mjs           # full game regression (quests, tide pool, open sea, boat, A/B/C, mobile, missing GLBs)
+node scripts/verify-tidepool.mjs       # tide-pool page A/B/C: lift stones, observe 6, mobile → shots/tidepool/
 node scripts/verify-explore.mjs        # explore-mode regression
 ```
 
@@ -37,6 +38,8 @@ Media pipeline:
 
 - `node scripts/record-path.mjs <g> [fps] [path.json] [outdir]`: frame-by-frame GPU render along a camera path. Uses `SCENE_URL` and `SETTLE_MS` to point at other ports.
 - `scripts/record-game.mjs` and `scripts/record-walk.mjs <g>`: game and character recordings.
+- `node scripts/record-tidepool.mjs <g> [fps]` → `video/frames/tidepool_<g>/`, then `python3 tools/make_tidepool.py` → `video/tidepool_abc.mp4` (A/B/C side by side, same action timeline).
+- `node scripts/record-game-tidepool.mjs [g]` → `video/game_tidepool.mp4` (walk to the pool in the game, observe all 6, return).
 - Compositing: `python3 tools/make_video.py`, `tools/make_zoom.py`, `tools/compare_models.py`.
 
 Assets and stats:
@@ -70,6 +73,7 @@ There is no lint or unit-test setup. Verification means running the Playwright s
   - `compare.html` adds `src/compare.js`, which uses one renderer with scissor viewports and toggles props per pane.
   - `game.html` adds `src/game/*`.
   - `props.html` runs `src/props-solo.js`, a separate solo viewer.
+  - `tidepool.html` runs `src/tidepool/`, its own small scene that does not import `src/main.js`.
   - `index.html` is the hub (`src/hub.js`, reads `report/stats.json`).
 - **Props.** `assets/props.json` is the single source of slots: `pos`, `height`, optional `maxLen`, `prompt`, and `paths.B/C` GLB paths. `src/props.js` `loadProps(group)` places either A's procedural builders (`src/props-a.js`) or GLBs.
   - The fit rule is shared by all groups: `scale = min(height/size.y, maxLen/max(size.x,size.z))`. Don't change it per group, or the comparison stops being fair.
@@ -90,14 +94,19 @@ There is no lint or unit-test setup. Verification means running the Playwright s
   - Missing clip poses (sit, lie, paddle, climb) are procedural bone aiming.
   - Gotcha: an `update(0)` call must not `restore()` bones. three.js `PropertyMixer` skips writing unchanged values, so the rest pose would stay on screen in offline recordings.
   - Walk/run playback is time-scaled to measured clip stride so feet don't slide.
-- **Tide-pool quest (6th game quest).** `src/game/lagoon.js` opens the Reef Lagoon in a full-screen iframe: `reef/opus/` for groups A and C, `reef/tripo_lagoon/` for B.
-  - The lagoon files are not edited. The parent polls the same-origin `window.__reef.creatures`; a species counts once a thrown or re-grabbed creature reaches `state==='entry'`.
-  - `vite.config.js` copies `reef/` into `dist/`.
-  - While the overlay is open, `game.suspended` skips the beach render.
+- **Tide pool and open sea (game quests 5 and 6).** `src/game/lagoon.js` hosts both in one full-screen iframe overlay.
+  - Rock pool on the beach → `tidepool.html?group=<g>&embedded=1` (`src/tidepool/`). Gameplay: lift stones, observe 6 intertidal species. The parent polls `__TIDEPOOL__.found`.
+  - Rowboat at the island buoy → E opens the Reef Lagoon: `reef/opus/` for A and C, `reef/tripo_lagoon/` for B. Closing returns to the boat. The lagoon files are not edited. The parent polls `window.__reef.creatures`; a species counts once a thrown or re-grabbed creature reaches `state==='entry'`.
+  - The iframe is unloaded (`about:blank`) on close: two WebGL contexts blanked the beach under SwiftShader. While the overlay is open, `game.suspended` skips the beach render.
+  - Tide-pool hooks: `__TIDEPOOL__` (`found`, `done`, `species`, `stones`, `group`; with `?auto=1` also `lift(i)`, `observe(id)`, `step(s)`, `project`), `__READY__`, `?time=`, `?muted=1`, `?found=`. `step(0)` freezes the iframe clock for recording.
+  - Creature models follow the group: A procedural (`src/tidepool/creatures.js`), B `assets/tidepool/B/<id>.glb` (Tripo), C `assets/tidepool/C/<id>.glb` (Sketchfab/Poly Pizza, CC BY, credits in `CREDITS.md`). A missing GLB falls back to A per species.
+  - GLBs are normalized with `reef/tripo/prep.py <in> <out> <preview> [tris] [rot] base`: head +X, base at y=0, longest horizontal extent 1. `species.js` `display` sets the on-screen size, shared by all groups.
 - **Game camera collision** uses BVH (`three-mesh-bvh`) copies of the real prop triangles. Player and ball collision use conservative AABBs.
 
 ## Conventions and gotchas
 
+- Headless GPU screenshots of the tide pool occasionally capture a frame without the water layer; re-rendering the same time fixes it. The tide-pool recorders shoot each frame until two screenshots match. Also scan finished frames for single-frame spikes.
+- Blender MCP library toggles (Sketchfab, Poly Pizza) are per scene: a new temp scene starts with them off.
 - Headless Chromium path: `~/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome`.
   - GPU: `--use-gl=angle --use-angle=gl-egl` (≈0.17 s/frame).
   - SwiftShader: `--use-angle=swiftshader --enable-unsafe-swiftshader` (≈1.6 s/frame), used for stills and verification.
