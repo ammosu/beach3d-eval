@@ -5,6 +5,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { groundHeight } from './terrain.js';
 import { addCoastDetails } from './coast.js';
 import { propRoot, loadProps } from './props.js';
@@ -52,7 +53,12 @@ const {config,results}=await loadProps(params.get('group')||'A');
 const view=config.cameras[params.get('cam')]||config.cameras.wide;camera.position.fromArray(view.pos);camera.lookAt(new THREE.Vector3().fromArray(view.target));
 const exploreEnabled=params.get('explore')==='1'&&!params.has('cam');
 let controls;if(!exploreEnabled&&!params.has('cam')){controls=new OrbitControls(camera,renderer.domElement);controls.target.fromArray(view.target);controls.maxPolarAngle=Math.PI*.48;controls.minDistance=2;controls.maxDistance=180;controls.enableDamping=true;}
-const composer=new EffectComposer(renderer);composer.addPass(new RenderPass(scene,camera));composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.035,.4,3.0));composer.addPass(new OutputPass());
+// Before bloom, replace non-finite pixels (NaN, or a highlight past half-float range) with finite ones: bloom's blur
+// would otherwise spread a single bad pixel over the whole frame (seen as an all-background frame in game mode).
+// Finite pixels below 1e4 pass through unchanged.
+const sanitize=new ShaderPass({uniforms:{tDiffuse:{value:null}},vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+ fragmentShader:'uniform sampler2D tDiffuse;varying vec2 vUv;void main(){vec4 c=texture2D(tDiffuse,vUv);gl_FragColor=any(isnan(c))||any(isinf(c))?vec4(0.,0.,0.,1.):min(c,vec4(1e4));}'});
+const composer=new EffectComposer(renderer);composer.addPass(new RenderPass(scene,camera));composer.addPass(sanitize);composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.035,.4,3.0));composer.addPass(new OutputPass());
 const comparison=comparing?await (await import('./compare.js')).createComparison({scene,camera,renderer,composer,config,results,initialGroup:params.get('group')||'A'}):null;
 const explore=exploreEnabled?(await import('./explore.js')).createExplore({scene,camera,renderer,config,results,group:params.get('group')||'A',auto:params.get('auto')==='1',comparison:comparing,gameMode:gaming}):null;
 const game=gaming?await (await import('./game/index.js')).createGame({scene,camera,renderer,water,config,explore,auto:params.get('auto')==='1'}):null;

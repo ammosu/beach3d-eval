@@ -50,6 +50,23 @@ export function findSurface(root,kind,group,defaultPoint){
   if(samples.length){const centre=(Math.min(...samples.map(p=>p.along))+Math.max(...samples.map(p=>p.along)))/2-.125;
    const seats=samples.filter(p=>Math.abs(p.point.y-best.y)<.12);seats.sort((a,b)=>Math.hypot(a.along-centre,a.across)-Math.hypot(b.along-centre,b.across));if(seats.length)best=seats[0].point;
   }
+  // Height profile along the lounger (local -Z, the head end, is negative along): the top surface every 5 cm. From it,
+  // where to lie: hips just in front of the bend where the backrest starts to rise, the torso reclined at the
+  // backrest's slope (so the back rests on it instead of passing through), legs on the seat toward the foot end.
+  var profile=[],lie=null;for(let along=-1.5;along<=1.5;along+=.05){const here=samples.filter(p=>Math.abs(p.along-along)<.026);if(here.length)profile.push({along:+along.toFixed(2),y:Math.max(...here.map(p=>p.point.y))});}
+  const seatY=best.y,seatAt=p=>Math.abs(p.y-seatY)<.03,origin=samples.length?samples[0].point.clone().addScaledVector(new T.Vector3(dx,0,dz),-samples[0].along):null;
+  if(origin){origin.y=seatY;const near=profile.filter(seatAt).sort((a,b)=>Math.abs(a.along)-Math.abs(b.along))[0];
+   if(near){
+    // The bend: the seat-level sample just past the nearest raised one toward the head end (slat gaps leave holes in
+    // the profile, so look for the first raised sample rather than the first missing one).
+    const raised=profile.filter(p=>p.along<near.along&&p.y>seatY+.03).sort((a,b)=>b.along-a.along)[0],seat=profile.filter(p=>seatAt(p)&&p.along<=near.along&&(!raised||p.along>raised.along));
+    const bend=Math.min(...seat.map(p=>p.along));
+    const back=profile.filter(p=>p.along<bend&&p.y>seatY+.05&&p.y<seatY+.9);let recline=0;
+    if(back.length>=3){const mx=back.reduce((n,p)=>n+p.along,0)/back.length,my=back.reduce((n,p)=>n+p.y,0)/back.length;let sxy=0,sxx=0;for(const p of back){sxy+=(p.along-mx)*(p.y-my);sxx+=(p.along-mx)**2;}recline=T.MathUtils.clamp(Math.atan(-sxy/sxx),0,1.1);}
+    const hip=bend+.12,point=origin.clone().addScaledVector(new T.Vector3(dx,0,dz),hip);point.y=seatY+.015;
+    // On a slat, not in a gap between two: the nearest seat-level sample.
+    const slat=samples.filter(p=>Math.abs(p.point.y-seatY)<.03&&Math.abs(p.along-hip)<.1).sort((a,b)=>Math.hypot(a.along-hip,a.across)-Math.hypot(b.along-hip,b.across))[0];
+    if(slat)point.set(slat.point.x,slat.point.y+.015,slat.point.z);lie={point,recline};}}
  }
- return {point:new T.Vector3(best.x,best.y+.015,best.z),box,kind:kind==='umbrella'?'lounger':kind==='lifeguard'?'deck':'seat',yaw:kind==='umbrella'?yaw:Math.PI,real:true};
+ return {point:new T.Vector3(best.x,best.y+.015,best.z),box,kind:kind==='umbrella'?'lounger':kind==='lifeguard'?'deck':'seat',yaw:kind==='umbrella'?yaw:Math.PI,real:true,...(kind==='umbrella'?{profile,lie}:{})};
 }

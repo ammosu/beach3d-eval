@@ -217,12 +217,16 @@ export async function createCharacter(group='A'){
   if(spine&&rig.spine){const fwd=toWorldDir(0,0,1),right=toWorldDir(1,0,0);
    if(spine.lean)twist(rig.spine,right,spine.lean);if(spine.roll)twist(rig.spine,fwd,spine.roll);if(spine.twist)twist(rig.spine,toWorldDir(0,1,0),spine.twist);}
   const fwd=toWorldDir(0,0,1),up=toWorldDir(0,1,0);
+  // On the ground the soles keep the clip's world orientation through the leg IK; otherwise a crouch tilts the shins
+  // forward and the toes dig into the sand. (C's foot bones are IK siblings placed separately below.)
+  const keepSole=ground&&source!=='C'?rig.foot.map(f=>f?f.getWorldQuaternion(new T.Quaternion()):null):null;
   for(let i=0;i<2;i++){
    const s=side[i],target=hands?.[i];
    if(target){const elbow=rig.fore[i]?.getWorldPosition(V())??toWorld(s*.3,1.1,0);const pole=elbow.add(toWorldDir(s*.6,-.5,-.35));const w=Array.isArray(handWeight)?handWeight[i]:handWeight;error.hands[i]=reach(rig.arm[i],rig.fore[i],endOf(i,false),target,pole,w);}else error.hands[i]=null;
    const foot=feetTargets?.[i];
    if(foot){const kneeAt=rig.calf[i]?.getWorldPosition(V())??toWorld(s*.1,.5,0);const pole=kneeAt.addScaledVector(fwd,1).addScaledVector(up,.1);const w=Array.isArray(footWeight)?footWeight[i]:footWeight;error.feet[i]=reach(rig.thigh[i],rig.calf[i],endOf(i,true),foot,pole,w);
-    if(source==='C'&&rig.foot[i]){endOf(i,true).getWorldPosition(to);rig.foot[i].parent.worldToLocal(to);rig.foot[i].position.copy(to);}}else error.feet[i]=null;
+    if(source==='C'&&rig.foot[i]){endOf(i,true).getWorldPosition(to);rig.foot[i].parent.worldToLocal(to);rig.foot[i].position.copy(to);}
+    if(keepSole?.[i]){const f=rig.foot[i];f.parent.getWorldQuaternion(parentQ).invert();f.quaternion.copy(parentQ.multiply(keepSole[i]));f.updateWorldMatrix(false,true);}}else error.feet[i]=null;
   }
   // Wrists: point the fingers along `dir` with the palm facing `palm` (world), then close the knuckle bones.
   for(let i=0;i<2;i++){const aimAt=handAim?.[i],g=grip[i],hand=rig.hand[i];
@@ -239,7 +243,7 @@ export async function createCharacter(group='A'){
   // Head turns toward a point of interest, within a comfortable neck range.
   if(look&&rig.head&&headForward){const h=rig.head.getWorldPosition(A1);rig.head.getWorldQuaternion(q);from.copy(headForward).applyQuaternion(q);dir.copy(look).sub(h).normalize();const angle=from.angleTo(dir);if(angle>1e-4){const limit=Math.min(angle,1.05)/angle;turn.setFromUnitVectors(from,dir);const partial=new T.Quaternion().slerp(turn,limit*lookWeight);q.premultiply(partial);rig.head.parent.getWorldQuaternion(parentQ).invert();q.premultiply(parentQ);rig.head.quaternion.copy(q);rig.head.updateWorldMatrix(false,true);}}
  }
- function update(dt,{speed=0,airborne=false,pose='stand',first=false,fade=1,animation=null,ik=null}={}){
+ function update(dt,{speed=0,airborne=false,pose='stand',first=false,fade=1,animation=null,ik=null,recline=0}={}){
   // A dt=0 call (a render between offline steps) keeps the current pose. Re-running restore() there would leave
   // the rest pose on screen: three.js PropertyMixer skips writing values that did not change since its last apply.
   if(!dt&&posed&&!animation)return;posed=true;
@@ -280,7 +284,9 @@ export async function createCharacter(group='A'){
    const cycle=rate?stride:age*8,swing=Math.sin(cycle)*gait;
    for(let i=0;i<2;i++){const sign=i?1:-1,s=i?swing:-swing,stance=rate&&(i?Math.cos(cycle):-Math.cos(cycle))<0;let thigh=[0,-Math.cos(s),Math.sin(s)],calf=stance?thigh:[0,-1,Math.max(0,-s)*.7],arm=[sign*.15,-1,-s*.7],fore=[0,-1,.12];
     if(seated){thigh=[0,-.12,1];calf=pose==='sand'?[0,-.05,1]:[0,-1,.08];arm=[sign*.3,-1,.45];fore=[0,-.15,1];if(selected==='paddle'){arm=[sign*.4,-.4,.8+Math.sin(age*6+i)*.5];fore=[sign*.25,-.2,.9];}}
-    if(lying){thigh=[0,-1,0];calf=[0,-1,.05];arm=[sign*.14,-1,0];fore=[0,-1,.08];}
+    // Lying back at recline (radians above level): the legs stay level along the seat, so in the body's frame they
+    // point down and forward by the recline.
+    if(lying){const c=Math.cos(recline),s=Math.sin(recline);thigh=[0,-c,s];calf=[0,-c,s+.05];arm=[sign*.16,-1,.22];fore=[0,-1,.3];}
     if(selected==='jump'){thigh=[0,-1,.45];calf=[0,-.8,-.5];arm=[sign*.3,.2,.9];fore=[0,.8,.3];}
     if(selected==='climb'){const c=Math.sin(age*5+i*Math.PI);thigh=[0,-.7,.5+c*.3];calf=[0,-1,-.2];arm=[sign*.3,.6+c*.3,.5];fore=[0,.5,.7];}
     if(selected==='kick'&&i===1){const k=Math.sin(Math.min((animation?age%1:oneAge)/.75,1)*Math.PI);thigh=[0,-Math.cos(k*1.4),Math.sin(k*1.4)];calf=[0,-Math.cos(k*1.7),Math.sin(k*1.7)];}
@@ -289,13 +295,14 @@ export async function createCharacter(group='A'){
     // Quaternius feet use sibling IK bones, so keep them at the posed ankle.
     if(source==='C'&&rig.foot[i]){const end=rig.calf[i].children[0];end.getWorldPosition(to);rig.foot[i].parent.worldToLocal(to);rig.foot[i].position.copy(to);}
    }
-   aim(rig.spine,0,1,lying?.45:selected==='interact'?.35:seated?.08:Math.sin(age*1.7)*.018);
+   aim(rig.spine,0,1,lying?.45*(1-Math.min(1,recline/.4)):selected==='interact'?.35:seated?.08:Math.sin(age*1.7)*.018);
   }
   // Smooth bones only right after a clip/pose switch; smoothing every frame flattens the gait cycle itself.
   const blend=1-Math.exp(-12*dt),boneBlend=actionAge<.3?blend:1;
   for(const [b,previous] of previousPose){q.copy(b.quaternion);b.quaternion.copy(previous.q).slerp(q,dt?boneBlend:1);b.position.lerpVectors(previous.p,b.position,dt?boneBlend:1);previous.q.copy(b.quaternion);previous.p.copy(b.position);}
   posePosition.set(0,0,0);poseRotation.identity();
-  if(lying){posePosition.set(0,.115,hipY);poseRotation.setFromAxisAngle(V(1,0,0),-Math.PI/2);}
+  // Lying: the body tips back about the hips (which rest .135 above the avatar origin) to the recline.
+  if(lying){const tip=recline-Math.PI/2;posePosition.set(0,.135-hipY*Math.cos(tip),-hipY*Math.sin(tip));poseRotation.setFromAxisAngle(V(1,0,0),tip);}
   else if(seated)posePosition.set(0,-hipY+.10,0);
   bodyRotation.slerp(poseRotation,dt?blend:1);bodyPosition.lerp(posePosition,dt?blend:1);
   pivot.quaternion.copy(bodyRotation);pivot.position.copy(bodyPosition);
@@ -311,5 +318,5 @@ export async function createCharacter(group='A'){
  function palm(i,out=V()){const h=rig.hand[i];if(!h)return head(out);h.getWorldPosition(out);return grip[i]?out.lerp(grip[i].bone.getWorldPosition(A1),.75):out;}
  function head(out=headWorld){return rig.head?rig.head.getWorldPosition(out):out.copy(root.position).add(V(0,1.6,0));}
  update(0);
- return {root,update,trigger,info,head,palm,footWorld,steps,side,armLength,get gripReach(){return grip[0]?grip[0].bone.getWorldPosition(V()).distanceTo(rig.hand[0].getWorldPosition(V())):0;},hasGrip:!!grip[0],grip,get plants(){return !!contact[active]||!actions.has(active)&&(active==='walk'||active==='run');},mixer,rig,meshes,dispose(){mixer.stopAllAction();mixer.uncacheRoot(model);disposeModel(model);root.removeFromParent();},animations:[...new Set(['idle','walk','run','jump','climb','sit','lie','paddle','kick','interact',...actions.keys()])]};
+ return {root,update,trigger,info,head,palm,footWorld,steps,side,armLength,ankleHeight:(ankle[0]+ankle[1])/2,get gripReach(){return grip[0]?grip[0].bone.getWorldPosition(V()).distanceTo(rig.hand[0].getWorldPosition(V())):0;},hasGrip:!!grip[0],grip,get plants(){return !!contact[active]||!actions.has(active)&&(active==='walk'||active==='run');},mixer,rig,meshes,dispose(){mixer.stopAllAction();mixer.uncacheRoot(model);disposeModel(model);root.removeFromParent();},animations:[...new Set(['idle','walk','run','jump','climb','sit','lie','paddle','kick','interact',...actions.keys()])]};
 }
