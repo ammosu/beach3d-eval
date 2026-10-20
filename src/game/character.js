@@ -60,7 +60,7 @@ export async function createCharacter(group='A'){
  const bounds=new T.Box3().setFromObject(model,true),height=bounds.max.y-bounds.min.y;model.scale.multiplyScalar(1.75/height);root.updateMatrixWorld(true);bounds.setFromObject(model,true);model.position.y-=bounds.min.y;model.position.x-=(bounds.max.x+bounds.min.x)/2;model.position.z-=(bounds.max.z+bounds.min.z)/2;root.updateMatrixWorld(true);
  const allBones=[],meshes=[],materials=[];let triangles=0;
  model.traverse(o=>{if(o.isBone)allBones.push(o);if(o.isMesh){meshes.push(o);o.castShadow=o.receiveShadow=true;o.frustumCulled=false;triangles+=(o.geometry.index?.count??o.geometry.attributes.position.count)/3;o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();for(const m of Array.isArray(o.material)?o.material:[o.material])materials.push({mat:m,opacity:m.opacity,transparent:m.transparent,depthWrite:m.depthWrite});}});
- const names=source==='A'?{hip:'hips',spine:'spine',head:'head',thigh:['thighL','thighR'],calf:['calfL','calfR'],foot:['footL','footR'],arm:['armL','armR'],fore:['foreL','foreR'],hand:['handL','handR']}:source==='B'?{hip:'Hip',spine:'Waist',head:'Head',thigh:['L_Thigh','R_Thigh'],calf:['L_Calf','R_Calf'],foot:['L_Foot','R_Foot'],arm:['L_Upperarm','R_Upperarm'],fore:['L_Forearm','R_Forearm'],hand:['L_Hand','R_Hand']}:{hip:'Body',spine:'Hips',head:'Head',thigh:['UpperLeg.L','UpperLeg.R'],calf:['LowerLeg.L','LowerLeg.R'],foot:['Foot.L','Foot.R'],arm:['UpperArm.L','UpperArm.R'],fore:['LowerArm.L','LowerArm.R'],hand:['Wrist.L','Wrist.R']};
+ const names=source==='A'?{hip:'hips',spine:'spine',head:'head',thigh:['thighL','thighR'],calf:['calfL','calfR'],foot:['footL','footR'],arm:['armL','armR'],fore:['foreL','foreR'],hand:['handL','handR']}:source==='B'?{hip:'Hips',spine:'Spine',head:'Head',thigh:['Left_UpperLeg','Right_UpperLeg'],calf:['Left_LowerLeg','Right_LowerLeg'],foot:['Left_Foot','Right_Foot'],arm:['Left_UpperArm','Right_UpperArm'],fore:['Left_LowerArm','Right_LowerArm'],hand:['Left_Hand','Right_Hand']}:{hip:'Body',spine:'Hips',head:'Head',thigh:['UpperLeg.L','UpperLeg.R'],calf:['LowerLeg.L','LowerLeg.R'],foot:['Foot.L','Foot.R'],arm:['UpperArm.L','UpperArm.R'],fore:['LowerArm.L','LowerArm.R'],hand:['Wrist.L','Wrist.R']};
  const get=n=>allBones.find(b=>b.name===n||b.name===n.replaceAll('.','')),rig={};for(const [k,n] of Object.entries(names))rig[k]=Array.isArray(n)?n.map(get):get(n);
  // The Tripo climb clip carries root motion (the hips rise about a metre per loop). The game moves the body itself,
  // so take out the hips' linear drift and keep only the in-place bob.
@@ -98,8 +98,25 @@ export async function createCharacter(group='A'){
     const thumb=addBone(skinned,hand,`${hand.name}_thumb`,thumbBase,list,isThumb);
     const finger=addBone(skinned,hand,`${hand.name}_grip`,V().copy(dir).multiplyScalar(knuckle),list,p=>isThumb(p)>.5?0:T.MathUtils.smoothstep(p.dot(dir),knuckle*.8,knuckle*1.15));
     // Curling turns the fingertips toward the palm; the thumb folds under the palm about the hand's long axis.
-    grip[i]={bone:finger,thumb,dir,normal,axis:V().crossVectors(dir,normal).normalize(),thumbAxis:V().copy(dir).multiplyScalar(-thumbSide)};});
+    grip[i]={bone:finger,dir,normal,curl:[{bone:finger,axis:V().crossVectors(dir,normal).normalize(),amount:1.7},{bone:thumb,axis:V().copy(dir).multiplyScalar(-thumbSide),amount:1.1}]};});
   }
+ }
+ // Rigs with real finger bones (the Tripo v3 humanoid): the same grip data, built in bind space (T pose, palms down)
+ // from each hand's skin inverses, so it holds whatever pose the clips start in.
+ const fingerChain=(hand,name)=>{const p=hand.children.find(c=>c.isBone&&c.name.includes(name));const chain=[];for(let b=p;b&&chain.length<3;b=b.children.find(c=>c.isBone))chain.push(b);return chain;};
+ if(skinned&&!grip[0]&&rig.hand.every(h=>h&&h.children.some(c=>c.isBone&&/Index|Middle/.test(c.name))))for(let i=0;i<2;i++){
+  const hand=rig.hand[i],sk=skinned.skeleton,inv=b=>sk.boneInverses[sk.bones.indexOf(b)],handInv=inv(hand);if(!handInv)continue;
+  const bindPos=b=>V().setFromMatrixPosition(inv(b).clone().invert()),handLocal=b=>bindPos(b).applyMatrix4(handInv);
+  const chains=Object.fromEntries(['Thumb','Index','Middle','Ring','Pinky'].map(n=>[n,fingerChain(hand,n)]));
+  const knuckles=['Index','Middle','Ring','Pinky'].map(n=>chains[n][0]).filter(Boolean);if(knuckles.length<2)continue;
+  const dir=knuckles.reduce((sum,b)=>sum.add(handLocal(b)),V()).normalize(),normal=V(0,-1,0).transformDirection(handInv);normal.addScaledVector(dir,-normal.dot(dir)).normalize();
+  const across=V().crossVectors(dir,normal),thumbSide=Math.sign(chains.Thumb[0]?handLocal(chains.Thumb[0]).dot(across):1)||1;
+  // An axis given in hand space, re-expressed in a finger bone's own frame at bind.
+  const handRot=new T.Quaternion().setFromRotationMatrix(handInv.clone().invert()),local=(b,axis)=>axis.clone().applyQuaternion(handRot).applyQuaternion(new T.Quaternion().setFromRotationMatrix(inv(b))).normalize();
+  const curl=[];
+  for(const n of ['Index','Middle','Ring','Pinky'])chains[n].forEach((b,k)=>curl.push({bone:b,axis:local(b,across),amount:[1.1,1.4,.9][k]}));
+  chains.Thumb.forEach((b,k)=>curl.push({bone:b,axis:local(b,V().copy(dir).multiplyScalar(-thumbSide)),amount:[.6,.5,.4][k]}));
+  grip[i]={bone:chains.Middle[0]??knuckles[0],dir,normal,curl};
  }
  const rest=new Map(allBones.map(b=>[b,{q:b.quaternion.clone(),p:b.position.clone(),s:b.scale.clone()}]));
  // Each clip's own ground speed (in place): sample the feet over one cycle; stride ≈ peak foot separation,
@@ -194,7 +211,7 @@ export async function createCharacter(group='A'){
     fore.getWorldQuaternion(q).premultiply(turn);fore.parent.getWorldQuaternion(parentQ).invert();fore.quaternion.copy(q.premultiply(parentQ));fore.updateWorldMatrix(false,true);
     const bend=want.clone().multiply(hand.getWorldQuaternion(q).invert()),angle=2*Math.acos(Math.min(1,Math.abs(bend.w)));turn.identity().slerp(bend,w*Math.min(1,1.1/Math.max(angle,1e-6)));
     hand.getWorldQuaternion(q).premultiply(turn);hand.parent.getWorldQuaternion(parentQ).invert();hand.quaternion.copy(q.premultiply(parentQ));hand.updateWorldMatrix(false,true);}
-   if(g){g.bone.quaternion.setFromAxisAngle(g.axis,(curl?.[i]??0)*1.7);g.thumb.quaternion.setFromAxisAngle(g.thumbAxis,(curl?.[i]??0)*(window.__THUMB__??1.1));}}
+   if(g)for(const c of g.curl)c.bone.quaternion.multiply(turn.setFromAxisAngle(c.axis,(curl?.[i]??0)*c.amount));}
   // Head turns toward a point of interest, within a comfortable neck range.
   if(look&&rig.head&&headForward){const h=rig.head.getWorldPosition(A1);rig.head.getWorldQuaternion(q);from.copy(headForward).applyQuaternion(q);dir.copy(look).sub(h).normalize();const angle=from.angleTo(dir);if(angle>1e-4){const limit=Math.min(angle,1.05)/angle;turn.setFromUnitVectors(from,dir);const partial=new T.Quaternion().slerp(turn,limit*lookWeight);q.premultiply(partial);rig.head.parent.getWorldQuaternion(parentQ).invert();q.premultiply(parentQ);rig.head.quaternion.copy(q);rig.head.updateWorldMatrix(false,true);}}
  }
@@ -261,7 +278,7 @@ export async function createCharacter(group='A'){
  }
  function info(){return {group,source:CHARACTER_SOURCES[source],fallback,triangles,clips:clips.map(c=>c.name),animation:active,actionTime:actionAge,skinnedMeshes:meshes.filter(m=>m.isSkinnedMesh).length,bones:allBones.length,height:1.75,headHidden:rig.head?.scale.x<.01,poseSample:rig.thigh.map(b=>b?.quaternion.toArray()),clipTime:actions.get(active)?.time??null,footSep:rig.foot?.[0]&&rig.foot?.[1]?rig.foot[0].getWorldPosition(V()).distanceTo(rig.foot[1].getWorldPosition(V())):null,calfSep:rig.calf?.[0]&&rig.calf?.[1]?rig.calf[0].getWorldPosition(V()).distanceTo(rig.calf[1].getWorldPosition(V())):null,nativeSpeed,ik:{hands:[...error.hands],feet:[...error.feet]},side,timeScale:actions.get(active)?.getEffectiveTimeScale()??null};}
  function footWorld(i,out=V()){return rig.foot?.[i]?rig.foot[i].getWorldPosition(out):null;}
- function palm(i,out=V()){const h=rig.hand[i];if(!h)return head(out);h.getWorldPosition(out);return grip[i]?out.lerp(grip[i].bone.getWorldPosition(A1),.8):out;}
+ function palm(i,out=V()){const h=rig.hand[i];if(!h)return head(out);h.getWorldPosition(out);return grip[i]?out.lerp(grip[i].bone.getWorldPosition(A1),.75):out;}
  function head(out=headWorld){return rig.head?rig.head.getWorldPosition(out):out.copy(root.position).add(V(0,1.6,0));}
  update(0);
  return {root,update,trigger,info,head,palm,footWorld,steps,side,armLength,get gripReach(){return grip[0]?grip[0].bone.getWorldPosition(V()).distanceTo(rig.hand[0].getWorldPosition(V())):0;},hasGrip:!!grip[0],grip,get plants(){return !!contact[active]||!actions.has(active)&&(active==='walk'||active==='run');},mixer,rig,meshes,dispose(){mixer.stopAllAction();mixer.uncacheRoot(model);disposeModel(model);root.removeFromParent();},animations:[...new Set(['idle','walk','run','jump','climb','sit','lie','paddle','kick','interact',...actions.keys()])]};

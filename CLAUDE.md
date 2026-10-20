@@ -89,13 +89,13 @@ There is no lint or unit-test setup. Verification means running the Playwright s
   - In game mode, game/explore dt is derived from the water clock, so a frozen clock freezes play.
 - **Characters.** `src/game/character.js` serves both the game and the solo viewer.
   - A: procedural SkinnedMesh.
-  - B: Tripo `assets/character/{idle,walk,run,jump,climb}.glb`, with clips merged onto one skeleton.
+  - B: Tripo `assets/character/{idle,walk,run,jump,climb}.glb`, with clips merged onto one skeleton. Since 2026-10-20 the rig is Tripo v3.0 `spec=unity` (67 joints, three-joint fingers). It was re-rigged from the original model task with `tools/tripo_rig_test.py` and `tools/tripo_retarget_v3.py`; credits are in `assets/tripo/log.csv`. The old 41-joint rig had no fingers.
   - C: Quaternius `assets/character_C/character.glb`.
   - Missing clip poses (sit, lie, paddle, climb) are procedural bone aiming.
   - Gotcha: an `update(0)` call must not `restore()` bones. three.js `PropertyMixer` skips writing unchanged values, so the rest pose would stay on screen in offline recordings.
   - Walk/run playback is time-scaled to measured clip stride so feet don't slide.
   - IK layer (`solve()` in `character.js`, all three rigs): analytic two-bone IK for hands/feet with world targets and per-limb weights, pelvis drop for crouches, terrain-following feet (`ground`), spine lean/twist, head look-at, wrist aim (`handAim`) and finger curl (`curl`). The game passes targets per mode from `poseIK()` in `src/game/index.js`; `info().ik` reports reach errors.
-  - B (Tripo) has no finger bones: at load each hand gets a knuckle bone and a thumb bone, re-skinned in bind space from vertices wholly on the hand. Wrist aim puts the roll on the forearm; a wrist that rolls far tears the skin. The Tripo climb clip's hip root motion is removed at load.
+  - Grip (`curl`): rigs with finger bones (B) bend each finger joint about an axis built in bind space (T pose, palms down). A rig without fingers instead gets a knuckle bone and a thumb bone per hand at load, re-skinned in bind space from vertices wholly on the hand. Wrist aim puts the roll on the forearm; a wrist that rolls far tears the skin. The Tripo climb clip's hip root motion is removed at load.
   - Boat: one stroke phase drives a double-bladed paddle, both hands (overhand grip), torso twist and thrust pulses. The hull is turned so its long axis runs along travel; the rower sits on a thwart near midships, feet braced on the floor.
   - Shells: walk up, face, squat (pelvis down, feet planted), reach; the shell counts when the hand closes on it and rides in the hand. `explore.setHold()` blocks movement input without driving the camera.
   - Tower: `findLadder()` probes a BVH copy of the tower, in this order. The climb is a function of time, so E plays it backward to climb down.
