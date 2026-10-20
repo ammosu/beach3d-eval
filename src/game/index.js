@@ -43,7 +43,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   if(mode==='walk'&&pickup&&pickup.age>=0)return pickupIK();
   if(mode==='walk')return e.airborne?null:{ground:groundHeight};
   if(mode==='tower'&&anchors.lifeguard.ladder?.kind==='stairs')return {ground:towerSurface};
-  if(mode==='tower'&&anchors.lifeguard.ladder&&towerT>0&&towerT<towerTotal())return {hands:climb.hands,handWeight:climb.handWeight,feet:climb.feet,footWeight:climb.footWeight,handAim:climb.aim,curl:climb.curl,pelvis:-.45*climb.duck,spine:{lean:.12+.7*climb.duck}};
+  if(mode==='tower'&&anchors.lifeguard.ladder&&towerT>0&&towerT<towerTotal())return {hands:climb.hands,handWeight:climb.handWeight,feet:climb.feet,footWeight:climb.footWeight,handAim:climb.aim,curl:climb.curl,pelvis:-.3*climb.duck,spine:{lean:climb.lean+.4*climb.duck}};
   if(mode==='boat'&&boatSeat)return {hands:row.hands,feet:row.feet,handAim:row.aim,curl:[1,1],spine:{twist:row.twist,lean:row.lean}};
   return null;
  }
@@ -85,14 +85,16 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
     i=j;}
   }
   if(!best){const n=new T.Vector3(0,0,1);best={normal:n,right:new T.Vector3(1,0,0),rail:null,top:new T.Vector3(surface.point.x,deckY,box.max.z-.1)};}
-  const {normal,right,top,rail}=best,bottom=top.clone().addScaledVector(normal,.45);bottom.y=groundHeight(bottom.x,bottom.z);
+  // The ladder leans on the deck edge, or on the outside of the top rail where a railing runs (never through it).
+  const {normal,right,top,rail}=best,railTop=rail?rail.top:deckY,contact=top.clone().addScaledVector(normal,rail?.07:.02);contact.y=railTop;
+  const bottom=contact.clone().addScaledVector(normal,(railTop-box.min.y)*.2);bottom.y=groundHeight(bottom.x,bottom.z);
   const stand=top.clone().addScaledVector(normal,-Math.max(.32,(rail?.depth??0)+.3));const hit=surfacesAt(root,stand.x,stand.z,box).find(h=>Math.abs(h.point.y-deckY)<.12);stand.y=(hit?.point.y??deckY)+.015;
   // Does the tower already have a ladder or stairs here? Rungs or treads catch a good share of these probes.
   let hits=0,tries=0;for(let h=bottom.y+.6;h<deckY-.2;h+=.1)for(const side of [-.15,.15]){const o=top.clone().addScaledVector(normal,1.2).addScaledVector(right,side);o.y=h;ray.set(o,normal.clone().negate());ray.far=.9;tries++;if(ray.intersectObject(root,true).length)hits++;}
   const own=tries>0&&hits/tries>.3;
   // A railing in the way: the ladder leans on it and the rungs go on up to its top rail.
-  const over=rail?rail.top:deckY,axis=top.clone().sub(bottom).normalize(),rungs=[];for(let h=.28;h<over-bottom.y-.1;h+=.28)rungs.push(h);
-  return {normal,right,top,bottom,axis,stand,rungs,spacing:.28,height:deckY-bottom.y,over:over-bottom.y,railDepth:rail?.depth??0,roof:roofOver(root,stand),own};
+  const axis=contact.clone().sub(bottom).normalize(),rungs=[];for(let h=.28;h<railTop-bottom.y-.08;h+=.28)rungs.push(h);
+  return {normal,right,top:contact,edge:top.clone(),bottom,axis,stand,rungs,spacing:.28,height:deckY-bottom.y,over:railTop-bottom.y,railDepth:rail?.depth??0,roof:roofOver(root,stand),own};
  }
  // A ladder the tower already has: looking at a side, a column between its rails shows thin, evenly spaced hits (the
  // rungs) that line up, straight or leaning. Its rung heights and lean are measured so hands and feet meet real rungs.
@@ -166,19 +168,21 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   const rail=edge==null?null:railAt(normal,edge,u),stand=(edge==null?top.clone():new T.Vector3(normal.x?edge*normal.x:u,deckY,normal.z?edge*normal.z:u)).addScaledVector(normal,-Math.max(.32,(rail?.depth??0)+.3));
   const hit=surfacesAt(root,stand.x,stand.z,box).find(h=>Math.abs(h.point.y-deckY)<.12);stand.y=(hit?.point.y??deckY)+.015;
   const over=Math.max(rail?rail.top:deckY,bottom.y+(rungs.at(-1)??0))-bottom.y;
-  return {normal,right,top,bottom,axis,stand,rungs,spacing:gap,height:deckY-bottom.y,over,railDepth:rail?.depth??0,roof:roofOver(root,stand),own:true};
+  const edgePoint=edge==null?top.clone():new T.Vector3(normal.x?edge*normal.x:u,deckY,normal.z?edge*normal.z:u);
+  return {normal,right,top,edge:edgePoint,bottom,axis,stand,rungs,spacing:gap,height:deckY-bottom.y,over,railDepth:rail?.depth??0,roof:roofOver(root,stand),own:true};
  }
  function buildLadder(l){
   ladderMesh.clear();if(!l||l.own)return;
-  const length=(l.over+.5)/l.axis.y,mid=l.bottom.clone().addScaledVector(l.axis,length/2),q=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),l.axis);
+  const length=(l.over+.32)/l.axis.y,mid=l.bottom.clone().addScaledVector(l.axis,length/2),q=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),l.axis);
   for(const side of [-.26,.26]){const rail=new T.Mesh(new T.CylinderGeometry(.03,.03,length,8),ladderMat);rail.position.copy(mid).addScaledVector(l.right,side);rail.quaternion.copy(q);rail.castShadow=true;ladderMesh.add(rail);}
   for(const h of l.rungs){const rung=new T.Mesh(new T.CylinderGeometry(.022,.022,.52,8),ladderMat);rung.position.copy(l.bottom).addScaledVector(l.axis,h/l.axis.y);rung.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),l.right);rung.castShadow=true;ladderMesh.add(rung);}
  }
  // Climbing is a function of time t, so climbing down is the same motion played backward. Each limb holds a rung and
  // moves to the next in the last half of its cycle; hands and feet move in diagonal pairs.
  let towerT=0,towerDir=1;
- const climb={hands:[new T.Vector3(),new T.Vector3()],feet:[new T.Vector3(),new T.Vector3()],aim:[0,1].map(()=>({dir:new T.Vector3(),palm:new T.Vector3()})),handWeight:[1,1],footWeight:[1,1],curl:[1,1],root:new T.Vector3(),yaw:0,onLadder:true,camera:0,duck:0,speed:0};
- function towerTimes(l){const climbH=Math.max(0,l.over-.32);return {climbH,up:climbH/.8,mantle:1,turn:.6};}
+ const climb={hands:[new T.Vector3(),new T.Vector3()],feet:[new T.Vector3(),new T.Vector3()],aim:[0,1].map(()=>({dir:new T.Vector3(),palm:new T.Vector3()})),handWeight:[1,1],footWeight:[1,1],curl:[1,1],root:new T.Vector3(),yaw:0,onLadder:true,camera:0,duck:0,lean:.12,speed:0};
+ // Feet stop a step below the top; with a railing, about half a metre under its top rail, where a leg swings over.
+ function towerTimes(l){const climbH=Math.max(0,l.over-(l.over-l.height>.2?.55:.32));return {climbH,up:climbH/.8,mantle:1,turn:.6};}
  function stairLength(l){return l.bottom.distanceTo(l.top)+Math.hypot(l.stand.x-l.top.x,l.stand.z-l.top.z);}
  function towerTotal(){const l=anchors.lifeguard.ladder;if(!l)return 1.1;if(l.kind==='stairs')return stairLength(l)/.9+.6;const k=towerTimes(l);return k.up+k.mantle+k.turn;}
  // Stairs: walk the centre line at an easy pace (facing down the stairs on the way down), then turn to the sea.
@@ -209,21 +213,33 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
    // Feet: rung k sits at k·spacing; level 0 is the sand.
    const fx=u0/sp+(i?.5:0),fl=Math.min(level(fx),top);along(rungAt(fl),climb.feet[i]).addScaledVector(r,sideSign*.12).addScaledVector(n,.03+.12*swing(fx)).y+=.07;
    // Hands: about five rungs above the feet, then up the rails above the deck.
-   const hx=u0/sp+(i?0:.5),hl=level(hx)+handRungs,h=Math.min(rungAt(hl),l.over+.4);along(h,climb.hands[i]).addScaledVector(r,sideSign*(hl>top?.26:.17)).addScaledVector(n,.1*swing(hx));
+   const hx=u0/sp+(i?0:.5),hl=level(hx)+handRungs,h=Math.min(rungAt(hl),l.over+.22);along(h,climb.hands[i]).addScaledVector(r,sideSign*(hl>top?.26:.17)).addScaledVector(n,.1*swing(hx));
    if(reach)climb.hands[i].addScaledVector(fingers,-reach*.85).addScaledVector(palm,-.04);else climb.hands[i].addScaledVector(n,.06);
    climb.aim[i].dir.copy(fingers);climb.aim[i].palm.copy(palm);
-   climb.footWeight[i]=1-T.MathUtils.smoothstep(m,0,.35);climb.handWeight[i]=1-T.MathUtils.smoothstep(m,.55,.95);climb.curl[i]=climb.handWeight[i];
+   climb.footWeight[i]=1-T.MathUtils.smoothstep(m,.9,1);climb.handWeight[i]=1-T.MathUtils.smoothstep(m,.7,.92);climb.curl[i]=climb.handWeight[i];
   }
-  // Mantle: up first, then forward over the edge onto the deck, then turn to face the sea.
-  const start=along(k.climbH,new T.Vector3()).addScaledVector(n,.3),end=l.stand;
-  climb.root.copy(along(u0,new T.Vector3()).addScaledVector(n,.3));
-  // Under a low roof the feet cannot clear the rail standing tall: cap the lift and duck through instead.
-  const headroom=l.roof==null?9:l.roof-l.bottom.y,peakH=Math.max(l.height,Math.min(l.over+.12,headroom-1.45)),duck=T.MathUtils.clamp((1.8-(headroom-peakH))/.6,0,1);
-  climb.duck=duck*T.MathUtils.smoothstep(m,.1,.4)*(1-T.MathUtils.smoothstep(m,.75,1));
-  if(m>0){const peak=l.bottom.y+peakH,lift=T.MathUtils.smoothstep(m,0,.45),across=T.MathUtils.smoothstep(m,.25,.85),settle=T.MathUtils.smoothstep(m,.6,1);
-   climb.root.set(start.x+(end.x-start.x)*across,start.y+(peak-start.y)*lift+(end.y-peak)*settle,start.z+(end.z-start.z)*across);}
+  // Over the top like a person: hands on the top rail (or deck edge), hips just high enough to clear it, the lead foot
+  // arcs over and down onto the deck and the other follows, leaning in under a low roof. Then turn to face the sea.
+  // The body hangs a little below the rung line and close in, so the legs reach the rungs.
+  const body=(h,out)=>along(h,out).addScaledVector(n,.26).setY(out.y-.1);
+  const start=body(k.climbH,new T.Vector3()),end=l.stand,deckY=l.stand.y-.015,railY=l.bottom.y+l.over;
+  body(u0,climb.root);climb.duck=0;climb.lean=.12;
+  if(m>0){
+   const across=T.MathUtils.smoothstep(m,.15,.85),drop=T.MathUtils.smoothstep(m,.35,.95);
+   climb.root.set(start.x+(end.x-start.x)*across,start.y+(end.y-start.y)*drop,start.z+(end.z-start.z)*across);
+   const railLine=l.edge.clone().addScaledVector(n,-l.railDepth);
+   for(let i=0;i<2;i++){const sideSign=Math.sign(character.side[i])*Math.sign(avatarX||1);
+    const grip=railLine.clone().addScaledVector(r,sideSign*.24);grip.y=railY;
+    if(reach)grip.addScaledVector(fingers,-reach*.85).addScaledVector(palm,-.04);else grip.addScaledVector(n,.06);
+    climb.hands[i].lerp(grip,T.MathUtils.smoothstep(m,0,.15));
+    const s0=i?.45:.1,f=T.MathUtils.smoothstep(m,s0,s0+.4),from=climb.feet[i].clone(),to=end.clone().addScaledVector(r,sideSign*.12),mid=railLine.clone().addScaledVector(r,sideSign*.14);to.y=deckY+.08;mid.y=railY+.16;
+    climb.feet[i].set(0,0,0).addScaledVector(from,(1-f)**2).addScaledVector(mid,2*f*(1-f)).addScaledVector(to,f*f);
+   }
+   climb.lean=.12+.45*Math.sin(Math.PI*across);
+   if(l.roof!=null)climb.duck=T.MathUtils.clamp((climb.root.y+1.75-l.roof)/.5,0,1)*T.MathUtils.smoothstep(m,.3,.6);
+  }
   let toSea=Math.PI-ladderYaw;toSea=Math.atan2(Math.sin(toSea),Math.cos(toSea));climb.yaw=ladderYaw+toSea*turn;
-  climb.onLadder=m<.7;climb.camera=T.MathUtils.smoothstep(m,.4,1);
+  climb.onLadder=m<.9;climb.camera=T.MathUtils.smoothstep(m,.4,1);
   return climb;
  }
  function syncAnchors(){
