@@ -1,9 +1,8 @@
 import * as T from 'three';
 import {groundHeight,shore} from '../terrain.js';
+import {SPECIES as TIDE_SPECIES} from '../tidepool/species.js';
 
-// 潮池任務：沙灘上的岩石小池，按 E 以 iframe 開啟俯視的 Reef Lagoon（reef/，three r128 單檔）。
-// 潟湖本身不改；同源下讀 window.__reef.creatures，凡是丟進或抓起再放的生物入水就記一種。
-// 素材組：A、C 用 Opus 程序化生物，B 用 Tripo 模型（潟湖沒有免費模型版）。
+// Shared, disposable iframe host; quest progress outlives its WebGL context.
 export const SPECIES=['大白鯊','槌頭鯊','座頭鯨','虎鯨','海豚','海龜','蝠鱝'];
 const SOURCES={A:'reef/opus/index.html',B:'reef/tripo_lagoon/index.html',C:'reef/opus/index.html'};
 
@@ -20,30 +19,40 @@ export function createTidePool(scene){
  return {root,point,center:new T.Vector3(x,y,z)};
 }
 
-export function createLagoon({onRelease,onClose}){
- const overlay=document.createElement('section');overlay.id='lagoon';overlay.hidden=true;overlay.setAttribute('aria-label','潮池');
- overlay.innerHTML=`<iframe title="Reef Lagoon 潮池" allow="autoplay"></iframe><div class="lagoon-bar"><div><strong>潮池：放生 7 種海洋生物</strong><span id="lagoon-count">0 / 7</span></div><ol>${SPECIES.map((n,i)=>`<li data-sp="${i}"><kbd>${i+1}</kbd>${n}</li>`).join('')}</ol><button id="lagoon-back">回到沙灘 <kbd>Esc</kbd></button></div>`;
+export function createLagoon({onRelease,onObserve,onClose}){
+ const overlay=document.createElement('section');overlay.id='lagoon';overlay.hidden=true;
+ overlay.innerHTML=`<iframe allow="autoplay"></iframe><div class="lagoon-bar"><div><strong></strong><span id="lagoon-count"></span></div><ol></ol><button id="lagoon-back"></button></div>`;
  document.body.append(overlay);
- const frame=overlay.querySelector('iframe'),done=new Set(),seen=new WeakSet(),thrown=new WeakSet();
- let timer=0,src='',known=false;
- function render(){overlay.querySelector('#lagoon-count').textContent=`${done.size} / 7`;overlay.querySelectorAll('li').forEach(li=>li.classList.toggle('done',done.has(+li.dataset.sp)));overlay.classList.toggle('complete',done.size===7);}
+ const frame=overlay.querySelector('iframe'),released=new Set(),observed=new Set();
+ let timer=0,known=false,kind='tidepool',seen=new WeakSet(),thrown=new WeakSet();
+ const entries=()=>kind==='tidepool'?TIDE_SPECIES.map(s=>({id:s.id,name:s.name})):SPECIES.map((name,id)=>({id,name}));
+ const progress=()=>kind==='tidepool'?observed:released;
+ function render(){const done=progress(),list=entries();overlay.querySelector('#lagoon-count').textContent=`${done.size} / ${list.length}`;overlay.querySelectorAll('li').forEach((li,i)=>li.classList.toggle('done',done.has(list[i].id)));overlay.classList.toggle('complete',done.size===list.length);}
  function poll(){
+  if(kind==='tidepool'){
+   for(const id of frame.contentWindow?.__TIDEPOOL__?.found??[]){if(!TIDE_SPECIES.some(s=>s.id===id)||observed.has(id))continue;observed.add(id);onObserve(id,observed.size);}render();return;
+  }
   const reef=frame.contentWindow?.__reef;if(!reef)return;
-  // 第一次看到時的生物是開場就在游的，不算；之後新出現或被抓起的才算「放生」。
+  // Initial swimmers do not count. A newly thrown/re-grabbed animal must enter water.
   for(const c of reef.creatures){if(!known)seen.add(c);else if(!seen.has(c)||c.state==='held')thrown.add(c);
-   if(thrown.has(c)&&c.state==='entry'&&!done.has(c.sp)){done.add(c.sp);render();onRelease(c.sp,done.size);}}
+   if(thrown.has(c)&&c.state==='entry'&&!released.has(c.sp)){released.add(c.sp);render();onRelease(c.sp,released.size);}}
   known=true;
  }
  function keys(event){if(event.key==='Escape'){event.preventDefault();close();}}
- function open(group){
-  const next=SOURCES[group]??SOURCES.A;
-  if(next!==src){src=next;known=false;frame.src=next;frame.onload=()=>{known=false;frame.contentWindow.addEventListener('keydown',keys);};}
-  overlay.hidden=false;document.body.classList.add('lagoon-open');render();clearInterval(timer);timer=setInterval(poll,100);
-  setTimeout(()=>frame.focus(),50);
+ function open(group,nextKind='opensea',{muted=false,auto=false}={}){
+  kind=nextKind;known=false;seen=new WeakSet();thrown=new WeakSet();
+  const tide=kind==='tidepool',title=tide?'潮池觀察：尋找 6 種潮池生物':'外海：放生 7 種大型海洋生物';
+  overlay.setAttribute('aria-label',title);frame.title=title;overlay.querySelector('strong').textContent=title;
+  overlay.querySelector('ol').innerHTML=entries().map((s,i)=>`<li><kbd>${i+1}</kbd>${s.name}</li>`).join('');
+  overlay.querySelector('#lagoon-back').innerHTML=`回到${tide?'沙灘':'小船'} <kbd>Esc</kbd>`;
+  const query=new URLSearchParams({group,muted:muted?'1':'0',embedded:'1'});if(auto)query.set('auto','1');if(tide)query.set('found',[...observed].join(','));
+  frame.onload=()=>{known=false;frame.contentWindow.addEventListener('keydown',keys);if(!tide&&muted){const sound=frame.contentDocument.querySelector('[data-t="sound"].on');sound?.click();}poll();};
+  frame.src=tide?`tidepool.html?${query}`:`${SOURCES[group]??SOURCES.A}`;
+  overlay.hidden=false;document.body.classList.add('lagoon-open');render();clearInterval(timer);timer=setInterval(poll,50);frame.focus();
  }
- // 離開就卸載 iframe：兩個 WebGL context 並存會拖垮沙灘繪製（軟體渲染下甚至整片空白）；進度記在 done。
- function close(){if(overlay.hidden)return;overlay.hidden=true;frame.onload=null;frame.src='about:blank';src='';document.body.classList.remove('lagoon-open');clearInterval(timer);onClose();}
- function reset(){done.clear();render();}
+ // Unload on close: concurrent WebGL contexts can blank the beach under SwiftShader.
+ function close(){if(overlay.hidden)return;poll();const previous=kind;overlay.hidden=true;frame.onload=null;frame.src='about:blank';document.body.classList.remove('lagoon-open');clearInterval(timer);onClose(previous);}
+ function reset(){released.clear();observed.clear();render();}
  overlay.querySelector('#lagoon-back').onclick=close;addEventListener('keydown',e=>{if(!overlay.hidden)keys(e);});
- return {open,close,reset,frame,get isOpen(){return !overlay.hidden;},get released(){return [...done];}};
+ return {open,close,reset,frame,get kind(){return kind;},get isOpen(){return !overlay.hidden;},get released(){return [...released];},get observed(){return [...observed];}};
 }

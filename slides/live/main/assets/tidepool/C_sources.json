@@ -1,0 +1,8 @@
+{
+ "hermit_crab": {"source": "sketchfab", "id": "3fc91d811ae54de5b5fc5bb0e3db538a", "name": "Little Hermit Crab", "author": "allegory.fake", "licence": "CC-BY"},
+ "nudibranch": {"source": "sketchfab", "id": "c5b4b517ef5643d5915289e49aeb4daa", "name": "Felimida Britoi", "author": "israelfernandez", "licence": "CC-BY"},
+ "starfish": {"source": "polypizza", "id": "6H-0K9IEr56", "name": "Starfish", "author": "Poly by Google", "licence": "CC-BY 3.0"},
+ "anemone": {"source": "polypizza", "id": "5mWGVL6VgMd", "name": "Sea anemone", "author": "Poly by Google", "licence": "CC-BY 3.0"},
+ "urchin": {"source": "polypizza", "id": "f4iwEhEP3-d", "name": "Sea Urchin", "author": "Poly by Google", "licence": "CC-BY 3.0"},
+ "octopus": {"source": "polypizza", "id": "9F8QJKUT77V", "name": "Octopus", "author": "Poly by Google", "licence": "CC-BY 3.0"}
+}

@@ -54,8 +54,12 @@ vs = [v.co for v in obj.data.vertices]
 lo = Vector((min(v.x for v in vs), min(v.y for v in vs), min(v.z for v in vs)))
 hi = Vector((max(v.x for v in vs), max(v.y for v in vs), max(v.z for v in vs)))
 size = hi - lo
-s = 1.0 / size.x
-obj.data.transform(Matrix.Scale(s, 4) @ Matrix.Translation(-(lo + hi) / 2))
+if len(argv) > 5 and argv[5] == "base":  # 潮池生物：水平最長邊＝1、底部貼 z=0
+    s = 1.0 / max(size.x, size.y)
+    obj.data.transform(Matrix.Scale(s, 4) @ Matrix.Translation(-Vector(((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, lo.z))))
+else:
+    s = 1.0 / size.x
+    obj.data.transform(Matrix.Scale(s, 4) @ Matrix.Translation(-(lo + hi) / 2))
 obj.data.update()
 print(f"PREP {src}: {before} -> {after} tris; raw size {size.x:.3f} x {size.y:.3f} x {size.z:.3f}; "
       f"normalized 1 x {size.y * s:.3f} x {size.z * s:.3f}")

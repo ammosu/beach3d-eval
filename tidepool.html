@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#e7ede3"><link rel="icon" href="data:,"><title>潮池觀察｜海灘小任務</title></head><body>
+<main id="pool"><canvas id="view" aria-label="潮池：點選石頭翻開，再點選生物觀察"></canvas>
+<header><div><p>海灘小任務 · 潮間帶圖鑑</p><h1>蹲下來，看看潮池。</h1></div><button id="sound" aria-pressed="false">聲音 開</button></header>
+<div id="instruction" role="status">點一下鬆動的石頭，看看誰躲在下面。再點生物，記入圖鑑。</div>
+<section id="observation" hidden aria-label="生物近看"><button id="card-close" aria-label="關閉近看">×</button><div id="portrait"></div><p>已記入圖鑑</p><h2></h2><p id="fact"></p><button id="continue">繼續找找</button></section>
+<footer><div class="collection-heading"><strong>我的潮池圖鑑 <span id="count">0 / 6</span></strong><span id="status">找到牠們，讓牠們留在海裡。</span></div><nav id="collection" aria-label="六種潮池生物"></nav><div class="smallprint"><span>真實潮間帶請輕聲觀察；翻石後放回原位，不帶走生物。</span><span id="stats">正在準備潮池…</span></div></footer>
+</main><script type="module" src="/src/tidepool/index.js"></script></body></html>

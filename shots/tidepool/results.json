@@ -1,0 +1,170 @@
+{
+  "results": [
+    {
+      "group": "A",
+      "found": [
+        "hermit_crab",
+        "starfish",
+        "anemone",
+        "urchin",
+        "octopus",
+        "nudibranch"
+      ],
+      "species": [
+        {
+          "id": "hermit_crab",
+          "name": "寄居蟹",
+          "size": 0.06,
+          "source": "A",
+          "fallback": false
+        },
+        {
+          "id": "starfish",
+          "name": "海星",
+          "size": 0.15,
+          "source": "A",
+          "fallback": false
+        },
+        {
+          "id": "anemone",
+          "name": "海葵",
+          "size": 0.08,
+          "source": "A",
+          "fallback": false
+        },
+        {
+          "id": "urchin",
+          "name": "海膽",
+          "size": 0.08,
+          "source": "A",
+          "fallback": false
+        },
+        {
+          "id": "octopus",
+          "name": "小章魚",
+          "size": 0.25,
+          "source": "A",
+          "fallback": false
+        },
+        {
+          "id": "nudibranch",
+          "name": "海蛞蝓",
+          "size": 0.05,
+          "source": "A",
+          "fallback": false
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "found": [
+        "hermit_crab",
+        "starfish",
+        "anemone",
+        "urchin",
+        "octopus",
+        "nudibranch"
+      ],
+      "species": [
+        {
+          "id": "hermit_crab",
+          "name": "寄居蟹",
+          "size": 0.06,
+          "source": "B",
+          "fallback": false
+        },
+        {
+          "id": "starfish",
+          "name": "海星",
+          "size": 0.15,
+          "source": "B",
+          "fallback": false
+        },
+        {
+          "id": "anemone",
+          "name": "海葵",
+          "size": 0.08,
+          "source": "B",
+          "fallback": false
+        },
+        {
+          "id": "urchin",
+          "name": "海膽",
+          "size": 0.08,
+          "source": "B",
+          "fallback": false
+        },
+        {
+          "id": "octopus",
+          "name": "小章魚",
+          "size": 0.25,
+          "source": "B",
+          "fallback": false
+        },
+        {
+          "id": "nudibranch",
+          "name": "海蛞蝓",
+          "size": 0.05,
+          "source": "B",
+          "fallback": false
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "found": [
+        "hermit_crab",
+        "starfish",
+        "anemone",
+        "urchin",
+        "octopus",
+        "nudibranch"
+      ],
+      "species": [
+        {
+          "id": "hermit_crab",
+          "name": "寄居蟹",
+          "size": 0.06,
+          "source": "C",
+          "fallback": false
+        },
+        {
+          "id": "starfish",
+          "name": "海星",
+          "size": 0.15,
+          "source": "C",
+          "fallback": false
+        },
+        {
+          "id": "anemone",
+          "name": "海葵",
+          "size": 0.08,
+          "source": "C",
+          "fallback": false
+        },
+        {
+          "id": "urchin",
+          "name": "海膽",
+          "size": 0.08,
+          "source": "C",
+          "fallback": false
+        },
+        {
+          "id": "octopus",
+          "name": "小章魚",
+          "size": 0.25,
+          "source": "C",
+          "fallback": false
+        },
+        {
+          "id": "nudibranch",
+          "name": "海蛞蝓",
+          "size": 0.05,
+          "source": "C",
+          "fallback": false
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

@@ -4,6 +4,7 @@
   .venv/bin/python reef/tripo/gen.py --dry-run          # 只列清單
   .venv/bin/python reef/tripo/gen.py                    # 全部（已存在的跳過）
   .venv/bin/python reef/tripo/gen.py manta humpback --force   # 重做指定的（舊檔改名保留）
+  .venv/bin/python reef/tripo/gen.py --spec assets/tidepool/critters.json --raw assets/raw/tidepool   # 其他清單（潮池生物）
 輸出：reef/tripo/raw/<id>.glb（原始，不進 git）、reef/tripo/log.csv
 """
 import argparse, asyncio, csv, json, os, shutil, time
@@ -47,12 +48,16 @@ async def gen_one(client, c):
 
 
 async def main():
+    global RAW, LOG
     ap = argparse.ArgumentParser()
     ap.add_argument("ids", nargs="*")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--spec", default=str(HERE / "creatures.json"))
+    ap.add_argument("--raw", default=str(RAW))
     a = ap.parse_args()
-    todo = [c for c in json.loads((HERE / "creatures.json").read_text()) if not a.ids or c["id"] in a.ids]
+    RAW = (ROOT / a.raw).resolve(); LOG = RAW / "log.csv" if a.raw != str(HERE / "raw") else LOG
+    todo = [c for c in json.loads((ROOT / a.spec).read_text()) if not a.ids or c["id"] in a.ids]
     if not a.force:
         todo = [c for c in todo if not (RAW / f"{c['id']}.glb").exists()]
     for c in todo:

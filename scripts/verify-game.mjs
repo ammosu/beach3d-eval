@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 const output=process.env.GAME_SHOTS||'shots/game';await mkdir(output,{recursive:true});
 const browser=await chromium.launch({executablePath:`${homedir()}/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome`,headless:true,args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 const errors=[];
-function monitor(page,missing=false){page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!(missing&&/404|Failed to load resource/.test(m.text())))errors.push(m.text());});}
+function monitor(page,missing=false){page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!((missing||/assets\/tidepool\/.*\.glb/.test(m.location().url))&&/404|Failed to load resource/.test(m.text())))errors.push(m.text());});}
 try{
  const page=await browser.newPage({viewport:{width:1280,height:720}});monitor(page);
  await page.goto('http://localhost:5191/game.html?auto=1&time=4');await page.waitForFunction(()=>window.__READY__);await page.evaluate(()=>window.__TIME__=4);
@@ -23,22 +23,37 @@ try{
  await at(targets.ball[0],targets.ball[2]+3);await page.keyboard.down('KeyW');await step(.6);await page.keyboard.up('KeyW');await shot('B_walking-ball');await at(targets.ball[0],targets.ball[2]+1.3);await e();await step(4);assert((await page.evaluate(()=>window.__GAME__.state)).ball,'ball must reach deep water');await at(-4,-12);await shot('ball');
  await at(targets.umbrella[0],targets.umbrella[2]);await e();await step(2);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'rest');assert((await page.evaluate(()=>window.__GAME__.state)).lounger);await shot('lounger');await e();
  await at(targets.lifeguard[0],targets.lifeguard[2]);await e();await step(2);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'tower');assert((await page.evaluate(()=>window.__GAME__.state)).tower);await shot('tower');await e();
- // Tide pool: the Reef Lagoon iframe opens, every species released into the water ticks the quest, and the back button returns on foot.
- await at(targets.lagoon[0],targets.lagoon[2]);await e();assert.equal(await page.evaluate(()=>window.__GAME__.mode),'lagoon');
- await page.waitForFunction(()=>document.querySelector('#lagoon iframe').contentWindow.__reef,null,{timeout:120000});
- for(let i=0;i<7;i++){await page.evaluate(i=>document.querySelector('#lagoon iframe').contentWindow.__reef.throwFromCard(i),i);await page.waitForTimeout(400);}
- await page.waitForFunction(()=>window.__GAME__.state.lagoon,null,{timeout:180000});assert.equal((await page.evaluate(()=>window.__GAME__.state)).released,7);
- await page.screenshot({path:`${output}/lagoon.png`});console.log('shot lagoon');
- await page.click('#lagoon-back');await step(.5);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'walk');assert(await page.locator('#lagoon').isHidden());
+ // The rock pool records six small intertidal species, with progress surviving iframe unload.
+ await at(targets.tidepool[0],targets.tidepool[2]);await e();assert.equal(await page.evaluate(()=>window.__GAME__.mode),'tidepool');
+ await page.waitForFunction(()=>document.querySelector('#lagoon iframe').contentWindow.__READY__,null,{timeout:120000});
+ assert.match(await page.locator('#lagoon iframe').getAttribute('src'),/tidepool.html.*group=B/);
+ await page.evaluate(()=>{const t=document.querySelector('#lagoon iframe').contentWindow.__TIDEPOOL__;t.stones.forEach((_,i)=>t.lift(i));t.step(1);t.species.forEach(s=>t.observe(s.id));});
+ await page.waitForFunction(()=>window.__GAME__.state.tidepool);assert.equal((await page.evaluate(()=>window.__GAME__.state)).observed,6);
+ await page.screenshot({path:`${output}/tidepool.png`});console.log('shot tidepool');
+ await page.click('#lagoon-back');await step(.5);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'walk');assert(await page.locator('#lagoon').isHidden());assert.equal(await page.locator('#lagoon iframe').getAttribute('src'),'about:blank');
+ await e();await page.waitForFunction(()=>document.querySelector('#lagoon iframe').contentWindow.__READY__,null,{timeout:120000});assert.equal(await page.evaluate(()=>document.querySelector('#lagoon iframe').contentWindow.__TIDEPOOL__.found.length),6);await page.click('#lagoon-back');await step(.2);
  await at(targets.boat[0],targets.boat[2]);await e();await step(1);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'boat');
  // An attempted early disembark at sea must be rejected. All travel uses W
  // physics, including acceleration, depth restrictions, and wave pose.
  async function paddleTo(goal){for(let i=0;i<100;i++){const v=await page.evaluate(()=>window.__GAME__.vessel),dx=goal.x-v.x,dz=goal.z-v.z,d=Math.hypot(dx,dz);if(d<7)return;await page.evaluate(a=>window.__GAME__.steer(a),Math.atan2(-dx,-dz));await page.keyboard.down('KeyW');await step(Math.min(1.5,(d-5)/9));await page.keyboard.up('KeyW');}throw Error('Boat failed to reach target');}
  await paddleTo({x:12,z:-65});await e();assert.equal(await page.evaluate(()=>window.__GAME__.mode),'boat');await shot('boat');
  await paddleTo(targets.island);assert((await page.evaluate(()=>window.__GAME__.state)).island);assert.equal((await page.evaluate(()=>window.__GAME__.state)).boat,false);
+ // Only at the offshore buoy can E open Reef Lagoon, without leaving the boat.
+ assert.match(await page.locator('#nav-text').innerText(),/E 放生/);
+ const vesselBefore=await page.evaluate(()=>window.__GAME__.vessel);
+ await e();assert.equal(await page.evaluate(()=>window.__GAME__.mode),'boat');
+ await page.waitForFunction(()=>document.querySelector('#lagoon iframe').contentWindow.__reef,null,{timeout:120000});
+ assert.match(await page.locator('#lagoon iframe').getAttribute('src'),/reef\/tripo_lagoon/);
+ await page.waitForTimeout(200);
+ for(let i=0;i<7;i++){await page.evaluate(i=>document.querySelector('#lagoon iframe').contentWindow.__reef.throwFromCard(i),i);await page.waitForTimeout(400);}
+ await page.waitForFunction(()=>window.__GAME__.state.opensea,null,{timeout:180000});assert.equal((await page.evaluate(()=>window.__GAME__.state)).released,7);
+ await page.screenshot({path:`${output}/opensea.png`});console.log('shot opensea');
+ await page.evaluate(()=>document.querySelector('#lagoon iframe').contentWindow.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
+ assert.equal(await page.evaluate(()=>window.__GAME__.mode),'boat');assert.deepEqual(await page.evaluate(()=>window.__GAME__.vessel),vesselBefore);assert.equal(await page.locator('#lagoon iframe').getAttribute('src'),'about:blank');
+ await e();await page.waitForFunction(()=>document.querySelector('#lagoon iframe').contentWindow.__reef,null,{timeout:120000});await page.click('#lagoon-back');assert.equal(await page.evaluate(()=>window.__GAME__.mode),'boat');assert.equal((await page.evaluate(()=>window.__GAME__.state)).released,7);
  await paddleTo({x:12,z:-65});await paddleTo(targets.dock);await e();await step(1);assert((await page.evaluate(()=>window.__GAME__.state)).boat);assert(await page.evaluate(()=>window.__GAME__.completed));assert(await page.locator('#complete').isVisible());await shot('complete');
  const result=await page.evaluate(()=>({state:window.__GAME__.state,elapsed:window.__GAME__.elapsed}));
- await page.click('#replay');assert.equal((await page.evaluate(()=>window.__GAME__.state)).shells,0);assert.equal(await page.evaluate(()=>window.__GAME__.completed),false);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'walk');
+ await page.click('#replay');assert.equal((await page.evaluate(()=>window.__GAME__.state)).shells,0);assert.equal((await page.evaluate(()=>window.__GAME__.state)).observed,0);assert.equal((await page.evaluate(()=>window.__GAME__.state)).released,0);assert.equal(await page.evaluate(()=>window.__GAME__.completed),false);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'walk');
  // Switching uses keyboard and must retain progress/player position.
  const beforeSwitch=await page.evaluate(()=>({position:window.__EXPLORE__.player.toArray(),state:window.__GAME__.state}));
  for(const key of ['Digit1','Digit3','Digit2']){await page.keyboard.press(key);await page.waitForFunction(()=>!window.__EXPLORE__.busy);}
@@ -82,5 +97,6 @@ try{
  const missing=await browser.newPage({viewport:{width:800,height:600}});monitor(missing,true);await missing.route('**/assets/tripo/*.glb',r=>r.fulfill({status:404,body:'unavailable'}));await missing.route('**/assets/character/*.glb',r=>r.fulfill({status:404,body:'unavailable'}));await missing.goto('http://localhost:5191/game.html?auto=1&time=4');await missing.waitForFunction(()=>window.__READY__);await missing.click('#begin');assert.equal(await missing.evaluate(()=>window.__GAME__.character.fallback),true);
  for(const [id,mode] of [['umbrella','rest'],['lifeguard','tower'],['boat','boat']]){await missing.evaluate(id=>{const g=window.__GAME__,p=g.targets()[id];g.teleport(p[0],p[2]);g.step(.2);g.interact();g.step(2);},id);assert.equal(await missing.evaluate(()=>window.__GAME__.mode),mode);await missing.keyboard.press('KeyE');await missing.evaluate(()=>window.__GAME__.step(.2));}
  await missing.route('**/assets/character_C/character.glb',r=>r.fulfill({status:404,body:'unavailable'}));await missing.goto('http://localhost:5191/game.html?group=C&auto=1&time=4');await missing.waitForFunction(()=>window.__READY__);assert.equal(await missing.evaluate(()=>window.__GAME__.character.fallback),true);
- assert.deepEqual(errors,[]);await writeFile(`${output}/results.json`,JSON.stringify({...result,errors,characterChecks,contacts,cpuUpdates,checks:['all quests','boat round trip','early disembark blocked','restart','ABC keys','CPU waves seek','mobile joystick and interaction','missing assets and characters','ABC real surface contacts','ABC skeleton idle walk run jump','minimum camera boom across scripted run','frozen animation clock']},null,2));console.log('Game verification passed',result);
+ await missing.close();
+ assert.deepEqual(errors,[]);await writeFile(`${output}/results.json`,JSON.stringify({...result,errors,characterChecks,contacts,cpuUpdates,checks:['seven quests','six tide-pool observations','tide-pool progress survives iframe unload','offshore release at buoy','Esc and back preserve boat mode and vessel','overlay iframe unload','boat round trip','early disembark blocked','restart','ABC keys','CPU waves seek','mobile joystick and interaction','missing assets and characters','ABC real surface contacts','ABC skeleton idle walk run jump','minimum camera boom across scripted run','frozen animation clock']},null,2));console.log('Game verification passed',result);
 }finally{await browser.close();}
