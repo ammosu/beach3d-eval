@@ -7,6 +7,7 @@ import {createBall} from './physics.js';
 import {createCharacter} from './character.js';
 import {findSurface,surfacesAt} from './surfaces.js';
 import {createGameCamera,MIN_BOOM} from './camera.js';
+import {MeshBVH,acceleratedRaycast} from 'three-mesh-bvh';
 import {createTidePool,createLagoon} from './lagoon.js';
 import '../game.css';
 
@@ -41,22 +42,31 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  function poseIK(){
   if(mode==='walk'&&pickup&&pickup.age>=0)return pickupIK();
   if(mode==='walk')return e.airborne?null:{ground:groundHeight};
-  if(mode==='tower'&&anchors.lifeguard.ladder&&towerT>0&&towerT<towerTotal())return {hands:climb.hands,handWeight:climb.handWeight,feet:climb.feet,footWeight:climb.footWeight,handAim:climb.aim,curl:climb.curl,spine:{lean:.12}};
+  if(mode==='tower'&&anchors.lifeguard.ladder?.kind==='stairs')return {ground:towerSurface};
+  if(mode==='tower'&&anchors.lifeguard.ladder&&towerT>0&&towerT<towerTotal())return {hands:climb.hands,handWeight:climb.handWeight,feet:climb.feet,footWeight:climb.footWeight,handAim:climb.aim,curl:climb.curl,pelvis:-.45*climb.duck,spine:{lean:.12+.7*climb.duck}};
   if(mode==='boat'&&boatSeat)return {hands:row.hands,feet:row.feet,handAim:row.aim,curl:[1,1],spine:{twist:row.twist,lean:row.lean}};
   return null;
  }
- function updateCharacter(dt){const pose=mode==='rest'?(anchors.umbrella.surface.kind==='lounger'?'lie':'sand'):mode==='boat'?'paddle':mode==='tower'&&(anchors.lifeguard.ladder?climb.onLadder&&towerT>0:modeAge<1.1)?'climb':'stand';character.update(dt,{speed:mode==='walk'?(pickup?pickupSpeed:e.speed):0,airborne:e.airborne,pose,first:e.first,fade:followCamera.distance<2.2?.4:1,ik:poseIK()});const info=character.info();let node=$('#character-stats');if(!node){node=document.createElement('span');node.id='character-stats';$('#stats').after(node);}node.textContent=`角色 ${info.source}${info.fallback?'（備援）':''} · ${info.triangles.toLocaleString()} triangles`;}
+ function updateCharacter(dt){const pose=mode==='rest'?(anchors.umbrella.surface.kind==='lounger'?'lie':'sand'):mode==='boat'?'paddle':mode==='tower'&&(anchors.lifeguard.ladder?climb.onLadder&&towerT>0:modeAge<1.1)?'climb':'stand';character.update(dt,{speed:mode==='walk'?(pickup?pickupSpeed:e.speed):mode==='tower'?climb.speed:0,airborne:e.airborne,pose,first:e.first,fade:followCamera.distance<2.2?.4:1,ik:poseIK()});const info=character.info();let node=$('#character-stats');if(!node){node=document.createElement('span');node.id='character-stats';$('#stats').after(node);}node.textContent=`角色 ${info.source}${info.fallback?'（備援）':''} · ${info.triangles.toLocaleString()} triangles`;}
  const ringMat=new T.MeshBasicMaterial({color:0xffe18a,transparent:true,opacity:.85,side:T.DoubleSide,depthWrite:false});const destination=new T.Mesh(new T.TorusGeometry(8,.2,8,64),ringMat);destination.rotation.x=-Math.PI/2;destination.position.set(island.x,.6,island.z);scene.add(destination);
  const buoy=new T.Mesh(new T.CylinderGeometry(.2,.4,4,8),new T.MeshStandardMaterial({color:0xffb64f}));buoy.position.set(island.x,2,island.z);scene.add(buoy);
  // Lifeguard tower ladder: the widest opening in the deck railing, at the deck edge (the beach side wins ties). A
  // tower without its own ladder or stairs there gets a plain one drawn by the game; the prop itself is never edited.
  const ladderMesh=new T.Group(),ladderMat=new T.MeshStandardMaterial({color:0xd9d0bd,roughness:.85}),ray=new T.Raycaster();ladderMesh.name='game-ladder';scene.add(ladderMesh);
- function findLadder(root,surface){
+ // Ladder probes cast thousands of rays: run them on a BVH copy of the tower (as the camera does).
+ const probeMaterial=new T.MeshBasicMaterial({side:T.DoubleSide});
+ function probeCopy(source){source.updateMatrixWorld(true);const root=new T.Group();source.traverse(o=>{if(!o.isMesh)return;const geometry=o.geometry.clone();geometry.clearGroups();geometry.boundsTree=new MeshBVH(geometry);const mesh=new T.Mesh(geometry,probeMaterial);mesh.raycast=acceleratedRaycast;mesh.matrixAutoUpdate=false;mesh.matrix.copy(o.matrixWorld);root.add(mesh);});root.updateMatrixWorld(true);return root;}
+ function findLadder(source,surface){
+  const root=probeCopy(source);try{return ladderOn(root,surface);}finally{root.traverse(o=>{if(o.isMesh){o.geometry.boundsTree=null;o.geometry.dispose();}});}
+ }
+ function ladderOn(root,surface){
   const box=new T.Box3().setFromObject(root),deckY=surface.point.y,deck=(x,z)=>surfacesAt(root,x,z,box).some(h=>Math.abs(h.point.y-deckY)<.12);
   // Railing just inside a deck edge: its top height and how far in it stands (null: no railing).
   // Railing just inside a deck edge, found with vertical probes (thin horizontal bars slip between horizontal ones):
   // its top height and how far in it stands (null: no railing).
   const railAt=(normal,edge,u)=>{const nx=normal.x,nz=normal.z;let top=null,depth=0;for(let d=0;d<.36;d+=.03){const w=edge-d;ray.set(new T.Vector3(nx?w*nx:u,deckY+1.4,nz?w*nz:u),new T.Vector3(0,-1,0));ray.far=1.25;const hit=ray.intersectObject(root,true)[0];if(hit&&(top==null||hit.point.y>top)){top=hit.point.y;depth=d;}}return top==null?null:{top,depth};};
+  const stairs=findStairs(root,box,deckY);if(stairs)return stairs;
+  const existing=ownLadder(root,box,deckY,railAt);if(existing)return existing;
   let best=null;
   for(const [nx,nz] of [[0,1],[0,-1],[1,0],[-1,0]]){
    const normal=new T.Vector3(nx,0,nz),right=new T.Vector3(nz,0,-nx),outer=nx>0?box.max.x:nx<0?-box.min.x:nz>0?box.max.z:-box.min.z;
@@ -82,7 +92,81 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   const own=tries>0&&hits/tries>.3;
   // A railing in the way: the ladder leans on it and the rungs go on up to its top rail.
   const over=rail?rail.top:deckY,axis=top.clone().sub(bottom).normalize(),rungs=[];for(let h=.28;h<over-bottom.y-.1;h+=.28)rungs.push(h);
-  return {normal,right,top,bottom,axis,stand,rungs,spacing:.28,height:deckY-bottom.y,over:over-bottom.y,railDepth:rail?.depth??0,own};
+  return {normal,right,top,bottom,axis,stand,rungs,spacing:.28,height:deckY-bottom.y,over:over-bottom.y,railDepth:rail?.depth??0,roof:roofOver(root,stand),own};
+ }
+ // A ladder the tower already has: looking at a side, a column between its rails shows thin, evenly spaced hits (the
+ // rungs) that line up, straight or leaning. Its rung heights and lean are measured so hands and feet meet real rungs.
+ // Stairs: tread tops outside the deck footprint whose height rises steadily along one direction (rise/run between
+ // 0.5 and 1.25). The climber walks their centre line; foot IK puts the feet on the treads.
+ function findStairs(root,box,deckY){
+  const ground=box.min.y,samples=[],pad=1.6;
+  for(let x=box.min.x-pad;x<=box.max.x+pad;x+=.1)for(let z=box.min.z-pad;z<=box.max.z+pad;z+=.1){
+   // Every upward face in the column: treads hide under a sloping handrail.
+   const column=surfacesAt(root,x,z,box);if(column.some(h=>Math.abs(h.point.y-deckY)<.12))continue;
+   for(const h of column)if(h.point.y>ground+.08&&h.point.y<deckY-.04)samples.push(new T.Vector3(x,h.point.y,z));
+  }
+  if(samples.length<20)return null;
+  let best=null;
+  for(let k=0;k<72;k++){const a=k*Math.PI/36,dx=Math.sin(a),dz=Math.cos(a);
+   for(let slope=.5;slope<=1.25;slope+=.05){
+    // Offset by the most common residual (robust to a planter box or a brace top), then count the treads near it.
+    const bins=new Map();for(const p of samples){const r=Math.round((p.y-slope*(p.x*dx+p.z*dz))/.05);bins.set(r,(bins.get(r)??0)+1);}
+    let mode=0,top=-1;for(const [r,n] of bins){const c=n+(bins.get(r-1)??0)+(bins.get(r+1)??0);if(c>top){top=c;mode=r;}}
+    const c=mode*.05,inliers=samples.filter(p=>Math.abs(p.y-slope*(p.x*dx+p.z*dz)-c)<.1);
+    if(inliers.length<15)continue;
+    const heights=inliers.map(p=>p.y),span=Math.max(...heights)-Math.min(...heights),q=inliers.map(p=>p.x*dz-p.z*dx),mean=q.reduce((p,v)=>p+v,0)/q.length,spread=Math.sqrt(q.reduce((p,v)=>p+(v-mean)**2,0)/q.length);
+    if(span<(deckY-ground)*.6||spread>.6)continue;
+    if(!best||inliers.length>best.count)best={count:inliers.length,dir:new T.Vector3(dx,0,dz),slope,c,lateral:mean};
+   }
+  }
+  if(!best)return null;
+  const {dir,slope,c,lateral}=best,side=new T.Vector3(dir.z,0,-dir.x),point=t=>new T.Vector3(dir.x*t+side.x*lateral,0,dir.z*t+side.z*lateral);
+  const tBottom=(ground-c)/slope,tTop=(deckY-c)/slope,bottom=point(tBottom-.35),top=point(tTop);bottom.y=groundHeight(bottom.x,bottom.z);top.y=deckY;
+  // Walk on past the top tread until there is deck underfoot, then a step further in.
+  let stand=null;for(let t=tTop;t<tTop+1.5;t+=.05){const p=point(t);if(surfacesAt(root,p.x,p.z,box).some(h=>Math.abs(h.point.y-deckY)<.12)){stand=point(t+.35);break;}}
+  if(!stand)return null;stand.y=(surfacesAt(root,stand.x,stand.z,box).find(h=>Math.abs(h.point.y-deckY)<.12)?.point.y??deckY)+.015;
+  const normal=dir.clone().negate();
+  return {kind:'stairs',dir,normal,right:side,bottom,top,stand,slope,c,height:deckY-bottom.y,over:deckY-bottom.y,rungs:[],spacing:.28,axis:dir,own:true};
+ }
+ // Headroom above a deck point: the underside of whatever roof is overhead (null: open sky).
+ function roofOver(root,point){ray.set(new T.Vector3(point.x,point.y+.1,point.z),new T.Vector3(0,1,0));ray.far=3;const hit=ray.intersectObject(root,true)[0];return hit?hit.point.y:null;}
+ function ownLadder(root,box,deckY,railAt){
+  const ground=box.min.y,found=[];
+  for(const [nx,nz] of [[0,1],[0,-1],[1,0],[-1,0]]){
+   const normal=new T.Vector3(nx,0,nz),right=new T.Vector3(nz,0,-nx),outer=nx>0?box.max.x:nx<0?-box.min.x:nz>0?box.max.z:-box.min.z,lo=nx?box.min.z:box.min.x,hi=nx?box.max.z:box.max.x,columns=[];
+   for(let u=lo+.05;u<hi;u+=.1){
+    const hits=[];for(let y=ground+.15;y<deckY+.15;y+=.04){ray.set(new T.Vector3(nx?(outer+2)*nx:u,y,nz?(outer+2)*nz:u),normal.clone().negate());ray.far=4;const h=ray.intersectObject(root,true)[0];hits.push(h?h.distance-2:null);}
+    // Thin clusters of hits (a rung is a few centimetres tall).
+    const rungs=[];for(let i=0;i<hits.length;){if(hits[i]==null){i++;continue;}let j=i;while(j<hits.length&&hits[j]!=null)j++;if(j-i<=3){const k=(i+j-1)/2;rungs.push({y:ground+.15+k*.04,d:hits.slice(i,j).reduce((a,b)=>a+b)/(j-i)});}i=j;}
+    if(rungs.length<4){columns.push(null);continue;}
+    // Line depth = a + b·y through the rungs (median slope resists a brace seen through a gap).
+    const slopes=[];for(let i=1;i<rungs.length;i++)slopes.push((rungs[i].d-rungs[i-1].d)/(rungs[i].y-rungs[i-1].y));slopes.sort((p,q)=>p-q);const b=slopes[Math.floor(slopes.length/2)];
+    const as=rungs.map(r=>r.d-b*r.y).sort((p,q)=>p-q),a=as[Math.floor(as.length/2)],line=rungs.filter(r=>Math.abs(r.d-a-b*r.y)<.07);
+    // Even spacing, allowing for a rung or two the probes slipped past (gaps of two or three steps).
+    const gaps=line.slice(1).map((r,i)=>r.y-line[i].y),step=Math.min(...gaps.filter(g=>g>.15));
+    const even=gaps.length>=2&&step<.45&&gaps.every(g=>{const k=Math.round(g/step);return k>=1&&k<=3&&Math.abs(g-k*step)<.07;}),lean=Math.abs(b)<.7,span=line.length?line.at(-1).y-line[0].y:0;
+    columns.push(even&&lean&&span>(deckY-ground)*.5?{u,a,b,rungs:line.map(r=>r.y),gap:step}:null);
+   }
+   for(let i=0;i<columns.length;){if(!columns[i]){i++;continue;}let j=i;while(j<columns.length&&columns[j])j++;const run=columns.slice(i,j);if(run.length>=2)found.push({normal,right,outer,run});i=j;}
+  }
+  if(!found.length)return null;
+  const {normal,right,outer,run}=found.sort((p,q)=>q.run.length-p.run.length)[0],mid=run[Math.floor(run.length/2)],u=(run[0].u+run.at(-1).u)/2;
+  const a=run.reduce((p,c)=>p+c.a,0)/run.length,b=run.reduce((p,c)=>p+c.b,0)/run.length;
+  // A point on the ladder's rung line at height y.
+  const at=y=>{const w=outer-(a+b*y);return new T.Vector3(normal.x?w*normal.x:u,y,normal.z?w*normal.z:u);};
+  const bottom=at(groundHeight(...(p=>[p.x,p.z])(at(ground))));bottom.y=groundHeight(bottom.x,bottom.z);const top=at(deckY),axis=top.clone().sub(bottom).normalize();
+  // Rungs seen by any column, merged, with the ones every column missed filled in at the spacing.
+  const gap=Math.min(...run.map(c=>c.gap)),seen=run.flatMap(c=>c.rungs).sort((p,q)=>p-q),merged=[];for(const y of seen){if(merged.length&&y-merged.at(-1).y<.06){const m=merged.at(-1);m.y=(m.y*m.n+y)/(m.n+1);m.n++;}else merged.push({y,n:1});}
+  const heights=[];merged.forEach((m,i)=>{if(i){const prev=merged[i-1].y,k=Math.round((m.y-prev)/gap);for(let j=1;j<k;j++)heights.push(prev+(m.y-prev)*j/k);}heights.push(m.y);});
+  // Below the lowest seen rung, keep stepping down to the sand.
+  while(heights[0]-gap>bottom.y+.12)heights.unshift(heights[0]-gap);
+  const rungs=heights.map(y=>y-bottom.y).filter(h=>h>.05);
+  // Step off at the top onto the deck, over a railing if one is there.
+  let edge=null;for(let w=outer-(a+b*deckY)+.1;w>outer-3;w-=.05){const x=normal.x?w*normal.x:u,z=normal.z?w*normal.z:u;if(surfacesAt(root,x,z,box).some(h=>Math.abs(h.point.y-deckY)<.12)){edge=w;break;}}
+  const rail=edge==null?null:railAt(normal,edge,u),stand=(edge==null?top.clone():new T.Vector3(normal.x?edge*normal.x:u,deckY,normal.z?edge*normal.z:u)).addScaledVector(normal,-Math.max(.32,(rail?.depth??0)+.3));
+  const hit=surfacesAt(root,stand.x,stand.z,box).find(h=>Math.abs(h.point.y-deckY)<.12);stand.y=(hit?.point.y??deckY)+.015;
+  const over=Math.max(rail?rail.top:deckY,bottom.y+(rungs.at(-1)??0))-bottom.y;
+  return {normal,right,top,bottom,axis,stand,rungs,spacing:gap,height:deckY-bottom.y,over,railDepth:rail?.depth??0,roof:roofOver(root,stand),own:true};
  }
  function buildLadder(l){
   ladderMesh.clear();if(!l||l.own)return;
@@ -93,21 +177,36 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  // Climbing is a function of time t, so climbing down is the same motion played backward. Each limb holds a rung and
  // moves to the next in the last half of its cycle; hands and feet move in diagonal pairs.
  let towerT=0,towerDir=1;
- const climb={hands:[new T.Vector3(),new T.Vector3()],feet:[new T.Vector3(),new T.Vector3()],aim:[0,1].map(()=>({dir:new T.Vector3(),palm:new T.Vector3()})),handWeight:[1,1],footWeight:[1,1],curl:[1,1],root:new T.Vector3(),yaw:0,onLadder:true,camera:0};
+ const climb={hands:[new T.Vector3(),new T.Vector3()],feet:[new T.Vector3(),new T.Vector3()],aim:[0,1].map(()=>({dir:new T.Vector3(),palm:new T.Vector3()})),handWeight:[1,1],footWeight:[1,1],curl:[1,1],root:new T.Vector3(),yaw:0,onLadder:true,camera:0,duck:0,speed:0};
  function towerTimes(l){const climbH=Math.max(0,l.over-.32);return {climbH,up:climbH/.8,mantle:1,turn:.6};}
- function towerTotal(){const l=anchors.lifeguard.ladder;if(!l)return 1.1;const k=towerTimes(l);return k.up+k.mantle+k.turn;}
+ function stairLength(l){return l.bottom.distanceTo(l.top)+Math.hypot(l.stand.x-l.top.x,l.stand.z-l.top.z);}
+ function towerTotal(){const l=anchors.lifeguard.ladder;if(!l)return 1.1;if(l.kind==='stairs')return stairLength(l)/.9+.6;const k=towerTimes(l);return k.up+k.mantle+k.turn;}
+ // Stairs: walk the centre line at an easy pace (facing down the stairs on the way down), then turn to the sea.
+ function stairPose(t){
+  const l=anchors.lifeguard.ladder,a=Math.hypot(l.top.x-l.bottom.x,l.top.z-l.bottom.z),b=Math.hypot(l.stand.x-l.top.x,l.stand.z-l.top.z),walk=(a+b)/.9,d=T.MathUtils.clamp(t,0,walk)*.9;
+  if(d<=a)climb.root.lerpVectors(l.bottom,l.top,d/a);else climb.root.lerpVectors(l.top,l.stand,(d-a)/b);
+  // Body height follows the stair line; feet find the treads.
+  const along=(climb.root.x-l.bottom.x)*l.dir.x+(climb.root.z-l.bottom.z)*l.dir.z;climb.root.y=d<=a?Math.max(l.bottom.y,Math.min(l.top.y,l.bottom.y+(l.top.y-l.bottom.y)*along/a)):climb.root.y;
+  const up=Math.atan2(l.dir.x,l.dir.z),turn=T.MathUtils.smoothstep(t-walk,0,.6),facing=towerDir>0?up:up+Math.PI;let toSea=Math.PI-facing;toSea=Math.atan2(Math.sin(toSea),Math.cos(toSea));
+  climb.yaw=facing+toSea*turn;climb.speed=t>0&&t<walk?.9:0;climb.onLadder=false;climb.camera=T.MathUtils.smoothstep(d,a*.6,a+b);climb.duck=0;
+  return climb;
+ }
+ // Under a foot on the stairs: the highest face below knee height (not the handrail).
+ const towerSurface=(x,z)=>{const source=propRoot.children.find(c=>c.name==='lifeguard'),l=anchors.lifeguard.ladder;if(source){const hit=surfacesAt(source,x,z).find(h=>h.point.y<Math.min(l.top.y+.1,climb.root.y+.3));if(hit)return Math.max(hit.point.y,groundHeight(x,z));}return groundHeight(x,z);};
  function climbPose(t){
   const l=anchors.lifeguard.ladder,k=towerTimes(l),sp=l.spacing,n=l.normal,r=l.right,top=l.rungs.length;
   const along=(h,out)=>out.copy(l.bottom).addScaledVector(l.axis,h/l.axis.y);
   const level=x=>Math.floor(x)+T.MathUtils.smoothstep(x-Math.floor(x),.5,1),swing=x=>{const f=x-Math.floor(x);return f>.5?Math.sin(Math.PI*(f-.5)*2):0;};
+  // Height of rung k (k = 0 is the sand); fractional k moves between rungs; beyond the top, keep the spacing.
+  const rungAt=k=>{const at=j=>j<=0?0:j<=top?l.rungs[j-1]:(l.rungs[top-1]??0)+(j-top)*sp,f=Math.floor(k);return at(f)+(at(f+1)-at(f))*(k-f);},handRungs=Math.round(1.35/sp);
   const u=T.MathUtils.clamp(t/k.up,0,1)*k.climbH,m=T.MathUtils.clamp((t-k.up)/k.mantle,0,1),turn=T.MathUtils.smoothstep(t-k.up-k.mantle,0,k.turn);
   const reach=character.gripReach||0,down=new T.Vector3(0,-1,0),fingers=n.clone().negate().multiplyScalar(.9).addScaledVector(down,.44).normalize(),palm=new T.Vector3().crossVectors(r,fingers);if(palm.y>0)palm.negate();
   const ladderYaw=Math.atan2(-n.x,-n.z),u0=Math.min(t,k.up)/k.up*k.climbH;
   for(let i=0;i<2;i++){const s=character.side[i],sideSign=Math.sign(s);
    // Feet: rung k sits at k·spacing; level 0 is the sand.
-   const fx=u0/sp+(i?.5:0),fl=Math.min(level(fx),top);along(fl*sp,climb.feet[i]).addScaledVector(r,sideSign*.12).addScaledVector(n,.03+.12*swing(fx)).y+=.07;
+   const fx=u0/sp+(i?.5:0),fl=Math.min(level(fx),top);along(rungAt(fl),climb.feet[i]).addScaledVector(r,sideSign*.12).addScaledVector(n,.03+.12*swing(fx)).y+=.07;
    // Hands: about five rungs above the feet, then up the rails above the deck.
-   const hx=u0/sp+(i?0:.5),hl=level(hx)+5,h=Math.min(hl*sp,l.over+.4);along(h,climb.hands[i]).addScaledVector(r,sideSign*(hl>top?.26:.17)).addScaledVector(n,.1*swing(hx));
+   const hx=u0/sp+(i?0:.5),hl=level(hx)+handRungs,h=Math.min(rungAt(hl),l.over+.4);along(h,climb.hands[i]).addScaledVector(r,sideSign*(hl>top?.26:.17)).addScaledVector(n,.1*swing(hx));
    if(reach)climb.hands[i].addScaledVector(fingers,-reach*.85).addScaledVector(palm,-.04);else climb.hands[i].addScaledVector(n,.06);
    climb.aim[i].dir.copy(fingers);climb.aim[i].palm.copy(palm);
    climb.footWeight[i]=1-T.MathUtils.smoothstep(m,0,.35);climb.handWeight[i]=1-T.MathUtils.smoothstep(m,.55,.95);climb.curl[i]=climb.handWeight[i];
@@ -115,7 +214,10 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   // Mantle: up first, then forward over the edge onto the deck, then turn to face the sea.
   const start=along(k.climbH,new T.Vector3()).addScaledVector(n,.3),end=l.stand;
   climb.root.copy(along(u0,new T.Vector3()).addScaledVector(n,.3));
-  if(m>0){const peak=l.bottom.y+Math.max(l.over+.12,l.height),lift=T.MathUtils.smoothstep(m,0,.45),across=T.MathUtils.smoothstep(m,.25,.85),settle=T.MathUtils.smoothstep(m,.6,1);
+  // Under a low roof the feet cannot clear the rail standing tall: cap the lift and duck through instead.
+  const headroom=l.roof==null?9:l.roof-l.bottom.y,peakH=Math.max(l.height,Math.min(l.over+.12,headroom-1.45)),duck=T.MathUtils.clamp((1.8-(headroom-peakH))/.6,0,1);
+  climb.duck=duck*T.MathUtils.smoothstep(m,.1,.4)*(1-T.MathUtils.smoothstep(m,.75,1));
+  if(m>0){const peak=l.bottom.y+peakH,lift=T.MathUtils.smoothstep(m,0,.45),across=T.MathUtils.smoothstep(m,.25,.85),settle=T.MathUtils.smoothstep(m,.6,1);
    climb.root.set(start.x+(end.x-start.x)*across,start.y+(peak-start.y)*lift+(end.y-peak)*settle,start.z+(end.z-start.z)*across);}
   let toSea=Math.PI-ladderYaw;toSea=Math.atan2(Math.sin(toSea),Math.cos(toSea));climb.yaw=ladderYaw+toSea*turn;
   climb.onLadder=m<.7;climb.camera=T.MathUtils.smoothstep(m,.4,1);
@@ -268,7 +370,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
    modeAge+=simDt;
    if(mode==='boat')boatUpdate(simDt,t);
    else if(mode==='tidepool'){/* 潮池觀察在 iframe 裡進行 */}
-   else{if(mode==='tower'){if(anchors.lifeguard.ladder){towerT=T.MathUtils.clamp(towerT+simDt*towerDir,0,towerTotal());climbPose(towerT);e.player.copy(climb.root);e.avatar.rotation.set(0,climb.yaw,0);}else{const progress=T.MathUtils.smoothstep(modeAge,0,1.1);e.player.lerpVectors(climbStart,anchors.lifeguard.surface.point,progress);}}e.avatar.position.copy(e.player);if(mode==='rest'){const p=e.player;camGoal.set(p.x-3.3,p.y+2.6,p.z+4);camLook.set(p.x,p.y+.4,p.z);if(modeAge>1.2&&!state.lounger){state.lounger=true;e.sfx('pickup');}}else{camGoal.set(e.player.x-4,e.player.y+2.8,e.player.z+6);camLook.set(e.player.x,e.player.y+.8,e.player.z);const l=anchors.lifeguard.ladder;
+   else{if(mode==='tower'){if(anchors.lifeguard.ladder){towerT=T.MathUtils.clamp(towerT+simDt*towerDir,0,towerTotal());if(anchors.lifeguard.ladder.kind==='stairs'){stairPose(towerT);const dy=Math.atan2(Math.sin(climb.yaw-e.avatar.rotation.y),Math.cos(climb.yaw-e.avatar.rotation.y));e.avatar.rotation.set(0,e.avatar.rotation.y+dy*(simDt?1-Math.exp(-10*simDt):1),0);}else{climbPose(towerT);e.avatar.rotation.set(0,climb.yaw,0);}e.player.copy(climb.root);}else{const progress=T.MathUtils.smoothstep(modeAge,0,1.1);e.player.lerpVectors(climbStart,anchors.lifeguard.surface.point,progress);}}e.avatar.position.copy(e.player);if(mode==='rest'){const p=e.player;camGoal.set(p.x-3.3,p.y+2.6,p.z+4);camLook.set(p.x,p.y+.4,p.z);if(modeAge>1.2&&!state.lounger){state.lounger=true;e.sfx('pickup');}}else{camGoal.set(e.player.x-4,e.player.y+2.8,e.player.z+6);camLook.set(e.player.x,e.player.y+.8,e.player.z);const l=anchors.lifeguard.ladder;
     // On the ladder the camera watches from behind the climber's shoulder, then swings to the usual deck view.
     if(l){const ladderCam=new T.Vector3().copy(e.player).addScaledVector(l.normal,4.2).addScaledVector(l.right,1.9);ladderCam.y+=1.4;camGoal.lerp(ladderCam,1-climb.camera);camLook.y+=.4*(1-climb.camera);}
     const top=l?towerT>=towerTotal()-.01:modeAge>1.2;if(top&&!state.tower){state.tower=true;e.sfx('pickup');}

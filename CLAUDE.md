@@ -98,7 +98,13 @@ There is no lint or unit-test setup. Verification means running the Playwright s
   - B (Tripo) has no finger bones: at load each hand gets a knuckle bone and a thumb bone, re-skinned in bind space from vertices wholly on the hand. Wrist aim puts the roll on the forearm; a wrist that rolls far tears the skin. The Tripo climb clip's hip root motion is removed at load.
   - Boat: one stroke phase drives a double-bladed paddle, both hands (overhand grip), torso twist and thrust pulses. The hull is turned so its long axis runs along travel; the rower sits on a thwart near midships, feet braced on the floor.
   - Shells: walk up, face, squat (pelvis down, feet planted), reach; the shell counts when the hand closes on it and rides in the hand. `explore.setHold()` blocks movement input without driving the camera.
-  - Tower: `findLadder()` picks the widest railing opening with standing room (or a railed stretch to climb over, found with vertical probes), and draws a ladder unless the tower has its own there. The climb is a function of time, so E plays it backward to climb down. A's own ladder is not yet detected, so A gets a second one.
+  - Tower: `findLadder()` probes a BVH copy of the tower, in this order. The climb is a function of time, so E plays it backward to climb down.
+    1. Stairs (C): tread tops rising along one direction. The climber walks the centre line; foot IK finds the treads, ignoring the handrail.
+    2. The tower's own ladder (A): evenly spaced thin hits that line up. Rung heights and lean are measured, so hands and feet land on real rungs.
+    3. Otherwise (B): the widest railing opening with standing room, or a railed stretch to climb over (found with vertical probes). The game draws a ladder there.
+    Mantling over a railing ducks under a low roof.
+  - C's shin end bone does not follow its clips. An `ankle-mark` helper on each shin tracks the animated `Foot.*` bone and serves as the leg IK effector.
+  - Walk and run blend between 2.9 and 4.3 m/s on one shared stride phase, aligned at foot plants. Speed eases in, so Shift does not pop.
   - `node scripts/probe-ik.mjs <boat|shell|tower|walk> [groups]` saves close-up stills to `shots/ik/` and logs IK errors.
 - **Tide pool and open sea (game quests 5 and 6).** `src/game/lagoon.js` hosts both in one full-screen iframe overlay.
   - Rock pool on the beach → `tidepool.html?group=<g>&embedded=1` (`src/tidepool/`). Gameplay: lift stones, observe 6 intertidal species. The parent polls `__TIDEPOOL__.found`.

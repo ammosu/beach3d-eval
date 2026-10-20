@@ -118,16 +118,26 @@ export async function createCharacter(group='A'){
  function axis(b,end){if(!b)return;const a=end?end.getWorldPosition(V()).sub(b.getWorldPosition(V())):V(0,1,0);axes.set(b,a.normalize().applyQuaternion(b.getWorldQuaternion(new T.Quaternion()).invert()));}
  for(let i=0;i<2;i++){axis(rig.thigh[i],rig.calf[i]);axis(rig.calf[i],source==='C'?rig.calf[i]?.children[0]:rig.foot[i]);axis(rig.arm[i],rig.fore[i]);axis(rig.fore[i],rig.hand[i]);}axis(rig.spine,rig.head);
  const hipY=rig.hip?.getWorldPosition(V()).y??.91,legLength=rig.thigh?.[0]&&rig.foot?.[0]?rig.thigh[0].getWorldPosition(V()).distanceTo(rig.foot[0].getWorldPosition(V())):hipY*.9;
- let posed=false,active='idle',age=0,actionAge=0,oneShot='',oneAge=0,opacity=1,lastPhase=null,stride=0;const steps=[];
+ let pace=0,locoPhase=0,locoSync=false,posed=false,active='idle',age=0,actionAge=0,oneShot='',oneAge=0,opacity=1,lastPhase=null,stride=0;const steps=[];
  const previousPose=new Map(allBones.map(b=>[b,{q:b.quaternion.clone(),p:b.position.clone()}]));
  const poseRotation=new T.Quaternion(),posePosition=V(),bodyRotation=new T.Quaternion(),bodyPosition=V(),headWorld=V();
  function aim(b,x,y,z,weight=1){if(!b||!axes.has(b))return;b.updateWorldMatrix(true,false);b.getWorldQuaternion(q);from.copy(axes.get(b)).applyQuaternion(q);dir.set(x,y,z).normalize().applyQuaternion(root.getWorldQuaternion(parentQ));turn.setFromUnitVectors(from,dir);q.premultiply(turn);b.parent.getWorldQuaternion(parentQ).invert();q.premultiply(parentQ);b.quaternion.slerp(q,weight);b.updateWorldMatrix(false,true);}
- function play(name){if(name===active)return;const previous=actions.get(active),next=actions.get(name);if(next){next.reset().setEffectiveTimeScale(1).setEffectiveWeight(1).play();if(previous)next.crossFadeFrom(previous,.25,false);else next.fadeIn(.25);}else previous?.fadeOut(.25);active=name;actionAge=0;}
+ const loco=n=>n==='walk'||n==='run';
+ function play(name){if(name===active)return;
+  // Walk and run already blend in step (below): trading which one leads must not restart either clip.
+  if(locoSync&&loco(name)&&loco(active)){active=name;return;}
+  if(loco(active))for(const n of ['walk','run'])if(n!==active&&n!==name)actions.get(n)?.fadeOut(.25);
+  locoSync=false;const previous=actions.get(active),next=actions.get(name);if(next){next.reset().setEffectiveTimeScale(1).setEffectiveWeight(1).play();if(previous)next.crossFadeFrom(previous,.25,false);else next.fadeIn(.25);}else previous?.fadeOut(.25);active=name;actionAge=0;}
  function trigger(name){oneShot=name;oneAge=0;}
  function restore(){for(const [b,r] of rest){b.quaternion.copy(r.q);b.position.copy(r.p);b.scale.copy(r.s);}}
  // IK layer, shared by all three rigs and applied after the clip/procedural pose. Targets are world points; each
  // limb has its own weight so callers can ease contacts in and out.
- const endOf=(i,leg)=>leg?(source==='C'?rig.calf[i]?.children[0]:rig.foot[i]):rig.hand[i];
+ // Quaternius feet are sibling IK bones and the shin's end bone does not follow the clips, so a helper on each shin
+ // marks where the animated foot is; IK moves it and the foot bone follows.
+ const ankleMark=source==='C'?[0,1].map(i=>{if(!rig.calf[i])return null;const m=new T.Object3D();m.name='ankle-mark';rig.calf[i].add(m);return m;}):null;
+ function markAnkles(){if(!ankleMark)return;for(let i=0;i<2;i++)if(ankleMark[i]&&rig.foot[i]){rig.calf[i].updateWorldMatrix(true,false);ankleMark[i].position.copy(rig.calf[i].worldToLocal(rig.foot[i].getWorldPosition(V())));ankleMark[i].updateWorldMatrix(false,false);}}
+ markAnkles();
+ const endOf=(i,leg)=>leg?(ankleMark?ankleMark[i]:rig.foot[i]):rig.hand[i];
  // Rig sides differ (A's index 0 sits at -x, the GLB rigs may not): side[i] is the avatar-local x sign of limb i.
  const side=[0,1].map(i=>Math.sign(root.worldToLocal(rig.arm[i]?.getWorldPosition(V())??V(i?1:-1)).x)||(i?1:-1));
  // Ankle height above the sole in the rest pose, for feet planted on a floor.
@@ -152,7 +162,7 @@ export async function createCharacter(group='A'){
  const toWorldDir=(x,y,z)=>V(x,y,z).applyQuaternion(root.getWorldQuaternion(rootQ));
  const error={hands:[null,null],feet:[null,null]};
  function solve({hands,feet,handWeight=1,footWeight=1,pelvis=0,ground,floor,spine,look,lookWeight=1,handAim,curl}){
-  root.updateWorldMatrix(true,true);
+  root.updateWorldMatrix(true,true);markAnkles();
   // Terrain-following feet: each foot keeps the clip's lift above its own patch of ground; the pelvis drops to the
   // lower foot so the legs only ever shorten.
   let feetTargets=feet;
@@ -194,10 +204,20 @@ export async function createCharacter(group='A'){
   if(!dt&&posed&&!animation)return;posed=true;
   age+=dt;actionAge+=dt;oneAge+=dt;if(oneAge>.85)oneShot='';
   // While moving, locomotion wins: a pickup only layers its arm reach on top, a kick is skipped.
-  const gait=speed>3.4?'run':speed>.12?'walk':'idle',layered=gait!=='idle'&&oneShot==='interact'&&!animation;
+  // Speed eases between walk and run; from 2.9 to 4.3 m/s both cycles play, weighted, on one shared stride phase.
+  pace=dt?T.MathUtils.damp(pace,speed,4,dt):speed;const blendRun=T.MathUtils.smoothstep(pace,2.9,4.3);
+  const gait=speed>.12?(blendRun>.5?'run':'walk'):'idle',layered=gait!=='idle'&&oneShot==='interact'&&!animation;
   const selected=animation??(pose==='climb'?'climb':pose==='paddle'?'paddle':pose==='lie'?'lie':pose==='sit'||pose==='sand'?'sit':airborne?'jump':gait!=='idle'?gait:oneShot||gait);
   play(selected);
-  if(nativeSpeed[selected]&&!animation)actions.get(selected).setEffectiveTimeScale(T.MathUtils.clamp(speed/nativeSpeed[selected],.5,5));
+  const walkA=actions.get('walk'),runA=actions.get('run'),both=!animation&&loco(selected)&&walkA&&runA&&nativeSpeed.walk&&nativeSpeed.run;
+  if(both&&(locoSync||actionAge>.25)){
+   // Phase in walk-cycle units; the run clip is offset so both put the same foot down together.
+   const shift=(contact.run?.[0]??0)-(contact.walk?.[0]??0),cycle=T.MathUtils.lerp(nativeSpeed.walk*walkA.getClip().duration,nativeSpeed.run*runA.getClip().duration,blendRun);
+   if(!locoSync)locoPhase=active==='run'?runA.time/runA.getClip().duration-shift:walkA.time/walkA.getClip().duration;
+   locoSync=true;locoPhase=((locoPhase+dt*Math.min(speed,cycle*3)/cycle)%1+1)%1;
+   for(const [a,w,off] of [[walkA,1-blendRun,0],[runA,blendRun,shift]]){a.enabled=true;if(!a.isRunning())a.play();a.setEffectiveTimeScale(0).setEffectiveWeight(w);a.time=((locoPhase+off)%1+1)%1*a.getClip().duration;}
+  }
+  else if(nativeSpeed[selected]&&!animation)actions.get(selected).setEffectiveTimeScale(T.MathUtils.clamp(speed/nativeSpeed[selected],.5,5));
   restore();mixer.update(dt);
   // Foot plants: report each foot whose contact phase the clip passed this frame.
   steps.length=0;const clipAction=actions.get(selected);
@@ -209,7 +229,7 @@ export async function createCharacter(group='A'){
   if(proceduralPose){
    // Procedural gait (no clip): fixed cadence; the stance leg stays straight and its amplitude is matched to speed so
    // the foot sweeps back at ground speed as it passes under the hip (leg·amplitude·ω = speed). That moment is the plant.
-   const rate=selected==='run'?10:selected==='walk'?7:0,gait=rate?T.MathUtils.clamp(speed/(legLength*rate),.15,1.1):0;
+   const rate=loco(selected)?T.MathUtils.lerp(7,10,blendRun):0,gait=rate?T.MathUtils.clamp(speed/(legLength*rate),.15,1.1):0;
    if(rate&&dt){const before=stride;stride+=rate*dt;if(Math.floor(stride/Math.PI)!==Math.floor(before/Math.PI))steps.push(Math.floor(stride/Math.PI)%2?1:0);}
    const cycle=rate?stride:age*8,swing=Math.sin(cycle)*gait;
    for(let i=0;i<2;i++){const sign=i?1:-1,s=i?swing:-swing,stance=rate&&(i?Math.cos(cycle):-Math.cos(cycle))<0;let thigh=[0,-Math.cos(s),Math.sin(s)],calf=stance?thigh:[0,-1,Math.max(0,-s)*.7],arm=[sign*.15,-1,-s*.7],fore=[0,-1,.12];

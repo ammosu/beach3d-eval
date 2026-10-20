@@ -71,7 +71,7 @@ try{
   await page.keyboard.press('Space');await step(.12);assert.equal((await page.evaluate(()=>window.__GAME__.character)).animation,'jump');await step(.9);
   characterChecks.push(info);
   for(const [id,name] of [['umbrella','lounger'],['lifeguard','tower'],['boat','boat']]){
-   await page.evaluate(id=>{const g=window.__GAME__,p=g.targets()[id];g.teleport(p[0],p[2]);g.step(.2);g.interact();g.step(.4);if(id==='lifeguard'&&g.character.animation!=='climb')throw Error('Ladder did not animate');g.step(id==="lifeguard"?5.3:1.6);},id);
+   await page.evaluate(id=>{const g=window.__GAME__,p=g.targets()[id];g.teleport(p[0],p[2]);g.step(.2);g.interact();g.step(.4);if(id==='lifeguard'&&!['climb','walk'].includes(g.character.animation))throw Error('Ladder did not animate');g.step(id==="lifeguard"?5.3:1.6);},id);
    const contact=await page.evaluate(()=>window.__GAME__.contact());console.log('contact',group,name,JSON.stringify(contact));assert(contact,`${group}/${id}`);assert(contact.inside,`${group}/${id} outside prop bounds`);assert(Math.abs(contact.gap)<.1,`${group}/${id} contact gap ${contact.gap}`);if(group!=='C'||id!=='umbrella')assert(contact.real,`${group}/${id} must hit source geometry`);
    if(id==='lifeguard')for(const foot of contact.feet)assert(Math.abs(foot[1]-contact.contactY)<.15,`${group} foot not on deck: ${foot[1]-contact.contactY}`);
    contacts.push({group,...contact});if(id!=='boat'||group==='B')await shot(`${group}_${name}`);
