@@ -8,6 +8,7 @@ An experiment comparing how well AI builds a three.js tropical beach scene. One 
 
 - **A**: procedural props written by codex.
 - **B**: Tripo AI GLBs, decimated in Blender.
+  - Exception: since 2026-10-20 the lifeguard tower is a Tripo image-to-model build (`tools/tripo_image_tower.py`) from a Codex reference image (`assets/raw/lifeguard_ladder/`) that adds a ladder and a railing opening. The text-prompt tower had no ladder. Blind scores and REPORT figures predate this swap.
 - **C**: free library models (Poly Haven, Sketchfab, Poly Pizza).
 
 On top of that there are an explore mode, a synced split-view compare page, a game mode, three characters (A/B/C), blind scoring, and comparison videos and slides.
@@ -76,6 +77,7 @@ There is no lint or unit-test setup. Verification means running the Playwright s
   - `tidepool.html` runs `src/tidepool/`, its own small scene that does not import `src/main.js`.
   - `index.html` is the hub (`src/hub.js`, reads `report/stats.json`).
 - **Props.** `assets/props.json` is the single source of slots: `pos`, `height`, optional `maxLen`, `prompt`, and `paths.B/C` GLB paths. `src/props.js` `loadProps(group)` places either A's procedural builders (`src/props-a.js`) or GLBs.
+  - `?swapB=<slot>:<glb path>` swaps one B prop for a trial, without touching `props.json` (same fit rule).
   - The fit rule is shared by all groups: `scale = min(height/size.y, maxLen/max(size.x,size.z))`. Don't change it per group, or the comparison stops being fair.
 - **Terrain and water are analytic and stateless.**
   - `src/terrain.js` `shore(x)` and `groundHeight(x,z)` are used by JS, by the shaders (`shoreGLSL`), by explore and game collision, and by the recorders.
