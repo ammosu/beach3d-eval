@@ -27,7 +27,7 @@ Sibling worktrees `../beach3d-codex2` (port 5193) and `../beach3d-opus` (port 51
 
 ```sh
 npx vite --port 5191 --strictPort      # dev server (npm run dev); many scripts assume 5191
-npm run build                          # 6 entries: index, scene, compare, props, game, tidepool → dist/ (copies assets/, report/, reef/{opus,tripo_lagoon})
+npm run build                          # 6 entries: index, scene, compare, props, game, tidepool → dist/ (copies assets/, report/)
 node scripts/shoot.mjs <A|B|C>         # fixed-camera stills → shots/<g>/{wide,beach,closeup}.png (SwiftShader)
 node scripts/shoot-props.mjs <g> [slot]   # solo prop renders → shots/<g>/props/
 node scripts/verify-game.mjs           # full game regression (quests, tide pool, open sea, boat, A/B/C, mobile, missing GLBs)
@@ -41,6 +41,7 @@ Media pipeline:
 - `scripts/record-game.mjs` and `scripts/record-walk.mjs <g>`: game and character recordings.
 - `node scripts/record-tidepool.mjs <g> [fps]` → `video/frames/tidepool_<g>/`, then `python3 tools/make_tidepool.py` → `video/tidepool_abc.mp4` (A/B/C side by side, same action timeline).
 - `node scripts/record-game-tidepool.mjs [g]` → `video/game_tidepool.mp4` (walk to the pool in the game, observe all 6, return).
+- `node scripts/record-game-opensea.mjs <g>` → `video/frames/opensea_<g>/`, `video/game_opensea_<g>.mp4` and `video/opensea_<g>.json` (observation times). Same boat and camera path for every group: row to 10 m from the buoy, turn once in place, press E when a prompt shows (at least 2.5 s apart). `DRY=1` only simulates. Then `python3 tools/make_opensea.py` → `video/opensea_abc.mp4`. The slides use re-encoded copies (crf 27) in `slides/assets/`.
 - Compositing: `python3 tools/make_video.py`, `tools/make_zoom.py`, `tools/compare_models.py`.
 
 Assets and stats:
@@ -112,7 +113,7 @@ There is no lint or unit-test setup. Verification means running the Playwright s
   - Rock pool on the beach → `tidepool.html?group=<g>&embedded=1` (`src/tidepool/`) in a full-screen iframe overlay (`src/game/lagoon.js`). Gameplay: lift stones, observe 6 intertidal species. The parent polls `__TIDEPOOL__.found`.
   - Open sea (since 2026-10-20 in the beach scene, no overlay): 7 animals live around the island buoy from the start (`src/game/sea.js`), looping round it and surfacing in view of the rowboat. The quest is to observe them: from the boat, E observes the nearest unobserved animal within 30 m that is on screen with its model top at least 15 cm out of the water (`pose().showing`; the top is measured per group's model, so fin cruisers always qualify and the rest while surfacing or leaping). All 7 take about 20–35 s of waiting at the buoy. The water is opaque, so behaviour is surface-only: dorsal fins, backs rolling out with spouts, leaps and breaches, a turtle's shell. Motion is a pure function of the water clock (`SEA` table: length, rest depth, events per cycle); paths bend around the boat. Hooks: `__GAME__.sea` (`ready`, `creatures`, `seen`, `observe(i)`, `pose(i,t)`); game state `spotted`. `node scripts/probe-sea.mjs [groups] [gpu]` → `shots/sea/`.
   - Models: A procedural (`src/game/sea-a.js`, the reef/opus lofted bodies with vertex colours), B `assets/sea/B/<id>.glb` (the Reef Lagoon's Tripo models), C `assets/sea/C/<id>.glb` (Sketchfab CC BY, `CREDITS.md`). All normalised to length 1, head +x, back +y; `SEA[i].length` sets the size for every group. A missing GLB falls back to A.
-  - The old Reef Lagoon pages (`reef/opus/`, `reef/tripo_lagoon/`) are no longer linked from the game; they are not edited.
+  - The old Reef Lagoon pages (`reef/opus/`, `reef/tripo_lagoon/`, `reef/codex/`) are no longer linked from the game, copied into `dist/` or `slides/live/`, or listed as slide demos (since 2026-10-20); the sources are kept unedited, and the slides still show their stills and videos.
   - The iframe is unloaded (`about:blank`) on close: two WebGL contexts blanked the beach under SwiftShader. While the overlay is open, `game.suspended` skips the beach render.
   - Tide-pool hooks: `__TIDEPOOL__` (`found`, `done`, `species`, `stones`, `group`; with `?auto=1` also `lift(i)`, `observe(id)`, `step(s)`, `project`), `__READY__`, `?time=`, `?muted=1`, `?found=`. `step(0)` freezes the iframe clock for recording.
   - Creature models follow the group: A procedural (`src/tidepool/creatures.js`), B `assets/tidepool/B/<id>.glb` (Tripo), C `assets/tidepool/C/<id>.glb` (Sketchfab/Poly Pizza, CC BY, credits in `CREDITS.md`). A missing GLB falls back to A per species.

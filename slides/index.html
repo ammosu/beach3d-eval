@@ -204,6 +204,20 @@
 </section>
 
 <section class="slide">
+  <h2>遊戲中的外海：坐在船上看鯨豚</h2>
+  <div class="row"><figure style="max-width:64vw"><video src="assets/game_opensea.mp4" muted loop playsinline preload="auto"></video></figure></div>
+  <p class="lead" style="text-align:center">划到外海浮標，7 種大型海洋生物就在附近繞游；牠們浮出水面、出現在畫面上時按 E 觀察。<br>水面不透明，只做看得到的部分：鯊魚背鰭劃水、鯨換氣噴氣、躍身擊浪、海豚連跳、海龜探頭。</p>
+  <div class="src">原本是全螢幕的 Reef Lagoon 俯視頁、按 E「放生」；改成直接放在海灘場景裡、只做觀察。畫面為 B 組（Tripo 模型）</div>
+</section>
+
+<section class="slide">
+  <h2>外海：同一個任務，7 種生物換三種來源</h2>
+  <div class="row"><figure style="max-width:64vw"><video src="assets/opensea_abc.mp4" muted loop playsinline preload="auto"></video></figure></div>
+  <p class="lead" style="text-align:center">B 沿用 Reef Lagoon 的 Tripo 模型（200 點，約 $2），風格最一致；素材庫 7 件 CC BY 免費但要標註，<br>有骨架的模型要先烘成靜態網格再轉正；蝠鱝單色、長度含細長尾巴。</p>
+  <div class="src">三組同一時間、同一條船與鏡頭路線。是否「浮出水面」依各組模型的實際高度判斷，所以按 E 的時間可能不同。A 組移植自 Opus 版 Reef Lagoon 的程序化造型</div>
+</section>
+
+<section class="slide">
   <h2>建議分工</h2>
   <div class="boxes">
     <div class="box" style="border-color:var(--codex)"><b class="c-codex">codex</b><span>寫場景、介面、互動<br>快 3.6 倍、額度寬裕</span></div>
@@ -301,9 +315,6 @@ const LIVE = [
   [8731, 'props.html?group=B', '單件物件檢視', '8 件物件逐一旋轉，切換 A／B／C 來源', 'var(--library)'],
   [8732, '', 'codex（高推理）的場景', '同一份需求、推理強度 high 做出的整個場景（可拖曳旋轉）', 'var(--codex)'],
   [8733, '', 'Opus 5.5 的場景', '同一份需求、Opus 做出的整個場景（可拖曳旋轉）', 'var(--opus)'],
-  [8730, 'live/reef/codex/', 'Reef Lagoon（codex）', '點卡片丟生物入水、拖曳、抓起再丟；R 下雨、W 漩渦（需連網載入 Three.js）', 'var(--codex)'],
-  [8730, 'live/reef/opus/', 'Reef Lagoon（Opus）', '同一份 prompt 的 Opus 版；操作相同，X 清除', 'var(--opus)'],
-  [8730, 'live/reef/tripo/', 'Reef Lagoon（Tripo 模型）', 'Opus 版場景，7 種生物換成 Tripo 生成的模型', 'var(--tripo)'],
 ];
 const host = location.protocol === 'file:' ? 'localhost' : location.hostname;
 document.getElementById('live-cards').innerHTML = LIVE.map(([port, path, title, desc, c]) =>
