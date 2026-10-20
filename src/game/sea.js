@@ -9,12 +9,13 @@ import {buildSeaCreature} from './sea-a.js';
 // rest: body-axis height between events, as a fraction of length (fin cruisers keep the dorsal fin out).
 // bend: 1 tail side to side, 2 flukes up and down, 3 wing flap, 4 flipper strokes.
 // events per cycle: ['surf', start, hold, level, spout] rises to level and rolls back; ['leap', start, apex, roll, flat].
+// Events must not overlap and must end within the cycle (surf: 2·max(1.2, .25·length) + hold; leap: see leap()).
 export const SEA=[
  {id:'shark',name:'大白鯊',length:4.2,speed:2.4,radius:8,bend:1,amp:.05,beat:1.3,rest:-.1,cycle:24,events:[['leap',16,1.4]]},
  {id:'hammerhead',name:'槌頭鯊',length:4,speed:2.1,radius:10,bend:1,amp:.05,beat:1.4,rest:-.1,cycle:22,events:[]},
- {id:'humpback',name:'座頭鯨',length:11,speed:2.2,radius:13,bend:2,amp:.035,beat:.3,rest:-.3,cycle:24,events:[['surf',2,4,-.05,1],['surf',9,3,-.05,1],['leap',16,3.2,1.4]]},
- {id:'orca',name:'虎鯨',length:6.5,speed:3.2,radius:10,bend:2,amp:.04,beat:.6,rest:-.28,cycle:14,events:[['surf',1.5,2.5,-.04,1],['surf',6,2,-.04,1],['leap',10,2.2]]},
- {id:'dolphin',name:'海豚',length:2.6,speed:4.2,radius:7,bend:2,amp:.05,beat:1.5,rest:-.5,cycle:7,events:[['leap',1.5,1.3],['leap',3.5,.9],['leap',5.3,1.1]]},
+ {id:'humpback',name:'座頭鯨',length:11,speed:2.2,radius:13,bend:2,amp:.035,beat:.3,rest:-.3,cycle:24,events:[['surf',2,3,-.05,1],['surf',11,2,-.05,1],['leap',19.5,3.2,1.4]]},
+ {id:'orca',name:'虎鯨',length:6.5,speed:3.2,radius:10,bend:2,amp:.04,beat:.6,rest:-.28,cycle:15,events:[['surf',1,1.5,-.04,1],['surf',6,1.5,-.04,1],['leap',11,2.2]]},
+ {id:'dolphin',name:'海豚',length:2.6,speed:4.2,radius:7,bend:2,amp:.05,beat:1.5,rest:-.5,cycle:7,events:[['leap',.5,1.3],['leap',2.3,.9],['leap',4.1,1.1]]},
  {id:'turtle',name:'海龜',length:1.4,speed:.9,radius:5,bend:4,amp:.3,beat:.55,rest:-.8,cycle:12,events:[['surf',1,7,-.03,0]]},
  {id:'manta',name:'蝠鱝',length:3.6,speed:1.6,radius:8,bend:3,amp:.12,beat:.35,rest:-.12,cycle:12,events:[['leap',6,1.6,0,1]]},
 ];
@@ -71,17 +72,24 @@ export function createSea(scene,{center,onRelease,boat}){
   const r=c.release,R=c.spec.radius+(r.r0-c.spec.radius)*Math.exp(-tau/6),a=r.a0+r.dir*c.spec.speed*tau/c.spec.radius;
   const w=R*(1+.1*Math.sin(2*a+c.i));out.set(center.x+Math.cos(a)*w,0,center.z+Math.sin(a)*w);return out;
  }
- // Leap kinematics: from depth D to apex h and back, axis height relative to the water.
- const leap=(D,h)=>{const vy=Math.sqrt(2*G*(h+D));return {vy,D,dur:2*vy/G,y:u=>-D+vy*u-G*u*u/2,dy:u=>vy-G*u,cross:[(vy-Math.sqrt(vy*vy-2*G*D))/G,(vy+Math.sqrt(vy*vy-2*G*D))/G]};};
- function throwArc(c){const s=c.spec;return leap(-s.rest*s.length,Math.min(2.5,Math.max(.8,.25*s.length)));}
+ // Leap kinematics: a ballistic arc from below the body's half length (so the steep start and end stay under the opaque
+ // water) to apex h; the first and last half second ease height to rest and pitch to level. Axis height is relative to the water.
+ function leap(c,h){
+  const L=c.spec.length,rest=c.spec.rest*L,D=Math.max(-rest,.5*L+.3),vy=Math.sqrt(2*G*(h+D)),dur=2*vy/G,q=Math.sqrt(vy*vy-2*G*D);
+  const ease=u=>Math.max(0,1-u/.5)**2+Math.max(0,1-(dur-u)/.5)**2,y=u=>-D+vy*u-G*u*u/2+(D+rest)*ease(u);
+  const level=u=>Math.max(0,Math.min(1,u/.5,(dur-u)/.5));
+  // Pitch turns over at a steady rate (a low, slow body would otherwise flip nose-down at the apex in one frame).
+  return {dur,y,pitch:(u,speed)=>Math.min(1.2,Math.atan2(vy,speed))*(1-2*u/dur)*level(u),cross:[(vy-q)/G,(vy+q)/G]};
+ }
+ const throwArc=c=>leap(c,Math.min(2.5,Math.max(.8,.25*c.spec.length)));
  // Axis height (relative to water), its rate, roll and pitch scale at swim time tau.
  function vertical(c,tau){
   const s=c.spec,L=s.length,rest=s.rest*L,k=((tau%s.cycle)+s.cycle)%s.cycle;
   for(const ev of s.events){
-   if(ev[0]==='leap'){const j=leap(-rest,ev[2]),u=k-ev[1];if(u>=0&&u<=j.dur)return {y:j.y(u),dy:j.dy(u),roll:(ev[3]||0)*smooth(.3,.8,u/j.dur),flat:ev[4]?.3:1};}
-   else{const rise=Math.max(1.2,.25*L),u=k-ev[1],level=ev[3]*L;if(u>=0&&u<=2*rise+ev[2]){const b=u=>smooth(0,rise,u)*(1-smooth(rise+ev[2],2*rise+ev[2],u));return {y:rest+(level-rest)*b(u),dy:(level-rest)*(b(u+.02)-b(u-.02))/.04,roll:0,flat:1};}}
+   if(ev[0]==='leap'){const j=leap(c,ev[2]),u=k-ev[1];if(u>=0&&u<=j.dur)return {y:j.y(u),pitch:j.pitch(u,s.speed)*(ev[4]?.3:1),roll:(ev[3]||0)*smooth(.3,.8,u/j.dur)};}
+   else{const rise=Math.max(1.2,.25*L),u=k-ev[1],level=ev[3]*L;if(u>=0&&u<=2*rise+ev[2]){const b=u=>smooth(0,rise,u)*(1-smooth(rise+ev[2],2*rise+ev[2],u));return {y:rest+(level-rest)*b(u),dy:(level-rest)*(b(u+.02)-b(u-.02))/.04,roll:0};}}
   }
-  return {y:rest,dy:0,roll:0,flat:1};
+  return {y:rest,dy:0,roll:0};
  }
  const p1=new T.Vector3();
  // Swim around the rowboat instead of through it.
@@ -89,10 +97,10 @@ export function createSea(scene,{center,onRelease,boat}){
  // World pose at time t; null before release.
  function pose(c,t,out={pos:new T.Vector3(),heading:new T.Vector3(),pitch:0,roll:0}){
   const r=c.release;if(!r||t<r.t)return null;const arc=r.arc,u=t-r.t,s=c.spec;
-  let y,dy,speed;
-  if(u<arc.dur){out.pos.copy(r.from).addScaledVector(r.n,r.vh*u);out.heading.copy(r.n);y=arc.y(u);dy=arc.dy(u);speed=r.vh;out.roll=0;out.flat=1;}
-  else{const tau=u-arc.dur;clear(c,loop(c,tau,out.pos));clear(c,loop(c,tau+.05,p1));out.heading.subVectors(p1,out.pos).normalize();const v=vertical(c,tau);y=v.y;dy=v.dy;speed=s.speed;out.roll=v.roll;out.flat=v.flat;}
-  sampleWater(out.pos.x,out.pos.z,t,wave);out.pos.y=wave.height+y;out.pitch=Math.max(-1.45,Math.min(1.45,Math.atan2(dy,speed)))*(out.flat??1);out.depth=y;return out;
+  let y;
+  if(u<arc.dur){out.pos.copy(r.from).addScaledVector(r.n,r.vh*u);out.heading.copy(r.n);y=arc.y(u);out.pitch=arc.pitch(u,r.vh);out.roll=0;}
+  else{const tau=u-arc.dur;clear(c,loop(c,tau,out.pos));clear(c,loop(c,tau+.05,p1));out.heading.subVectors(p1,out.pos).normalize();const v=vertical(c,tau);y=v.y;out.pitch=v.pitch??Math.atan2(v.dy,s.speed);out.roll=v.roll;}
+  sampleWater(out.pos.x,out.pos.z,t,wave);out.pos.y=wave.height+y;out.depth=y;return out;
  }
  // Surface events (splash rings and drops, spouts) with their world time, for the effects pass.
  function events(c,t){
@@ -100,7 +108,7 @@ export function createSea(scene,{center,onRelease,boat}){
   for(const k of r.arc.cross)list.push([r.t+k,'splash',size*1.3]);
   const start=r.t+r.arc.dur,tau=t-start,k0=Math.floor(tau/s.cycle);
   for(let k=k0-1;k<=k0;k++)for(const ev of s.events){const base=start+k*s.cycle+ev[1];if(base<start)continue;
-   if(ev[0]==='leap'){const j=leap(-s.rest*L,ev[2]);for(const x of j.cross)list.push([base+x,'splash',size*(ev[4]?1.4:1)]);}
+   if(ev[0]==='leap'){const j=leap(c,ev[2]);for(const x of j.cross)list.push([base+x,'splash',size*(ev[4]?1.4:1)]);}
    else if(ev[4])list.push([base+Math.max(1.2,.25*L)*.9,'spout',L]);}
   return list.filter(e=>t-e[0]>=0&&t-e[0]<1.8);
  }
@@ -111,7 +119,7 @@ export function createSea(scene,{center,onRelease,boat}){
    const p=pose(c,t,out);c.holder.visible=!!p;if(!p)continue;
    if(!c.counted&&t>=c.release.t+c.release.arc.cross[1]){c.counted=true;onRelease?.(c.i);}
    c.holder.position.copy(p.pos);c.holder.rotation.set(p.roll,Math.atan2(-p.heading.z,p.heading.x),p.pitch,'YZX');
-   c.uniform.value.x=t*c.spec.beat*Math.PI*2*(p.depth>0?.4:1);
+   c.uniform.value.x=t*c.spec.beat*Math.PI*2;
    for(const [at,kind,size] of events(c,t)){const age=t-at,e=pose(c,at,fx);if(!e)continue;sampleWater(e.pos.x,e.pos.z,t,wave);const base=wave.height;
     if(kind==='splash'&&ring<rings.length){const m=rings[ring++];m.visible=true;m.position.set(e.pos.x,base+.04,e.pos.z);m.scale.setScalar(size*(.6+2.6*age));m.material.opacity=.5*(1-age/1.8);}
     const n=kind==='spout'?40:28;

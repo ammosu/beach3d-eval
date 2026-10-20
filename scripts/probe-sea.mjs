@@ -23,6 +23,6 @@ for(const g of groups){
  if(!process.env.NOREL)for(let i=0;i<7;i++){await page.evaluate(()=>window.__GAME__.interact());for(let k=0;k<3;k++){await step(.3);if(i<2||k===1)await snap(`sea_${g}_release${i}_${k}`);}}
  await step(2);if(!process.env.NOREL)console.log(g,JSON.stringify(await page.evaluate(()=>({released:window.__GAME__.state.released,opensea:window.__GAME__.state.opensea,sources:window.__GAME__.sea.creatures.map(c=>c.source)}))));
  const v=await page.evaluate(()=>window.__GAME__.vessel);
- for(let k=0;k<(+process.env.FRAMES||12);k++){await step(+process.env.EVERY||1.5);await snap(`sea_${g}_boat${String(k).padStart(2,'0')}`);if(k%3===0)await snap(`sea_${g}_wide${String(k).padStart(2,'0')}`,[v.x+22,9,v.z+18],[island.x,0,island.z+6]);}
+ for(let k=0;k<(+process.env.FRAMES||12);k++){await step(+process.env.EVERY||1.5);await snap(`sea_${g}_boat${String(k).padStart(2,"0")}`);if(process.env.CAM)console.log(k,JSON.stringify(await page.evaluate(()=>{const c=window.__SCENE__.camera;return {cam:c.position.toArray().map(v=>+v.toFixed(2)),v:window.__GAME__.vessel,audit:window.__GAME__.cameraAudit};})));if(k%3===0)await snap(`sea_${g}_wide${String(k).padStart(2,'0')}`,[v.x+22,9,v.z+18],[island.x,0,island.z+6]);}
 }
 console.log('errors',JSON.stringify(errors));await browser.close();
