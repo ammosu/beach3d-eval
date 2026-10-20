@@ -50,7 +50,7 @@ for(const g of groups){
  if(action==='tower'){
   await page.evaluate(()=>{const G=window.__GAME__,p=G.targets().lifeguard;G.teleport(p[0],p[2]);G.step(.3);});await snap(`tower_${g}_approach`,[3.5,2.6,-5.5],[0,1.6,-1.2]);
   await page.evaluate(()=>window.__GAME__.interact());
-  let total=0;for(const dt of (process.env.STEPS??'.3,.3,.3,.3,.3,.3,.4,.5,.8').split(',').map(Number)){await step(dt);total+=dt;const c=await info();console.log(g,total.toFixed(2),c.animation,JSON.stringify(c.ik),JSON.stringify(await page.evaluate(()=>window.__GAME__.contact()?.gap)));if(process.env.FOLLOW)await snap(`tower_${g}_${total.toFixed(2)}`,process.env.FOLLOW.includes(',')?process.env.FOLLOW.split(',').map(Number):[3,1.2,.5],[0,1.1,0]);else await snapLadder(`tower_${g}_${total.toFixed(2)}`,...(process.env.NEAR?[2.4,1.3,2.2]:[]));}
+  let total=0;for(const dt of (process.env.STEPS??'.3,.3,.3,.3,.3,.3,.4,.5,.8').split(',').map(Number)){await step(dt);total+=dt;const c=await info();console.log(g,total.toFixed(2),c.animation,JSON.stringify(c.ik),JSON.stringify(await page.evaluate(()=>window.__GAME__.contact()?.gap)));if(process.env.FOLLOW)await snap(`tower_${g}_${total.toFixed(2)}`,process.env.FOLLOW.includes(',')?process.env.FOLLOW.split(',').map(Number):[3,1.2,.5],[0,1.1,0]);else await snapLadder(`tower_${g}_${total.toFixed(2)}`,...(process.env.NEAR?(process.env.NEAR.includes(',')?process.env.NEAR.split(',').map(Number):[2.4,1.3,2.2]):[]));}
  }
  if(action==='boat'){
   await page.evaluate(()=>{const G=window.__GAME__,p=G.targets().boat;G.teleport(p[0],p[2]);G.step(.2);G.interact();G.step(1);});

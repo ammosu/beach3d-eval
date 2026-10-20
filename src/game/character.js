@@ -62,10 +62,17 @@ export async function createCharacter(group='A'){
  model.traverse(o=>{if(o.isBone)allBones.push(o);if(o.isMesh){meshes.push(o);o.castShadow=o.receiveShadow=true;o.frustumCulled=false;triangles+=(o.geometry.index?.count??o.geometry.attributes.position.count)/3;o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();for(const m of Array.isArray(o.material)?o.material:[o.material])materials.push({mat:m,opacity:m.opacity,transparent:m.transparent,depthWrite:m.depthWrite});}});
  const names=source==='A'?{hip:'hips',spine:'spine',head:'head',thigh:['thighL','thighR'],calf:['calfL','calfR'],foot:['footL','footR'],arm:['armL','armR'],fore:['foreL','foreR'],hand:['handL','handR']}:source==='B'?{hip:'Hips',spine:'Spine',head:'Head',thigh:['Left_UpperLeg','Right_UpperLeg'],calf:['Left_LowerLeg','Right_LowerLeg'],foot:['Left_Foot','Right_Foot'],arm:['Left_UpperArm','Right_UpperArm'],fore:['Left_LowerArm','Right_LowerArm'],hand:['Left_Hand','Right_Hand']}:{hip:'Body',spine:'Hips',head:'Head',thigh:['UpperLeg.L','UpperLeg.R'],calf:['LowerLeg.L','LowerLeg.R'],foot:['Foot.L','Foot.R'],arm:['UpperArm.L','UpperArm.R'],fore:['LowerArm.L','LowerArm.R'],hand:['Wrist.L','Wrist.R']};
  const get=n=>allBones.find(b=>b.name===n||b.name===n.replaceAll('.','')),rig={};for(const [k,n] of Object.entries(names))rig[k]=Array.isArray(n)?n.map(get):get(n);
- // The Tripo climb clip carries root motion (the hips rise about a metre per loop). The game moves the body itself,
- // so take out the hips' linear drift and keep only the in-place bob.
- for(const clip of clips)if(clip.name==='climb')for(const track of clip.tracks){if(!rig.hip||track.name!==`${rig.hip.name}.position`)continue;const v=track.values,t=track.times,n=t.length,d=t[n-1]-t[0]||1;
-  for(let k=0;k<n;k++)for(let c=0;c<3;c++)v[k*3+c]-=(v[(n-1)*3+c]-v[c])*(t[k]-t[0])/d;}
+ // The Tripo climb clip carries root motion (the hips rise about a metre per loop, in steps). The game moves the body
+ // itself, and with only the linear drift taken out the steps left the hips bobbing 0.2–0.6 m above the feet: a crouch
+ // with the head in the rungs. Pin the hips at their bind (standing) position; leg IK puts the feet on the rungs.
+ for(const clip of clips)if(clip.name==='climb')for(const track of clip.tracks){if(!rig.hip||track.name!==`${rig.hip.name}.position`)continue;const v=track.values,p=rig.hip.position;
+  for(let k=0;k<v.length;k+=3){v[k]=p.x;v[k+1]=p.y;v[k+2]=p.z;}}
+ // The clip is a wall climb, chest to the wall: its hips-to-head chain curls forward, which on a leaning ladder pushed
+ // the head into the rungs. Keep that chain upright (bind pose); the game sets the torso lean itself (solve's spine.lean).
+ // (The actions already exist, so overwrite the values in place.)
+ if(rig.hip&&rig.head){const chain=new Map();for(let b=rig.head;b&&b!==rig.hip.parent;b=b.parent)chain.set(`${b.name}.quaternion`,b.quaternion);
+  for(const clip of clips)if(clip.name==='climb')for(const track of clip.tracks){const q=chain.get(track.name);if(!q)continue;const v=track.values;
+   for(let k=0;k<v.length;k+=4){v[k]=q.x;v[k+1]=q.y;v[k+2]=q.z;v[k+3]=q.w;}}}
  // Rigs without finger bones (the Tripo skin) get one knuckle bone per hand: the front of the palm is re-skinned to
  // it in bind space, so the hand can close around a grip like a mitten. The rest of the skin is untouched.
  const grip=[null,null];

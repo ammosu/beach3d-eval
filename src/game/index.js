@@ -226,12 +226,14 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   }
   // Over the top like a person: hands on the top rail (or deck edge), hips just high enough to clear it, the lead foot
   // arcs over and down onto the deck and the other follows, leaning in under a low roof. Then turn to face the sea.
-  // The body hangs a little below the rung line and close in, so the legs reach the rungs.
-  const body=(h,out)=>along(h,out).addScaledVector(n,.26).setY(out.y-.1);
+  // The body hangs a little below the rung line, hips about 38 cm off the ladder plane (measured square to it, 0.9 m
+  // above the feet). On a leaning ladder that puts the hips nearly over the feet, as on steep stairs; a fixed level
+  // offset would leave the hips far out and the torso folded forward to reach the rungs.
+  const tilt=Math.acos(T.MathUtils.clamp(l.axis.y,-1,1)),out=(.38-.9*Math.sin(tilt))/Math.cos(tilt);
+  const body=(h,o)=>along(h,o).addScaledVector(n,out).setY(o.y-.1);
   const start=body(k.climbH,new T.Vector3()),end=l.stand,deckY=l.stand.y-.015,railY=l.bottom.y+l.over;
-  // On a leaning ladder the torso leans in with it, or the hands cannot reach the rungs ahead.
-  const tilt=Math.acos(T.MathUtils.clamp(l.axis.y,-1,1));
-  body(u0,climb.root);climb.duck=0;climb.lean=.12+.8*tilt;
+  // The torso leans in a little with the ladder, so the hands reach the rungs ahead.
+  body(u0,climb.root);climb.duck=0;climb.lean=.12+.4*tilt;
   if(m>0){
    const across=T.MathUtils.smoothstep(m,.15,.85),drop=T.MathUtils.smoothstep(m,.35,.95);
    climb.root.set(start.x+(end.x-start.x)*across,start.y+(end.y-start.y)*drop,start.z+(end.z-start.z)*across);
@@ -243,7 +245,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
     const s0=i?.45:.1,f=T.MathUtils.smoothstep(m,s0,s0+.4),from=climb.feet[i].clone(),to=end.clone().addScaledVector(r,sideSign*.12),mid=railLine.clone().addScaledVector(r,sideSign*.14);to.y=deckY+.08;mid.y=railY+.16;
     climb.feet[i].set(0,0,0).addScaledVector(from,(1-f)**2).addScaledVector(mid,2*f*(1-f)).addScaledVector(to,f*f);
    }
-   climb.lean=.12+.8*tilt*(1-across)+.45*Math.sin(Math.PI*across);
+   climb.lean=.12+.4*tilt*(1-across)+.45*Math.sin(Math.PI*across);
    if(l.roof!=null)climb.duck=T.MathUtils.clamp((climb.root.y+1.75-l.roof)/.5,0,1)*T.MathUtils.smoothstep(m,.3,.6);
   }
   let toSea=Math.PI-ladderYaw;toSea=Math.atan2(Math.sin(toSea),Math.cos(toSea));climb.yaw=ladderYaw+toSea*turn;
