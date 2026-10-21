@@ -11,6 +11,7 @@ import {MeshBVH,acceleratedRaycast} from 'three-mesh-bvh';
 import {createTidePool,createLagoon} from './lagoon.js';
 import {createSea,SEA} from './sea.js';
 import {createSplash} from './splash.js';
+import {createWake} from './wake.js';
 import '../game.css';
 
 export async function createGame({scene,camera,renderer,water,config,explore:e,auto}) {
@@ -37,7 +38,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  const vessel=new T.Group();vessel.name='game-rowboat';scene.add(vessel);vessel.visible=false;
  // Double-bladed paddle along its local x. One stroke phase drives it, both hands, the torso and the boat's thrust.
  const oar=new T.Group(),oarMat=new T.MeshStandardMaterial({color:0xc7a075});const shaft=new T.Mesh(new T.CylinderGeometry(.03,.03,2.6,6),oarMat);shaft.rotation.z=Math.PI/2;oar.add(shaft);for(const x of [-1.22,1.22]){const blade=new T.Mesh(new T.BoxGeometry(.42,.19,.025),oarMat);blade.position.x=x;oar.add(blade);}oar.rotation.order='YZX';vessel.add(oar);
- const splash=createSplash(scene),blade=new T.Vector3();
+ const splash=createSplash(scene),wake=createWake(scene),blade=new T.Vector3();
  const row={wet:[false,false],swirl:[0,0],reach:1.22,spray:0,phase:0,amount:0,dip:.6,hands:[new T.Vector3(),new T.Vector3()],feet:[new T.Vector3(),new T.Vector3()],aim:[0,1].map(()=>({dir:new T.Vector3(),palm:new T.Vector3()})),axis:new T.Vector3(),p:new T.Vector3(),dir:new T.Vector3(),palm:new T.Vector3(),twist:0,lean:0,floorY:0};
  let boatModel=null,hiddenBoat=null,fallbackModel=null;
  const followCamera=createGameCamera(camera,propRoot);e.setCameraController(followCamera);
@@ -341,7 +342,14 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
     for(let z=hull.min.z+.02;z<hull.max.z;z+=.05){const o=new T.Vector3(cx,y,z);const side=d=>{probe.set(o,new T.Vector3(d,0,0));probe.far=hull.max.x-hull.min.x;return probe.intersectObject(boatModel,true)[0]?.distance;};
      const l=side(-1),r=side(1);if(l==null||r==null||l>(hull.max.x-hull.min.x)*.7||r>(hull.max.x-hull.min.x)*.7)continue;left.push([cx-l,z]);right.push([cx+r,z]);}
     if(left.length>2){const shape=new T.Shape([...left,...right.reverse()].map(([x,z])=>new T.Vector2(x,-z)));const g=new T.ShapeGeometry(shape).rotateX(-Math.PI/2).translate(0,y,0);
-     boat.mask=new T.Mesh(g,new T.MeshBasicMaterial({colorWrite:false,side:T.DoubleSide}));boat.mask.renderOrder=1;boat.mask.name='hull-water-mask';vessel.add(boat.mask);water.renderOrder=2;}}// Paddle length and roll from where the blade should be at the bottom of the stroke: 16 cm under the water and
+     boat.mask=new T.Mesh(g,new T.MeshBasicMaterial({colorWrite:false,side:T.DoubleSide}));boat.mask.renderOrder=1;boat.mask.name='hull-water-mask';vessel.add(boat.mask);water.renderOrder=2;}}
+   // The hull's outline at the water line (local y 0), for the foam that hugs it: probed inward from an ellipse just
+   // outside the hull, at even angles round its middle.
+   {const cx=boat.hull.x,cz=boat.hull.z,a=boat.hull.beam/2+.15,b=boat.hull.len/2+.15,probe=new T.Raycaster(),pts=[];
+    for(let i=0;i<wake.RING;i++){const ang=i/wake.RING*Math.PI*2,o=new T.Vector3(cx+Math.sin(ang)*a,.03,cz-Math.cos(ang)*b),d=new T.Vector3(cx,.03,cz).sub(o);const far=d.length();d.normalize();probe.set(o,d);probe.far=far;
+     const hit=probe.intersectObject(boatModel,true)[0],p=hit?hit.point:new T.Vector3(cx+Math.sin(ang)*(a-.15)*.9,0,cz-Math.cos(ang)*(b-.15)*.9),gx=(p.x-cx)/(a*a),gz=(p.z-cz)/(b*b),gl=Math.hypot(gx,gz)||1;
+     pts.push({x:p.x,z:p.z,nx:gx/gl,nz:gz/gl});}
+    wake.setHull(pts);}// Paddle length and roll from where the blade should be at the bottom of the stroke: 16 cm under the water and
    // 45 cm clear of the hull's side (a blade dipped beside the hull read as spray thrown up by the boat).
    {const drop=boatSeat.point.y+.46+.16,out=boat.hull.beam/2+.45;row.reach=T.MathUtils.clamp(Math.hypot(drop,out),1.22,1.9);row.dip=Math.asin(T.MathUtils.clamp(drop/row.reach,.3,.95));
     oar.children[0].scale.y=(2*row.reach+.16)/2.6;oar.children[1].position.x=-row.reach;oar.children[2].position.x=row.reach;}}vessel.position.copy(oldPosition);vessel.quaternion.copy(oldRotation);vessel.updateMatrixWorld(true);
@@ -418,7 +426,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  }
  addEventListener('keydown',event=>{if(event.code==='KeyE'&&!event.repeat){event.preventDefault();interact();}});$('#interact').onclick=interact;$('#game-audio').onclick=()=>e.mute();
  function complete(){camera.position.fromArray(config.cameras.wide.pos);target.fromArray(config.cameras.wide.target);camera.lookAt(target);completed=true;running=false;e.setDriven(true);e.clearInput();document.exitPointerLock?.();$('#start').hidden=true;$('#complete').hidden=false;document.body.classList.add('game-complete');$('#finish-time').textContent=`這次的海邊時光　${formatTime(elapsed)}`;$('#finish-bonus').textContent=state.footprints?'還留下了一串會消失的腳印。':'下次來，試著在沙灘上留一串腳印。';$('#replay').focus();}
- function reset(){if(pickup){pickup=null;e.setHold(false);}if(hiddenBoat)hiddenBoat.visible=true;hiddenBoat=null;vessel.visible=false;launch.active=false;oar.visible=true;mode='walk';completed=false;running=false;elapsed=0;boatSpeed=0;footDistance=0;for(const key of Object.keys(state))state[key]=['shells','footprints','spotted','observed'].includes(key)?0:false;lagoon.reset();sea.reset();splash.reset();objects.reset();ball.reset();e.player.set(-7,groundHeight(-7,12),12);lastPlayer.copy(e.player);e.avatar.rotation.set(0,0,0);seated(false);e.setDriven(false);e.setView(.15);e.clearInput();$('#complete').hidden=true;document.body.classList.remove('game-complete');lastHud='';$('#footnote').textContent='額外的小紀念：在沙上留下腳印';e.start();begin();fade();}
+ function reset(){if(pickup){pickup=null;e.setHold(false);}if(hiddenBoat)hiddenBoat.visible=true;hiddenBoat=null;vessel.visible=false;launch.active=false;oar.visible=true;mode='walk';completed=false;running=false;elapsed=0;boatSpeed=0;footDistance=0;for(const key of Object.keys(state))state[key]=['shells','footprints','spotted','observed'].includes(key)?0:false;lagoon.reset();sea.reset();splash.reset();wake.reset();objects.reset();ball.reset();e.player.set(-7,groundHeight(-7,12),12);lastPlayer.copy(e.player);e.avatar.rotation.set(0,0,0);seated(false);e.setDriven(false);e.setView(.15);e.clearInput();$('#complete').hidden=true;document.body.classList.remove('game-complete');lastHud='';$('#footnote').textContent='額外的小紀念：在沙上留下腳印';e.start();begin();fade();}
  $('#replay').onclick=reset;
  document.addEventListener('pointerlockchange',()=>{if(completed||mode==='tidepool'||lagoon.isOpen)$('#start').hidden=true;});
  // Kayak stroke: over one cycle each blade enters forward of the hip, pulls back and lifts out (phase 0..π: +x blade).
@@ -473,7 +481,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   const h=(lx,lz)=>{local(lx,lz,blade);return Math.max(groundHeight(blade.x,blade.z)+boat.draft,surfaceHeight(blade.x,blade.z,t));};
   const bow=h(0,-hh.len/2),stern=h(0,hh.len/2),port=h(-hh.beam/2,0),starboard=h(hh.beam/2,0),tilt=.3;
   vessel.position.y=(bow+stern+port+starboard)/4;vessel.rotation.set(T.MathUtils.clamp(Math.atan2(bow-stern,hh.len),-tilt,tilt),boatYaw,T.MathUtils.clamp(Math.atan2(starboard-port,hh.beam),-tilt,tilt),'YXZ');
-  vessel.updateMatrixWorld(true);oar.visible=false;
+  vessel.updateMatrixWorld(true);oar.visible=false;wake.hull(t,vessel.matrixWorld,launch.speed);
   const st=boat.stern??{y:.4,z:hh.z+hh.len/2-.12};
   if(launch.board<0){
    // The pusher walks behind the stern, leaning in, hands on its top.
@@ -511,6 +519,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   const bow=at(0,-hh.len/2),stern=at(0,hh.len/2),port=at(-hh.beam/2,0),starboard=at(hh.beam/2,0),tilt=.3;
   vessel.position.y=(bow+stern+port+starboard)/4;vessel.rotation.set(T.MathUtils.clamp(Math.atan2(bow-stern,hh.len),-tilt,tilt),boatYaw,T.MathUtils.clamp(Math.atan2(starboard-port,hh.beam),-tilt,tilt),'YXZ');
   vessel.updateMatrixWorld(true);e.player.copy(boatSeat.point).applyMatrix4(vessel.matrixWorld);e.avatar.position.copy(e.player);e.avatar.rotation.set(vessel.rotation.x,boatYaw+Math.PI,vessel.rotation.z,'YXZ');
+  {const st=blade.set(hh.x,0,hh.z+hh.len/2).applyMatrix4(vessel.matrixWorld);if(dt>0)wake.record(t,st.x,st.z,boatYaw,boatSpeed,hh.beam/2);wake.hull(t,vessel.matrixWorld,boatSpeed);}
   rowPaddle(dt,t,f);
   // Splashes: a blade cutting into the water and lifting out of it, and spray off both sides of the bow under way.
   for(let i=0;i<2;i++){blade.copy(oar.children[i+1].position).applyMatrix4(oar.matrix).applyMatrix4(vessel.matrixWorld);const h=surfaceHeight(blade.x,blade.z,t),wet=blade.y<h-.02;
@@ -525,7 +534,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  }
  function update(dt,t){
   if(lagoon.isOpen){document.body.classList.remove('game-paused');return;}
-  sea.update(t);splash.update(t);
+  sea.update(t);splash.update(t);wake.update(t);if(!vessel.visible)wake.ring.visible=false;
   if(e.group!==currentGroup&&!e.busy){currentGroup=e.group;if(mode==='rest')e.player.copy(restPoint());else if(mode==='tower')e.player.copy(anchors.lifeguard.surface.point);}
   document.body.classList.toggle('game-paused',running&&!e.active&&!completed&&mode!=='tidepool');
   const active=running&&e.active&&!e.busy&&!completed,simDt=active?dt:0;

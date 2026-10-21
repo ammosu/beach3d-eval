@@ -281,7 +281,15 @@ function waterHeightAt(x,z,t,out){let u=x,v=z;for(let i=0;i<4;i++){waterField(u,
 // The water as drawn: the mesh's vertices move with the wave field and the surface between them is flat. Offshore the
 // rows are 10-16 m apart, so the drawn surface can sit 20-30 cm off the exact field (sampleWater) between them; things
 // that must not cut through it (the rowboat's hull) follow this one.
-const corner={};
+const corner={},corners=new Map();let cornerT=NaN;
+// The displaced grid corners for one time, shared by every surfaceHeight() call at that time (the boat, its wake
+// and splashes ask for hundreds of nearby points per frame, most of them in the same few cells).
+function gridCorner(a,b,t){
+ if(t!==cornerT){corners.clear();cornerT=t;}
+ const key=a*4096+b;let c=corners.get(key);
+ if(!c){const cx=grid.xs[a];waterField(cx,shore(cx)-grid.ds[b],t,corner);c={x:corner.x,z:corner.z,height:corner.height};corners.set(key,c);}
+ return c;
+}
 function lowerIndex(a,v){let lo=0,hi=a.length-2;while(lo<hi){const m=(lo+hi+1)>>1;if(a[m]<=v)lo=m;else hi=m-1;}return lo;}
 export function surfaceHeight(x,z,t){
  if(!grid.xs)waterGeometry();
@@ -297,7 +305,7 @@ export function surfaceHeight(x,z,t){
    const worst=Math.min(w0,w1,w2);if(!pick||worst>pick.worst)pick={worst,w:[w0,w1,w2],ix:T3.slice(3)};
   }
   let X=0,Z=0;h=0;
-  for(let k=0;k<3;k++){const [a,b]=pick.ix[k],cx=xs[a];waterField(cx,shore(cx)-ds[b],t,corner);X+=pick.w[k]*corner.x;Z+=pick.w[k]*corner.z;h+=pick.w[k]*corner.height;}
+  for(let k=0;k<3;k++){const c=gridCorner(...pick.ix[k],t);X+=pick.w[k]*c.x;Z+=pick.w[k]*c.z;h+=pick.w[k]*c.height;}
   u+=x-X;v+=z-Z;
  }
  return h;
