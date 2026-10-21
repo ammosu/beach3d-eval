@@ -303,6 +303,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
     const cx=(hull.min.x+hull.max.x)/2,zs=longest(hull.min.z,hull.max.z,z=>deep(cx,z));
     if(zs&&zs[1]-zs[0]>.5&&Math.abs((zs[0]+zs[1])/2-cz)>.08){hull.min.z=zs[0];hull.max.z=zs[1];}}
    const mid=(hull.min.z+hull.max.z)/2;
+   boat.hull={x:(hull.min.x+hull.max.x)/2,z:mid,len:hull.max.z-hull.min.z,beam:hull.max.x-hull.min.x};
    // Sit on a thwart near midships, a little aft, so the legs have room toward the bow (-z): scan the centreline for
    // horizontal patches between floor and gunwale and take the run closest to that spot.
    if(boatSeat.real){const h=hull.max.y-hull.min.y,len=hull.max.z-hull.min.z,x=(hull.min.x+hull.max.x)/2,runs=[];let run=null;
@@ -316,10 +317,11 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
    {const fz=Math.max(boatSeat.point.z-.55,hull.min.z+.45),floors=[-1,1].map(k=>surfacesAt(boatModel,boatSeat.point.x+k*.13,fz,hull).filter(h2=>h2.point.y<boatSeat.point.y-.12).reduce((m,h2)=>Math.max(m,h2.point.y),-Infinity)).filter(Number.isFinite);
     if(floors.length)row.floorY=Math.max(...floors)+(character.ankleHeight??.08);}
    // The water is one opaque plane, so a hull sitting in it would show water inside. A depth-only cap over the hull's
-   // inside, 8 cm above the water line, drawn after the boat and before the water, keeps the water out of view there.
+   // inside, 20 cm above the water line (the water at the hull's ends and sides still reaches ~10 cm over it with the
+   // hull riding the waves), drawn after the boat and before the water, keeps the water out of view there.
    // Its outline: the inner faces of the hull walls at that height, probed sideways from the centre line.
    {if(boat.mask){vessel.remove(boat.mask);boat.mask.geometry.dispose();boat.mask=null;}
-    const y=.08,cx=(hull.min.x+hull.max.x)/2,left=[],right=[],probe=new T.Raycaster();
+    const y=Math.min(.2,hull.max.y*.4),cx=(hull.min.x+hull.max.x)/2,left=[],right=[],probe=new T.Raycaster();
     for(let z=hull.min.z+.02;z<hull.max.z;z+=.05){const o=new T.Vector3(cx,y,z);const side=d=>{probe.set(o,new T.Vector3(d,0,0));probe.far=hull.max.x-hull.min.x;return probe.intersectObject(boatModel,true)[0]?.distance;};
      const l=side(-1),r=side(1);if(l==null||r==null||l>(hull.max.x-hull.min.x)*.7||r>(hull.max.x-hull.min.x)*.7)continue;left.push([cx-l,z]);right.push([cx+r,z]);}
     if(left.length>2){const shape=new T.Shape([...left,...right.reverse()].map(([x,z])=>new T.Vector2(x,-z)));const g=new T.ShapeGeometry(shape).rotateX(-Math.PI/2).translate(0,y,0);
@@ -430,11 +432,15 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   // Keep out of both existing island meshes (which are separate from terrain.js).
   if(((x-114)/66)**2+((z+58)/80)**2<1||((x-90)/108)**2+((z+340)/43)**2<1)allowed=false;
   if(allowed){vessel.position.x=x;vessel.position.z=z;}else boatSpeed=0;
-  sampleWater(vessel.position.x,vessel.position.z,t,wave);vessel.position.y=wave.height;
-  const c=Math.cos(boatYaw),sine=Math.sin(boatYaw),localNX=c*wave.nx-sine*wave.nz,localNZ=sine*wave.nx+c*wave.nz;vessel.rotation.set(Math.atan2(localNZ,wave.ny),boatYaw,-Math.atan2(localNX,wave.ny),'YXZ');
+  // Ride the water over the whole hull, not the slope at one point: near the shore the waves are short, and a hull
+  // levelled at its centre had the water up to 15 cm over its inside at bow or stern. Height and tilt come from the
+  // water at bow, stern and both sides.
+  const c=Math.cos(boatYaw),sine=Math.sin(boatYaw),hh=boat.hull??{x:0,z:0,len:3,beam:1.2},at=(lx,lz)=>{lx+=hh.x;lz+=hh.z;return sampleWater(vessel.position.x+c*lx+sine*lz,vessel.position.z-sine*lx+c*lz,t,wave).height;};
+  const bow=at(0,-hh.len/2),stern=at(0,hh.len/2),port=at(-hh.beam/2,0),starboard=at(hh.beam/2,0),tilt=.3;
+  vessel.position.y=(bow+stern+port+starboard)/4;vessel.rotation.set(T.MathUtils.clamp(Math.atan2(bow-stern,hh.len),-tilt,tilt),boatYaw,T.MathUtils.clamp(Math.atan2(starboard-port,hh.beam),-tilt,tilt),'YXZ');
   vessel.updateMatrixWorld(true);e.player.copy(boatSeat.point).applyMatrix4(vessel.matrixWorld);e.avatar.position.copy(e.player);e.avatar.rotation.set(vessel.rotation.x,boatYaw+Math.PI,vessel.rotation.z,'YXZ');
   rowPaddle(dt,t,f);
-  const dist=Math.hypot(vessel.position.x-island.x,vessel.position.z-island.z);if(!state.island&&dist<11){state.island=true;objects.burst(vessel.position.x,vessel.position.y+1,vessel.position.z,t);e.sfx('pickup');toast('抵達浮標！按 E 把海洋生物一隻隻放回海裡。');}
+  const dist=Math.hypot(vessel.position.x-island.x,vessel.position.z-island.z);if(!state.island&&dist<11){state.island=true;objects.burst(vessel.position.x,vessel.position.y+1,vessel.position.z,t);e.sfx('pickup');toast('抵達浮標！等海洋生物浮出水面，按 E 觀察。');}
   camGoal.set(vessel.position.x+Math.sin(boatYaw)*9,vessel.position.y+4.8,vessel.position.z+Math.cos(boatYaw)*9);camLook.set(vessel.position.x-Math.sin(boatYaw)*7,1,vessel.position.z-Math.cos(boatYaw)*7);
  }
  function update(dt,t){
@@ -478,7 +484,9 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   const id=mode==='rest'?'umbrella':mode==='tower'?'lifeguard':mode==='boat'?'boat':null;if(!id)return null;
   const source=mode==='boat'?boatModel:propRoot.children.find(c=>c.name===id),surface=anchors[id].surface;
   const box=source?.children.length||source?.isMesh?new T.Box3().setFromObject(source):null;
-  const hits=box?surfacesAt(source,e.player.x,e.player.z,box):[];
+  // Three rays a centimetre apart: a single one down a symmetric model's centre line can slip through the seam between
+  // two triangles when the hull tilts.
+  const hits=box?[-.01,0,.01].flatMap(d=>surfacesAt(source,e.player.x+d,e.player.z,box)):[];
   const nearest=hits.sort((a,b)=>Math.abs(a.point.y-e.player.y)-Math.abs(b.point.y-e.player.y))[0];
   const contactY=surface.kind==='sand'&&mode!=='boat'?groundHeight(e.player.x,e.player.z):nearest?.point.y;
   return {id,mode,real:mode==='boat'?!!nearest:surface.real,kind:surface.kind,player:e.player.toArray(),contactY,gap:contactY==null?null:e.player.y-contactY,inside:!box||(e.player.x>=box.min.x&&e.player.x<=box.max.x&&e.player.z>=box.min.z&&e.player.z<=box.max.z),feet:character.rig.foot.map(b=>b?.getWorldPosition(new T.Vector3()).toArray()),head:character.head().toArray(),box};
