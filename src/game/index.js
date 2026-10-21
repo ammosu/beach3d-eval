@@ -46,7 +46,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  const characterCache=new Map();let character=await createCharacter(e.group);characterCache.set(e.group,character);e.avatar.add(character.root);
  let boatSeat=null;const boat={draft:0,mask:null,restYaw:0,stern:null};
  // Launch: the boat starts where it lies on the beach; holding W pushes it down to the water, then the rower climbs in.
- const launch={lean:.6,active:false,board:-1,speed:0,steer:0,splash:0,from:new T.Vector3(),hands:[new T.Vector3(),new T.Vector3()],to:{x:2,z:-19}};let pushBoat=!auto;const climbStart=new T.Vector3();
+ const launch={lean:.6,active:false,board:-1,speed:0,steer:0,splash:0,from:new T.Vector3(),hands:[new T.Vector3(),new T.Vector3()],feet:[new T.Vector3(),new T.Vector3()],handWeight:1,pelvis:0,load:0,snap:false,to:{x:2,z:-19}};let pushBoat=!auto;const climbStart=new T.Vector3();
  async function switchCharacter(group){sea.setGroup(group);character.root.removeFromParent();if(!characterCache.has(group))characterCache.set(group,await createCharacter(group));character=characterCache.get(group);e.avatar.add(character.root);syncAnchors();followCamera.refresh();if(mode==='rest'){e.player.copy(anchors.umbrella.surface.point);e.avatar.rotation.set(0,anchors.umbrella.surface.yaw,0);}if(mode==='tower')e.player.copy(anchors.lifeguard.surface.point);updateCharacter(0);}
  e.onGroupChange(switchCharacter);
  // World-space contacts for the character's IK layer in the current mode.
@@ -55,11 +55,11 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   if(mode==='walk')return e.airborne?null:{ground:groundHeight};
   if(mode==='tower'&&anchors.lifeguard.ladder?.kind==='stairs')return {ground:towerSurface};
   if(mode==='tower'&&anchors.lifeguard.ladder&&towerT>0&&towerT<towerTotal())return {hands:climb.hands,handWeight:climb.handWeight,feet:climb.feet,footWeight:climb.footWeight,handAim:climb.aim,curl:climb.curl,pelvis:-.3*climb.duck,spine:{lean:climb.lean+.4*climb.duck}};
-  if(mode==='boat'&&launch.active)return launch.board<0?{ground:groundHeight,hands:launch.hands,curl:[1,1],spine:{lean:launch.lean},pelvis:-.12*launch.lean/.6}:null;
+  if(mode==='boat'&&launch.active)return launch.board<0?{ground:groundHeight,hands:launch.hands,curl:[1,1],spine:{lean:launch.lean},pelvis:-.12*launch.lean/.6}:{hands:launch.hands,feet:launch.feet,curl:[1,1],spine:{lean:launch.lean},pelvis:launch.pelvis,handAim:launch.board>3?row.aim:undefined};
   if(mode==='boat'&&boatSeat)return {hands:row.hands,feet:row.feet,handAim:row.aim,curl:[1,1],spine:{twist:row.twist,lean:row.lean}};
   return null;
  }
- function updateCharacter(dt){const pose=mode==='rest'?(anchors.umbrella.surface.kind==='lounger'?'lie':'sand'):mode==='boat'?(launch.active?(launch.board>.7?'paddle':'stand'):'paddle'):mode==='tower'&&(anchors.lifeguard.ladder?climb.onLadder&&towerT>0:modeAge<1.1)?'climb':'stand';character.update(dt,{speed:mode==='walk'?(pickup?pickupSpeed:e.speed):mode==='tower'?climb.speed:mode==='boat'&&launch.active?launch.speed:0,airborne:e.airborne,pose,recline:mode==='rest'?anchors.umbrella.surface.lie?.recline??0:0,first:e.first,fade:followCamera.distance<2.2?.4:1,ik:poseIK()});const info=character.info();let node=$('#character-stats');if(!node){node=document.createElement('span');node.id='character-stats';$('#stats').after(node);}node.textContent=`角色 ${info.source}${info.fallback?'（備援）':''} · ${info.triangles.toLocaleString()} triangles`;}
+ function updateCharacter(dt){const pose=mode==='rest'?(anchors.umbrella.surface.kind==='lounger'?'lie':'sand'):mode==='boat'?(launch.active&&launch.board<BOARD_SIT?'stand':'paddle'):mode==='tower'&&(anchors.lifeguard.ladder?climb.onLadder&&towerT>0:modeAge<1.1)?'climb':'stand';character.update(dt,{speed:mode==='walk'?(pickup?pickupSpeed:e.speed):mode==='tower'?climb.speed:mode==='boat'&&launch.active?launch.speed:0,airborne:e.airborne,pose,recline:mode==='rest'?anchors.umbrella.surface.lie?.recline??0:0,first:e.first,fade:followCamera.distance<2.2?.4:1,ik:poseIK(),snapPose:launch.snap});launch.snap=false;const info=character.info();let node=$('#character-stats');if(!node){node=document.createElement('span');node.id='character-stats';$('#stats').after(node);}node.textContent=`角色 ${info.source}${info.fallback?'（備援）':''} · ${info.triangles.toLocaleString()} triangles`;}
  const ringMat=new T.MeshBasicMaterial({color:0xffe18a,transparent:true,opacity:.85,side:T.DoubleSide,depthWrite:false});const destination=new T.Mesh(new T.TorusGeometry(8,.2,8,64),ringMat);destination.rotation.x=-Math.PI/2;destination.position.set(island.x,.6,island.z);scene.add(destination);
  const buoy=new T.Mesh(new T.CylinderGeometry(.2,.4,4,8),new T.MeshStandardMaterial({color:0xffb64f}));buoy.position.set(island.x,2,island.z);scene.add(buoy);
  // Lifeguard tower ladder: the widest opening in the deck railing, at the deck edge (the beach side wins ties). A
@@ -333,6 +333,16 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
    // Where the hands go when pushing the boat down the beach: the top of the stern, just inside its end.
    // Scanned forward along the centre line from the box's end (which may be an oar tip) to the first tall part.
    {const tall=hull.min.y+.55*(hull.max.y-hull.min.y);boat.stern={y:hull.max.y,z:hull.max.z-.12};for(let z=hull.max.z;z>mid;z-=.03){const top=surfacesAt(boatModel,boat.hull.x,z,hull).reduce((m,h2)=>Math.max(m,h2.point.y),-Infinity);if(top>tall){boat.stern={y:top,z:z-.08};break;}}}
+   // Climbing in over the stern: what the feet stand on along the centre line from the stern to the seat (the floor or
+   // a thwart; feet go a little either side of the centre) and the gunwale tops beside it, where the hands steady the body.
+   // The gunwales: the hull's side found by a ray from outside, between the thwarts and the top (the box is no guide:
+   // C's oars stick out, so hits more than 0.9 m off the centre line are skipped; a single-skin hull only faces
+   // outward), then the top of the side just inside it.
+   {const top=hull.min.y+.85*(hull.max.y-hull.min.y),wallY=(boatSeat.point.y+boat.stern.y)/2,probe=new T.Raycaster();boat.deck=[];
+    for(let z=boat.stern.z-.04;z>boatSeat.point.z-.75;z-=.04){const ys=[-1,1].map(k=>surfacesAt(boatModel,boat.hull.x+k*.13,z,hull).filter(h2=>h2.point.y<top).reduce((m,h2)=>Math.max(m,h2.point.y),-Infinity)).filter(Number.isFinite);
+     const gun=[-1,1].map(k=>{probe.set(new T.Vector3(boat.hull.x+k*3,wallY,z),new T.Vector3(-k,0,0));probe.far=3;const hit=probe.intersectObject(boatModel,true).find(h2=>Math.abs(h2.point.x-boat.hull.x)<.9);if(!hit)return null;
+      const x=hit.point.x-k*.04,y=surfacesAt(boatModel,x,z,hull).reduce((m,h2)=>Math.max(m,h2.point.y),-Infinity);return Number.isFinite(y)?{x,y}:null;});
+     boat.deck.push({z,y:ys.length?Math.max(...ys):row.floorY-(character.ankleHeight??.08),gun});}}
    // The water is one opaque plane, so a hull sitting in it would show water inside. A depth-only cap over the hull's
    // inside, 20 cm above the water line (the water at the hull's ends and sides still reaches ~10 cm over it with the
    // hull riding the waves), drawn after the boat and before the water, keeps the water out of view there.
@@ -480,8 +490,10 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   // Resting on the sand (keel on the ground) or floating, whichever is higher, at bow, stern and both sides.
   const h=(lx,lz)=>{local(lx,lz,blade);return Math.max(groundHeight(blade.x,blade.z)+boat.draft,surfaceHeight(blade.x,blade.z,t));};
   const bow=h(0,-hh.len/2),stern=h(0,hh.len/2),port=h(-hh.beam/2,0),starboard=h(hh.beam/2,0),tilt=.3;
-  vessel.position.y=(bow+stern+port+starboard)/4;vessel.rotation.set(T.MathUtils.clamp(Math.atan2(bow-stern,hh.len),-tilt,tilt),boatYaw,T.MathUtils.clamp(Math.atan2(starboard-port,hh.beam),-tilt,tilt),'YXZ');
-  vessel.updateMatrixWorld(true);oar.visible=false;wake.hull(t,vessel.matrixWorld,launch.speed);
+  // The climber's weight presses the stern down, then settles the whole hull a little deeper.
+  const b=launch.board,load=b<0?0:T.MathUtils.smootherstep(b,.4,1.1)*(1-T.MathUtils.smootherstep(b,2,3)),settle=b<0?0:T.MathUtils.smootherstep(b,1.1,2.4);
+  vessel.position.y=(bow+stern+port+starboard)/4-.03*load-.02*settle;vessel.rotation.set(T.MathUtils.clamp(Math.atan2(bow-stern,hh.len),-tilt,tilt)+.05*load,boatYaw,T.MathUtils.clamp(Math.atan2(starboard-port,hh.beam),-tilt,tilt),'YXZ');
+  vessel.updateMatrixWorld(true);if(b<2.6)oar.visible=false;wake.hull(t,vessel.matrixWorld,launch.speed);
   const st=boat.stern??{y:.4,z:hh.z+hh.len/2-.12};
   if(launch.board<0){
    // The pusher walks behind the stern, leaning in, hands on its top.
@@ -494,12 +506,61 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
     local(0,-hh.len/2,blade);const bl=surfaceHeight(blade.x,blade.z,t),gb=groundHeight(blade.x,blade.z);if(gb<-.02&&bl>gb+.05)splash.emit(t,blade.x,bl,blade.z,.12+.06*launch.speed,-Math.sin(boatYaw),-Math.cos(boatYaw),.6);}
    if(groundHeight(vessel.position.x,vessel.position.z)<-.75){launch.board=0;launch.speed=0;launch.from.copy(e.player);}
   }else{
-   // Climb in over the stern onto the thwart.
-   launch.board+=dt;const k=Math.min(1,launch.board/1.2),q=T.MathUtils.smootherstep(k,0,1),seat=blade.copy(boatSeat.point).applyMatrix4(vessel.matrixWorld);
-   e.player.lerpVectors(launch.from,seat,q);e.player.y+=Math.sin(Math.PI*q)*.45;e.avatar.position.copy(e.player);e.avatar.rotation.set(vessel.rotation.x*q,boatYaw+Math.PI,vessel.rotation.z*q,'YXZ');
-   if(k>=1){launch.active=false;oar.visible=true;boatSpeed=0;boatReady();}
+   const was=launch.board;launch.board+=dt;boardPose(launch.board,t);if(was<BOARD_SIT&&launch.board>=BOARD_SIT)launch.snap=true;
+   // Water off the legs as each one leaves it.
+   for(const [at,i] of [[1.2,0],[1.65,1]])if(dt>0&&was<at&&launch.board>=at){const f=launch.feet[i],lv=surfaceHeight(f.x,f.z,t);splash.emit(t,f.x,lv,f.z,.18);}
+   if(launch.board>=BOARD_END){launch.active=false;oar.visible=true;boatSpeed=0;boatReady();}
   }
   const yw=boatYaw+.5;camGoal.set(e.player.x+Math.sin(yw)*6.5,e.player.y+4,e.player.z+Math.cos(yw)*6.5);camLook.set(vessel.position.x,vessel.position.y+.5,vessel.position.z);
+ }
+ // Climbing in over the stern, a function of the time since it began (BOARD_END s): step up to the stern and take its
+ // top in both hands; push up and lean over it; one knee, then the other, over the top onto the floor inside, the hands
+ // moving to the gunwales; step forward over the thwart; lower onto it facing the bow, feet on the floor, hands to the
+ // paddle. Once the hips reach the seat (BOARD_SIT) the seated pose takes over, snapped (the hips are already where it
+ // puts them), and the hands finish their way to the paddle.
+ const BOARD=[0,.4,1.1,1.55,2,2.6,2.9],BOARD_END=3.2,BOARD_SIT=2.9,bw=[0,1,2,3,4,5,6].map(()=>new T.Vector3()),bv=new T.Vector3(),bu=new T.Vector3();
+ function boardPose(b,t){
+  const hh=boat.hull,st=boat.stern,seat=boatSeat.point,A=character.ankleHeight??.08,side=character.side,M=vessel.matrixWorld,X=hh.x;
+  const near=z=>{const d=boat.deck;if(!d?.length)return null;let best=d[0];for(const p of d)if(Math.abs(p.z-z)<Math.abs(best.z-z))best=p;return best;};
+  const deck=z=>near(z)?.y??row.floorY-A,gun=(z,i)=>near(z)?.gun[side[i]>0?0:1]??{x:X-side[i]*(hh.beam/2-.06),y:st.y};
+  const L=(x,y,z,out)=>out.set(x,y,z).applyMatrix4(M),onGround=(x,z,out,lift=0)=>{L(x,0,z,out);out.y=groundHeight(out.x,out.z)+lift;return out;};
+  const ph=(a,c)=>T.MathUtils.smootherstep(b,a,c),span=k=>T.MathUtils.clamp((b-BOARD[k])/(BOARD[k+1]-BOARD[k]),0,1);
+  let k=0;while(k<BOARD.length-2&&b>=BOARD[k+1])k++;const u=T.MathUtils.smootherstep(span(k),0,1);
+  // The body (the avatar origin, at the soles): keys in vessel space, the first where the push ended.
+  const zf=seat.z-.32,zs=[st.z+.48,st.z+.3,st.z+.16,st.z+.04,st.z-.32,zf,seat.z],zr=T.MathUtils.lerp(zs[k],zs[k+1],u);
+  // Pushed up, the hips reach the top of the stern with the chest folded over it; the knee comes over with the hips a
+  // little above it.
+  const hip=character.hipHeight;onGround(X,st.z+.3,bw[1]);L(X,st.y-hip+.02,st.z+.16,bw[2]);bw[2].y=Math.max(bw[2].y,bw[1].y);L(X,st.y-hip+.12,st.z+.04,bw[3]);
+  L(X,deck(st.z-.32),st.z-.32,bw[4]);L(X,deck(zf),zf,bw[5]);L(seat.x,seat.y,seat.z,bw[6]);bw[0].copy(launch.from);
+  e.player.lerpVectors(bw[k],bw[k+1],u);
+  // Stepping over a thwart between the stern and the seat lifts the body a little.
+  if(k===4){let top=-Infinity;for(let z=st.z-.32;z>zf;z-=.04)top=Math.max(top,deck(z));e.player.y+=Math.max(0,top-Math.max(deck(st.z-.32),deck(zf)))*.6*Math.sin(Math.PI*u);}
+  launch.pelvis=b>=BOARD_SIT?0:[0,-.15,0,0,-.6,-.45,-(hip-.1)].reduce((v,p,i)=>i===k+1?T.MathUtils.lerp(v,p,u):i<=k?p:v,0);
+  // Crouched low inside, so the hands reach the gunwales.
+  launch.lean=[.6,.85,1.25,1.1,.85,.65,0].reduce((v,p,i)=>i===k+1?T.MathUtils.lerp(v,p,u):i<=k?p:v,0);
+  const inside=ph(1.55,2.4);e.avatar.position.copy(e.player);e.avatar.rotation.set(vessel.rotation.x*inside,boatYaw+Math.PI,vessel.rotation.z*inside,'YXZ');
+  // Feet: stepping in to the stern, hanging behind it while the arms take the weight, each in turn over the top
+  // (a curve through a point just above it) onto the floor, then forward over the thwart and onto the floor before the seat.
+  const rowFoot=i=>L(seat.x-side[i]*.13,row.floorY,Math.max(seat.z-.55,row.bow+.45),bu);
+  for(let i=0;i<2;i++){const f=launch.feet[i],x=X-side[i]*.13,over=i===0?[1.1,1.55]:[1.55,2],step=i===0?[2,2.3]:[2.3,2.6];
+   const hang=(out)=>{L(X-side[i]*.12,0,st.z+.38,out);out.y=Math.max(groundHeight(out.x,out.z)+A,e.player.y+A+.05);return out;};
+   const inStern=out=>L(x,deck(st.z-.3)+A,st.z-.3,out),front=out=>L(X-side[i]*.14,deck(zf)+A,zf,out);
+   if(b<.4){const q=ph(0,.4);onGround(x,T.MathUtils.lerp(st.z+.48,st.z+.3,q),f,A+.08*Math.sin(Math.PI*q));}
+   else if(b<over[0]){onGround(x,st.z+.3,f,A);f.lerp(hang(bv),ph(.4,1.1));}
+   else if(b<over[1]){const q=T.MathUtils.smootherstep(b,over[0],over[1]),H=hang(bv),In=inStern(bu),top=L(X-side[i]*.15,st.y+.26,st.z-.02,f.clone());
+    // Quadratic Bezier through the point over the stern at its middle.
+    const c=top.multiplyScalar(2).addScaledVector(H,-.5).addScaledVector(In,-.5);f.copy(H).multiplyScalar((1-q)**2).addScaledVector(c,2*q*(1-q)).addScaledVector(In,q*q);}
+   else if(b<step[0])inStern(f);
+   else if(b<step[1]){const q=T.MathUtils.smootherstep(b,step[0],step[1]);inStern(f).lerp(front(bv),q);let top=-Infinity;for(let z=st.z-.3;z>zf;z-=.04)top=Math.max(top,deck(z));
+    // Lifted clear of whatever lies between (a thwart), highest mid-step.
+    const clear=L(x,top+A+.12,zr,bu).y,arc=Math.sin(Math.PI*q);f.y+=Math.max(0,clear-f.y)*arc+.05*arc;}
+   else if(b<2.6)front(f);
+   else{const q=ph(2.6,2.95);front(f).lerp(rowFoot(i),q);f.y+=.05*Math.sin(Math.PI*q);}}
+  // Hands: on the stern top, then over to the gunwales beside the body, then to the paddle in the lap.
+  if(b>=2.6){oar.visible=true;rowPaddle(0,t,0);}
+  for(let i=0;i<2;i++){const h=launch.hands[i],grip=L(X-side[i]*.22,st.y,st.z,bv),rg=gun(zr-.22,i),rail=L(rg.x,rg.y+.02,zr-.22,bu);
+   if(b<1.75)h.copy(grip);else if(b<2.05){const q=ph(1.75,2.05);h.copy(grip).lerp(rail,q);h.y+=.12*Math.sin(Math.PI*q);}
+   else if(b<2.6)h.copy(rail);else h.copy(rail).lerp(row.hands[i],ph(2.6,3.1));}
  }
  function boatUpdate(dt,t){
   if(launch.active){launchUpdate(dt,t);return;}
@@ -612,6 +673,6 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
    }});
   return [...targets,sand].map(t=>({id:t.id,n:t.n,max:+t.max.toFixed(3),worst:t.worst}));
  }
- if(auto){Object.assign(api,{penetration,boatInfo(){const b=new T.Box3().setFromObject(boatModel,true);return {draft:boat.draft,mask:boat.mask?boat.mask.geometry.attributes.position.count:0,keelBelowWater:+(vessel.position.y-b.min.y).toFixed(3),gunwaleAboveWater:+(b.max.y-vessel.position.y).toFixed(3)};},ladder(){return anchors.lifeguard.ladder;},climbState(){return {towerT,towerDir,root:climb.root.toArray(),hands:climb.hands.map(h=>h.toArray()),player:e.player.toArray(),total:towerTotal()};},handWorld(i){return character.rig.hand[i].getWorldPosition(new T.Vector3());},teleport(x,z){if(mode!=='walk')throw Error('Teleport is only available on foot');e.player.set(x,groundHeight(x,z),z);lastPlayer.copy(e.player);},targets(){return {shells:objects.items.map(s=>({x:s.x,y:s.y,z:s.z,collected:s.collected})),ball:objects.ball.position.toArray(),umbrella:anchors.umbrella.point.toArray(),tidepool:pool.point.toArray(),lagoon:pool.point.toArray(),lifeguard:anchors.lifeguard.point.toArray(),boat:anchors.boat.point.toArray(),dock,island};},step(seconds){let remaining=seconds;while(remaining>1e-6){const dt=Math.min(1/60,remaining);window.__TIME__=time()+dt;water.material.uniforms.time.value=window.__TIME__;e.update(dt);update(dt,window.__TIME__);remaining-=dt;}},steer(angle){if(mode!=='boat')throw Error('Not in boat');boatYaw=angle;},view(yaw){e.setView(yaw);},wave(x,z,t){return {...sampleWater(x,z,t,{}),drawn:surfaceHeight(x,z,t)};}});Object.defineProperty(api,'pushBoat',{get(){return pushBoat;},set(v){pushBoat=!!v;}});Object.defineProperty(api,'launch',{get(){return {active:launch.active,board:launch.board,speed:launch.speed,hands:launch.hands.map(h=>h.toArray())};}});Object.defineProperty(api,'vessel',{get(){return {x:vessel.position.x,y:vessel.position.y,z:vessel.position.z,yaw:boatYaw,speed:boatSpeed};}});window.__GAME__=api;}
+ if(auto){Object.assign(api,{penetration,boardInfo(){return {stern:boat.stern,hull:boat.hull,seat:boatSeat.point.toArray(),floorY:row.floorY,deck:boat.deck?.map(d=>[+d.z.toFixed(2),+d.y.toFixed(2),...d.gun.map(g=>g&&[+g.x.toFixed(2),+g.y.toFixed(2)])]),player:e.player.toArray(),feet:launch.feet.map(f=>f.toArray()),hands:launch.hands.map(h=>h.toArray()),pelvis:launch.pelvis,lean:launch.lean,vessel:vessel.matrixWorld.elements.slice()};},boatInfo(){const b=new T.Box3().setFromObject(boatModel,true);return {draft:boat.draft,mask:boat.mask?boat.mask.geometry.attributes.position.count:0,keelBelowWater:+(vessel.position.y-b.min.y).toFixed(3),gunwaleAboveWater:+(b.max.y-vessel.position.y).toFixed(3)};},ladder(){return anchors.lifeguard.ladder;},climbState(){return {towerT,towerDir,root:climb.root.toArray(),hands:climb.hands.map(h=>h.toArray()),player:e.player.toArray(),total:towerTotal()};},handWorld(i){return character.rig.hand[i].getWorldPosition(new T.Vector3());},teleport(x,z){if(mode!=='walk')throw Error('Teleport is only available on foot');e.player.set(x,groundHeight(x,z),z);lastPlayer.copy(e.player);},targets(){return {shells:objects.items.map(s=>({x:s.x,y:s.y,z:s.z,collected:s.collected})),ball:objects.ball.position.toArray(),umbrella:anchors.umbrella.point.toArray(),tidepool:pool.point.toArray(),lagoon:pool.point.toArray(),lifeguard:anchors.lifeguard.point.toArray(),boat:anchors.boat.point.toArray(),dock,island};},step(seconds){let remaining=seconds;while(remaining>1e-6){const dt=Math.min(1/60,remaining);window.__TIME__=time()+dt;water.material.uniforms.time.value=window.__TIME__;e.update(dt);update(dt,window.__TIME__);remaining-=dt;}},steer(angle){if(mode!=='boat')throw Error('Not in boat');boatYaw=angle;},view(yaw){e.setView(yaw);},wave(x,z,t){return {...sampleWater(x,z,t,{}),drawn:surfaceHeight(x,z,t)};}});Object.defineProperty(api,'pushBoat',{get(){return pushBoat;},set(v){pushBoat=!!v;}});Object.defineProperty(api,'launch',{get(){return {active:launch.active,board:launch.board,speed:launch.speed,hands:launch.hands.map(h=>h.toArray())};}});Object.defineProperty(api,'vessel',{get(){return {x:vessel.position.x,y:vessel.position.y,z:vessel.position.z,yaw:boatYaw,speed:boatSpeed};}});window.__GAME__=api;}
  update(0,time());return api;
 }
