@@ -28,7 +28,7 @@ export function addCoastDetails(scene) {
   for(let i=0;i<3200;i++){const x=(rand()-.5)*rx*1.65,z=(rand()-.5)*rz*1.65;if(old(x,z)<3){i--;continue;}for(let k=0;k<5;k++)rand();}
   return {shape,rock};
  }
- const islands=[[90,-340,105,40,29,'far',{canopy:3400,shrub:700,palm:170,boulder:320},211],[114,-58,64,78,29,'near',{canopy:3100,shrub:900,palm:220,boulder:380},307]];
+ const islands=[[90,-340,105,40,29,'far',{canopy:3400,shrub:700,palm:170,boulder:320,plant:900},211],[114,-58,64,78,29,'near',{canopy:3100,shrub:900,palm:220,boulder:380,plant:1300},307]];
  const plants=new THREE.Group();plants.name='island-vegetation';land.add(plants);
  const vegetation=createVegetation(plants);
  for(const [cx,cz,rx,rz,h,detail,counts,seed] of islands){const {shape,rock}=hill(cx,cz,rx,rz,h);vegetation.plant({cx,cz,rx,rz,shape,rock,seed,detail,counts});}

@@ -59,11 +59,35 @@ function palmGeometry(seed){
  const merged=mergeGeometries(parts);merged.computeVertexNormals();return merged;
 }
 
-// A shore boulder: a lumpy, flattened rock, height and radius about 1, grey-brown, darker underneath.
+// A shore boulder: a lumpy, flattened rock, height and radius about 1. Grey-brown and darker underneath, with a band of
+// dark green weed round its foot (where the water wets it) and patches of moss on top.
 function boulderGeometry(seed){
  let g=new THREE.IcosahedronGeometry(1,1);g.deleteAttribute('uv');g.deleteAttribute('normal');g=mergeVertices(g);const p=g.attributes.position,v=new THREE.Vector3(),col=[];
- for(let j=0;j<p.count;j++){v.fromBufferAttribute(p,j);v.multiplyScalar(1+(hash3(v,seed)-.5)*.45);v.y=Math.max(v.y*.7,-.25);p.setXYZ(j,v.x,v.y,v.z);const k=(.3+.16*(v.y+.25))*(.85+.3*hash3(v,seed+1));col.push(k*1.02,k,k*.92);}
+ for(let j=0;j<p.count;j++){v.fromBufferAttribute(p,j);v.multiplyScalar(1+(hash3(v,seed)-.5)*.45);v.y=Math.max(v.y*.7,-.25);p.setXYZ(j,v.x,v.y,v.z);
+  const k=(.3+.16*(v.y+.25))*(.85+.3*hash3(v,seed+1)),weed=THREE.MathUtils.smoothstep(.02,-.15,v.y),moss=THREE.MathUtils.smoothstep(.68,.85,hash3(v.clone().multiplyScalar(.6).floor(),seed+2))*THREE.MathUtils.smoothstep(.1,.5,v.y);
+  const c=new THREE.Color(k*1.02,k,k*.92).lerp(new THREE.Color(.1,.17,.07),weed*.85).lerp(new THREE.Color(.24,.34,.11),moss*.7);col.push(c.r,c.g,c.b);}
  g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.computeVertexNormals();return g;
+}
+
+// A leafy ground plant, height about 1: a rosette of broad leaves on arching stalks (seagrape, elephant ear and the
+// like) or, with narrow set, long strap leaves fanning out (pandanus seedlings, lilies). Leaves are lighter along the
+// midrib and towards the tip.
+function leafPlantGeometry(seed,narrow){
+ const r=rng(seed),pos=[],col=[],segs=5,leaves=narrow?16:11;
+ for(let f=0;f<leaves;f++){
+  const yaw=f/leaves*Math.PI*2+r()*.5,rise=narrow?.55+r()*.4:.25+r()*.5,len=narrow?.75+r()*.35:.45+r()*.25,width=narrow?.06:.2+r()*.08,stalk=narrow?0:.25+r()*.25;
+  const dir=new THREE.Vector3(Math.cos(yaw),0,Math.sin(yaw)),side=new THREE.Vector3(-dir.z,0,dir.x),base=new THREE.Vector3(0,stalk*.6,0).addScaledVector(dir,stalk*.4);
+  const at=t=>base.clone().addScaledVector(dir,len*t).add(new THREE.Vector3(0,len*(rise*t-(narrow?.9:.7)*t*t),0));
+  const green=[.16+r()*.08,.36+r()*.12,.09+r()*.05],shade=.8+r()*.4;
+  // The stalk, a thin blade from the ground to the leaf.
+  if(stalk){const a=new THREE.Vector3(0,0,0);for(const q of [[a,base,base.clone().addScaledVector(side,.02)]]){for(const v of q)pos.push(v.x,v.y,v.z);for(let i=0;i<3;i++)col.push(.2,.3,.12);}}
+  for(let i=0;i<segs;i++){const t0=i/segs,t1=(i+1)/segs,w0=width*Math.sin(Math.PI*Math.min(1,t0*1.1+.02))*(narrow?1-t0*.6:1),w1=width*Math.sin(Math.PI*Math.min(1,t1*1.1))*(narrow?1-t1*.6:1);
+   const a=at(t0),b=at(t1),cup=new THREE.Vector3(0,width*.25,0);
+   for(const k of [-1,1]){const ea=a.clone().addScaledVector(side,k*w0).add(cup),eb=b.clone().addScaledVector(side,k*w1).add(cup);
+    pos.push(a.x,a.y,a.z,b.x,b.y,b.z,eb.x,eb.y,eb.z,a.x,a.y,a.z,eb.x,eb.y,eb.z,ea.x,ea.y,ea.z);
+    const mid=1.15+.2*t1,edge=.85+.2*t1;for(const m of [mid,mid,edge,mid,edge,edge])col.push(green[0]*shade*m,green[1]*shade*m,green[2]*shade*m);}}
+ }
+ const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.computeVertexNormals();return g;
 }
 
 // A broadleaf trunk: a tapering 6-sided post, height and radius 1, scaled per tree.
@@ -104,7 +128,7 @@ function foliageMaterial(){
 
 // Plant islands into shared instanced meshes: plant() once per island, then finish().
 export function createVegetation(group){
- const lists={crownNear:[],crownFar:[],shrub:[],palm:[],trunk:[],boulder:[]};
+ const lists={crownNear:[],crownFar:[],shrub:[],palm:[],trunk:[],boulder:[],plant:[]};
  // shape(x,z): the island's height at local (x, z); rock(x,z,y): bare rock there; detail 'near' or 'far'.
  function plant({cx,cz,rx,rz,shape,rock,seed,detail,counts}){
   const r=rng(seed),o=new THREE.Object3D(),color=new THREE.Color();
@@ -128,14 +152,18 @@ export function createVegetation(group){
    put(lists.palm,(o,c)=>{const h=shore?7+r()*5:12+r()*6;o.position.set(cx+x,y-.3,cz+z);o.scale.setScalar(h);
     // The trunk bends towards local +x: turn that downhill, then lean a little more that way (more on the shore).
     o.rotation.set(0,0,0);o.rotateY(downhill(x,z)+(r()-.5)*.6);o.rotateZ(-(shore?.08+r()*.22:r()*.08));const k=.95+r()*.3;c.setRGB(k,k,k*.92);});}
-  // Boulders scattered along the water line, some half in the water.
+  // Boulders scattered along the water line, some half in the water: weed round the foot, some green all over.
   for(let i=0;i<(counts.boulder||0);i++){const p=pick((x,z,y)=>y>-.6&&y<1.6);if(!p)continue;const [x,z,y]=p;
-   put(lists.boulder,(o,c)=>{const s=.5+r()**2*2.2;o.position.set(cx+x,y-s*.15,cz+z);o.scale.set(s*(1+r()*.5),s*(.6+r()*.5),s*(1+r()*.4));o.rotation.set((r()-.5)*.3,r()*6.3,(r()-.5)*.3);const k=.8+r()*.4;c.setRGB(k,k,k);});}
+   put(lists.boulder,(o,c)=>{const s=.5+r()**2*2.2;o.position.set(cx+x,y-s*.15,cz+z);o.scale.set(s*(1+r()*.5),s*(.6+r()*.5),s*(1+r()*.4));o.rotation.set((r()-.5)*.3,r()*6.3,(r()-.5)*.3);const k=.8+r()*.4;if(r()<.25)c.setRGB(k*.85,k*1.02,k*.75);else c.setRGB(k,k,k);});}
+  // Leafy ground plants: a thick fringe along the forest edge spilling onto the sand, and some in the gaps under
+  // the canopy and between the rocks.
+  for(let i=0;i<(counts.plant||0);i++){const p=pick((x,z,y)=>i%4===0?y>2&&y<12&&slope(x,z)<1.5:y>.15&&y<3.2&&slope(x,z)<1.6);if(!p)continue;const [x,z,y]=p;
+   put(lists.plant,(o,c)=>{const s=1+r()*1.4;o.position.set(cx+x,y-.05,cz+z);o.scale.set(s*(1+r()*.3),s*(.8+r()*.4),s*(1+r()*.3));o.rotation.set((r()-.5)*.15,r()*6.3,(r()-.5)*.15);c.setHSL(.2+r()*.1,.3+r()*.2,.62+r()*.18);});}
  }
  function finish(){
   const foliage=foliageMaterial(),plain=haze(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.9})),fronds=haze(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.85,side:THREE.DoubleSide}));
   const sets=[[lists.crownNear,[11,23,37].map(s=>crownGeometry(s,1,5)),foliage],[lists.crownFar,[11,23].map(s=>crownGeometry(s,0,4)),foliage],
-   [lists.shrub,[51,63].map(s=>crownGeometry(s,0,4)),foliage],[lists.palm,[71,83].map(palmGeometry),fronds],[lists.trunk,[trunkGeometry()],plain],[lists.boulder,[5,9].map(boulderGeometry),plain]];
+   [lists.shrub,[51,63].map(s=>crownGeometry(s,0,4)),foliage],[lists.palm,[71,83].map(palmGeometry),fronds],[lists.trunk,[trunkGeometry()],plain],[lists.boulder,[5,9].map(boulderGeometry),plain],[lists.plant,[[91,false],[97,true],[103,false]].map(([s,n])=>leafPlantGeometry(s,n)),fronds]];
   for(const [list,geos,material] of sets){const meshes=geos.map(g=>{const m=new THREE.InstancedMesh(g,material,Math.max(1,Math.ceil(list.length/geos.length)));m.count=0;m.castShadow=m.receiveShadow=true;group.add(m);return m;});
    list.forEach(([matrix,color],i)=>{const m=meshes[i%meshes.length];m.setMatrixAt(m.count,matrix);m.setColorAt(m.count,color);m.count++;});
    for(const m of meshes){m.instanceMatrix.needsUpdate=true;if(m.instanceColor)m.instanceColor.needsUpdate=true;m.computeBoundingSphere();}}
