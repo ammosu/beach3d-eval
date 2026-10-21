@@ -65,7 +65,7 @@ export function createSplash(scene){
     put(e.x+Math.cos(a)*spread0*h+vx*age,y,e.z+Math.sin(a)*spread0*h+vz*age,vx,vy,vz,(.014+.022*hash(i*5.3))*(.7+e.size),.7*Math.sqrt(fade));}
    // A bigger splash throws a little mist that drifts up and thins out.
    if(e.size>.2)for(let i=0;i<3;i++){const h=hash(i*9.1+e.seed),a=i*2.1+e.seed,k=Math.min(1,age/.6);if(k>=1)break;
-    put(e.x+Math.cos(a)*e.size*.6*k,e.y+.1+e.size*(.5+.4*h)*k,e.z+Math.sin(a)*e.size*.6*k,0,0,0,e.size*(.35+.7*k),.3*(1-k)*(1-k));}
+    put(e.x+Math.cos(a)*e.size*.6*k,e.y+.1+e.size*(.5+.4*h)*k,e.z+Math.sin(a)*e.size*.6*k,0,0,0,e.size*(.35+.7*k),.16*(1-k)*(1-k));}
   }
   geo.instanceCount=d;iPos.needsUpdate=iVel.needsUpdate=iSize.needsUpdate=true;
   for(let i=r;i<rings.length;i++)rings[i].visible=false;

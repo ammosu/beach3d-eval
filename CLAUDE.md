@@ -85,6 +85,7 @@ There is no lint or unit-test setup. Verification means running the Playwright s
 - **Terrain and water are analytic and stateless.**
   - `src/terrain.js` `shore(x)` and `groundHeight(x,z)` are used by JS, by the shaders (`shoreGLSL`), by explore and game collision, and by the recorders.
   - `src/water.js` also exports CPU mirrors `sampleWater()` and `swashReach()`, which drive game buoyancy and footprints.
+  - Shading-only wave detail (since 2026-10-21, same for all groups; blind scores and REPORT predate it): `swellState()` in the water fragment shader re-evaluates the four Gerstner waves per pixel (the offshore mesh is too coarse), for light through the swell (green-blue, most when backlit) and whitecaps where the crest is squeezed tightest (Jacobian), in patches, with foam left behind for a moment. The game's rowboat feeds `wakeRings` (24 stern points: x, z, time, speed; `WAKE_RINGS`): each spreads a ring of small ripples at a third of the boat's speed, which together keep the Kelvin wake's V; shading only, the surface does not move, so the CPU mirrors are unchanged.
   - All animation must derive from one time value so offline rendering is deterministic.
 - **Determinism and automation hooks.** These are what the recorders and verifiers use; keep them working.
   - `window.__SCENE__` (`{scene, camera, renderer, water, …}`) and `window.__READY__`.

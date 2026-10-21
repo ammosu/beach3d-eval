@@ -536,7 +536,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  }
  function update(dt,t){
   if(lagoon.isOpen){document.body.classList.remove('game-paused');return;}
-  sea.update(t);splash.update(t);wake.update(t);if(!vessel.visible)wake.ring.visible=false;
+  sea.update(t);splash.update(t);wake.update(t);wake.rings(t,water.material.uniforms.wakeRings.value);if(!vessel.visible)wake.ring.visible=false;
   if(e.group!==currentGroup&&!e.busy){currentGroup=e.group;if(mode==='rest')e.player.copy(restPoint());else if(mode==='tower')e.player.copy(anchors.lifeguard.surface.point);}
   document.body.classList.toggle('game-paused',running&&!e.active&&!completed&&mode!=='tidepool');
   const active=running&&e.active&&!e.busy&&!completed,simDt=active?dt:0;

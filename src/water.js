@@ -81,6 +81,24 @@ void waterSurface(vec2 p,float t,out vec3 displaced,out vec3 waveNormal){
 }
 `;
 
+// Per-pixel wave state for shading: the offshore mesh rows are 10-16 m apart, so crests, whitecaps and the light
+// through them are evaluated from the same four Gerstner waves here, not interpolated from the vertices.
+// x: height of the swell (open water only), y: the Jacobian of the horizontal displacement (below 1 where the
+// surface is squeezed together at a crest; whitecaps form where it is lowest).
+const crestGLSL = `
+vec2 swellState(vec2 p,float t){
+ float coast=shore(p.x)-p.y;
+ float s=smoothstep(0.,16.,coast)*(.68+.32*smoothstep(15.,90.,coast))*(1.-smoothstep(100.,550.,coast))*(1.-smoothstep(140.,500.,abs(p.x)));
+ vec2 D[4];D[0]=normalize(vec2(.22,1.));D[1]=normalize(vec2(-.38,1.));D[2]=normalize(vec2(.72,.69));D[3]=normalize(vec2(-.81,.59));
+ vec4 A=vec4(.29,.16,.085,.045),L=vec4(19.,11.3,6.7,3.8),P=vec4(.5,2.4,4.1,1.1);
+ float h=0.,xx=0.,zz=0.,xz=0.;
+ for(int i=0;i<4;i++){float k=6.283185/L[i],f=k*dot(D[i],p)-sqrt(9.81*k)*t+P[i],sn=sin(f),qa=.62*A[i]*k*sn;
+  h+=A[i]*sn;xx-=qa*D[i].x*D[i].x;zz-=qa*D[i].y*D[i].y;xz-=qa*D[i].x*D[i].y;}
+ return vec2(h*s,mix(1.,(1.+xx)*(1.+zz)-xz*xz,s));
+}
+`;
+
+export const WAKE_RINGS=24;
 const grid={xs:null,ds:null};
 function waterGeometry() {
  // Preserve the terrain entirely. Only the water mesh follows the coast, with
@@ -107,6 +125,10 @@ export function createWater(sun) {
  const water=new Water(waterGeometry(),{textureWidth:512,textureHeight:512,sunDirection:sun,sunColor:0xfff4da,waterColor:0x087f9c,distortionScale:.55,fog:true});
  water.rotation.x=-Math.PI/2;water.frustumCulled=false;
  water.name='lagoon-water';
+ // Ripples behind the game's rowboat (set by src/game/wake.js): each entry is a point the stern passed (x, z, time,
+ // boat speed; 0 switches it off). A ring of small waves spreads from each; together they draw the V behind the boat (a kinematic wake:
+ // circles emitted along the path). Shading only: the surface itself does not move.
+ water.material.uniforms.wakeRings={value:Array.from({length:WAKE_RINGS},()=>new THREE.Vector4())};
  water.material.vertexShader=`
  uniform mat4 textureMatrix;uniform float time;
  varying vec4 mirrorCoord;varying vec4 worldPosition;
@@ -134,11 +156,13 @@ export function createWater(sun) {
  }`;
  water.material.fragmentShader=`
  uniform mat4 textureMatrix;uniform sampler2D mirrorSampler;uniform float time;uniform vec3 eye;uniform vec3 sunDirection;uniform vec3 sunColor;
+ uniform vec4 wakeRings[${WAKE_RINGS}];
  varying vec4 mirrorCoord;varying vec4 worldPosition;varying vec3 vWaveNormal;varying vec2 vWaterRest;
  #include <common>
  #include <fog_pars_fragment>
  #include <logdepthbuf_pars_fragment>
  ${coastalGLSL}
+ ${crestGLSL}
  vec2 fineSlope(vec2 p,float distanceToEye){
   mat2 r=mat2(.80,-.60,.60,.80),r2=mat2(.36,.933,-.933,.36);
   vec2 warp=vec2(waterNoise(p*.071+time*.025),waterNoise(p*.093-time*.019));
@@ -165,6 +189,13 @@ export function createWater(sun) {
   if(d>front+irregular)discard;
   vec3 toEye=eye-worldPosition.xyz;float distanceToEye=length(toEye);vec3 V=toEye/distanceToEye;
   vec2 small=fineSlope(worldPosition.xz,distanceToEye)*mix(.25,1.,smoothstep(-1.,6.,coast));
+  // Wake ripples: crests about 0.9 m apart; each ring runs out at a third of the boat's speed, so the rings
+  // together keep the Kelvin wake's ~19.5° V at any speed. Weaker as they spread and age.
+  vec2 rip=vec2(0.);
+  for(int i=0;i<${WAKE_RINGS};i++){vec4 r=wakeRings[i];if(r.w<=.3)continue;vec2 q=worldPosition.xz-r.xy;float dist=length(q),age=time-r.z;
+   float x=dist-min(.34*r.w,3.)*age;if(age<0.||abs(x)>2.||dist<.01)continue;
+   float env=clamp((r.w-.3)/2.5,0.,1.)*exp(-x*x*1.4)*exp(-age*.35)/(1.+.12*dist);rip+=q/dist*cos(x*7.)*.55*env;}
+  small+=rip;
   vec3 N=normalize(vWaveNormal+vec3(-small.x,0.,-small.y));
   N=mix(N,normalize(vec3(-small.x,1.,-small.y)),smoothstep(-.1,1.,d));
   float NoV=max(dot(N,V),.001),fresnel=.0204+.9796*pow(1.-NoV,5.);
@@ -199,7 +230,16 @@ export function createWater(sun) {
   vec3 sea=bottom*transmission+waterTint*(1.-transmission);
   float crestTint=smoothstep(.03,.32,worldPosition.y)*(1.-smoothstep(10.,35.,coast));
   sea+=vec3(.005,.038,.027)*crestTint*max(dot(V,-sunDirection),0.);
+  // Light through the swell: a wave's upper part is thin enough for sunlight to come through it green-blue, most
+  // when looking towards the sun (backlit crests), a little from any side.
+  vec2 swell=swellState(p,time);
+  float thin=smoothstep(-.12,.35,swell.x)*smoothstep(0.,6.,coast);
+  float backlit=pow(max(dot(normalize(vec3(-V.x,0.,-V.z)),normalize(vec3(sunDirection.x,0.,sunDirection.z))),0.),3.);
+  sea+=vec3(.03,.3,.23)*thin*thin*(.3+.7*backlit)*(1.-fresnel);
   vec3 color=mix(sea,reflected,clamp(fresnel,0.,.97));
+  // Seen from above the water shows mostly its own colour, so a ripple's slope would hardly show: the faces
+  // tilted towards the eye catch more sky and read lighter, the others darker.
+  color+=vec3(.05,.09,.1)*clamp(dot(rip,normalize(-V.xz+1e-4))*2.5,-1.,1.);
   vec3 H=normalize(V+sunDirection);
   float glitter=pow(max(dot(N,H),0.),420.);
   color+=sunColor*glitter*.85;
@@ -218,6 +258,15 @@ export function createWater(sun) {
   float leading=exp(-pow(edgeDistance/(.08+.10*waterNoise(p*5.)),2.));
   float sheet=(1.-smoothstep(.1,1.9,edgeDistance))*smoothstep(-1.3,.2,d);
   foam=max(foam,leading*(.18+.68*lace)+sheet*lace*.42);
+  // Whitecaps: where the swell's crest is squeezed tightest, in patches (not every crest breaks), with foam left
+  // behind to thin out for a moment (the same squeeze a little earlier, weaker).
+  // Patches are stretched along the crests (the main swell runs towards +z), so a breaking crest reads as a streak.
+  float squeeze=smoothstep(.9,.82,swell.y),earlier=smoothstep(.89,.82,swellState(p,time-.7).y);
+  float patches=smoothstep(.38,.65,waterNoise(vec2(p.x*.05,p.y*.16)+vec2(time*.04,-time*.03)));
+  float capLace=foamLace(p*.8+vec2(0.,time*.15)),far=smoothstep(60.,220.,distanceToEye);
+  float detail=mix(capLace,.5,far);
+  float whitecap=patches*(smoothstep(.15,.5,squeeze*detail)+earlier*smoothstep(.35,.75,detail)*.4)*smoothstep(6.,20.,coast);
+  foam=max(foam,whitecap*.85);
   vec3 foamColor=vec3(.88,.96,.94)*(.80+.24*max(dot(N,sunDirection),0.));
   color=mix(color,foamColor,clamp(foam,0.,.94));
   gl_FragColor=vec4(color,1.);

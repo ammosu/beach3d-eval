@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {groundHeight} from '../terrain.js';
-import {surfaceHeight} from '../water.js';
+import {surfaceHeight,WAKE_RINGS} from '../water.js';
 
 // Foam the rowboat leaves on the water: a wake behind the stern that widens, breaks up and fades, and a foam line
 // round the hull at the water line. The wake is built from stern samples taken while under way (world time, place,
@@ -82,6 +82,9 @@ export function createWake(scene){
    const ox=v.x+n.x*w,oz=v.z+n.z*w,j=RING+i;p[j*3]=ox;p[j*3+1]=surfaceHeight(ox,oz,t)+.02;p[j*3+2]=oz;uv[j*2]=1;uv[j*2+1]=0;f[j]=wet?fade*.6:0;});
   for(const k of ['position','uv','fade'])ring.geometry.attributes[k].needsUpdate=true;
  }
+ // The newest stern samples for the water shader's ripple rings (x, z, time, speed); the rest are switched off.
+ function rings(t,out){let k=0;for(let i=samples.length-1;i>=0&&k<WAKE_RINGS;i--){const s=samples[i];if(s.t>t+1e-6)continue;out[k++].set(s.x,s.z,s.t,s.speed);}
+  for(;k<out.length;k++)out[k].w=0;}
  function reset(){samples.length=0;head.t=-1e9;ring.visible=false;trail.geometry.setIndex([]);}
- return {root,trail,ring,record,update,setHull,hull,reset,RING,get samples(){return samples.length;}};
+ return {root,trail,ring,record,update,setHull,hull,rings,reset,RING,get samples(){return samples.length;}};
 }
