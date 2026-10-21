@@ -1,6 +1,7 @@
 import * as T from 'three';
 import { groundHeight } from './terrain.js';
-import { landHeight, shoreClear } from './coast.js';
+import { surfaceHeight, WADE_RINGS } from './water.js';
+import { landHeight, islandHeight, shoreClear } from './coast.js';
 import { loadProps, propRoot } from './props.js';
 import './explore.css';
 
@@ -20,7 +21,9 @@ export function createExplore({ scene, camera, renderer, config, results, group,
   const shoes=[part(pants,-.15,.07,.045,.9,.25,1.35),part(pants,.15,.07,.045,.9,.25,1.35)];
   const arms=[part(skin,-.34,1.03,0,.65,1,.65),part(skin,.34,1.03,0,.65,1,.65)];
   const legs=[part(pants,-.15,.38,0,.85,1.1,.85),part(pants,.15,.38,0,.85,1.1,.85)];
-  const rings=[], ringGeo=new T.RingGeometry(.25,.29,24);for(let i=0;i<10;i++){const m=new T.Mesh(ringGeo,new T.MeshBasicMaterial({color:0xe5ffff,transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide}));m.rotation.x=-Math.PI/2;m.visible=false;scene.add(m);rings.push({mesh:m,age:2});}
+  // Ripples round the legs in the water: the water shader spreads short waves from these points (x, z, time,
+  // strength), the feet in turn while walking, now and then while standing.
+  const wade=Array.from({length:WADE_RINGS},()=>new T.Vector4());let wadeNext=0,wadeFoot=0,waterMesh=null;
   let driven=false,gameCamera=null,groupChanged=null,movementSpeed=0,moveSpeed=0,moveAccel=0;const moveDir={x:0,z:0};
   let hold=false,active=false,photo=false,first=false,muted=false,yaw=.15,pitch=.08,velocityY=0,grounded=true,phase=0,splashTime=0,ringIndex=0,busy=false,desired=group;
   let colliders=[],currentResults=results, audio, gain;
@@ -29,9 +32,10 @@ export function createExplore({ scene, camera, renderer, config, results, group,
   // camera keep the whole-prop boxes in `colliders`.
   const CELL=.2,RADIUS=.26,blockCache=new WeakMap(),blocked=new Map(),key=(i,j)=>i*65536+j;
   const va=new T.Vector3(),vb=new T.Vector3(),vc=new T.Vector3(),vp=new T.Vector3(),instanceMatrix=new T.Matrix4(),world=new T.Matrix4();
-  function rasterise(marker){const cells=new Map();marker.updateMatrixWorld(true);
+  // keep(matrix): which instances of an InstancedMesh to include (all by default).
+  function rasterise(marker,keep=null){const cells=new Map();marker.updateMatrixWorld(true);
     marker.traverse(o=>{if(!o.isMesh||!o.visible)return;const pos=o.geometry.attributes.position,index=o.geometry.index,count=index?index.count:pos.count;
-      for(let n=0;n<(o.isInstancedMesh?o.count:1);n++){world.copy(o.matrixWorld);if(o.isInstancedMesh){o.getMatrixAt(n,instanceMatrix);world.multiply(instanceMatrix);}
+      for(let n=0;n<(o.isInstancedMesh?o.count:1);n++){world.copy(o.matrixWorld);if(o.isInstancedMesh){o.getMatrixAt(n,instanceMatrix);if(keep&&!keep(instanceMatrix))continue;world.multiply(instanceMatrix);}
         for(let t=0;t<count;t+=3){const ia=index?index.getX(t):t,ib=index?index.getX(t+1):t+1,ic=index?index.getX(t+2):t+2;
           va.fromBufferAttribute(pos,ia).applyMatrix4(world);vb.fromBufferAttribute(pos,ib).applyMatrix4(world);vc.fromBufferAttribute(pos,ic).applyMatrix4(world);
           if(Math.max(va.y,vb.y,vc.y)<-.5||Math.min(va.y,vb.y,vc.y)>4)continue;
@@ -39,7 +43,12 @@ export function createExplore({ scene, camera, renderer, config, results, group,
           for(let u=0;u<=steps;u++)for(let v=0;v<=steps-u;v++){vp.copy(va).multiplyScalar(1-(u+v)/steps).addScaledVector(vb,u/steps).addScaledVector(vc,v/steps);
             const h=vp.y-groundHeight(vp.x,vp.z);if(h<.12||h>1.85)continue;const k=key(Math.floor(vp.x/CELL),Math.floor(vp.z/CELL));cells.set(k,Math.max(cells.get(k)??-Infinity,vp.y));}}}});
     return cells;}
-  function rebuildBlocked(){blocked.clear();for(const marker of propRoot.children){if(!blockCache.has(marker))blockCache.set(marker,rasterise(marker));for(const [k,top] of blockCache.get(marker))blocked.set(k,Math.max(blocked.get(k)??-Infinity,top));}}
+  // The headland's plants, rocks and trunks block the same way, by their real shapes: only instances a walker on the
+  // beach can reach (inside the walk area, rooted at most 1.5 m above the sand), rasterised once.
+  let shoreCells=null;
+  function shoreBlocked(){if(shoreCells)return shoreCells;const plants=scene.getObjectByName('island-vegetation');
+    shoreCells=plants?rasterise(plants,m=>{const x=m.elements[12],z=m.elements[14];return x>33&&x<102&&z<29&&islandHeight(x,z)<groundHeight(x,z)+1.5;}):new Map();return shoreCells;}
+  function rebuildBlocked(){blocked.clear();for(const [k,top] of shoreBlocked())blocked.set(k,top);for(const marker of propRoot.children){if(!blockCache.has(marker))blockCache.set(marker,rasterise(marker));for(const [k,top] of blockCache.get(marker))blocked.set(k,Math.max(blocked.get(k)??-Infinity,top));}}
   // Distance from (x,z) to the nearest blocking cell the player is not standing above.
   function clearance(x,z){let best=Infinity;const r=Math.ceil(RADIUS/CELL)+1,ci=Math.floor(x/CELL),cj=Math.floor(z/CELL);
     for(let i=ci-r;i<=ci+r;i++)for(let j=cj-r;j<=cj+r;j++){const top=blocked.get(key(i,j));if(top===undefined||player.y>top+.05)continue;
@@ -92,7 +101,7 @@ export function createExplore({ scene, camera, renderer, config, results, group,
   drag($('#stick'),(x,y)=>{joyX=T.MathUtils.clamp(x/45,-1,1);joyY=T.MathUtils.clamp(y/45,-1,1);$('#stick i').style.transform=`translate(${joyX*30}px,${joyY*30}px)`;},()=>{joyX=joyY=0;$('#stick i').style.transform='';});
   let lastX=0,lastY=0;drag($('#look'),(x,y)=>{look(x-lastX,y-lastY);lastX=x;lastY=y;},()=>{lastX=lastY=0;});
   // Free space, or a move that gets out of a prop the player is already inside (e.g. after a teleport).
-  function allowed(x,z){if(x< -34||x>100||z>27||groundHeight(x,z)<-.65||x>35&&!shoreClear(x,z,RADIUS))return false;const next=clearance(x,z);return next>=RADIUS||next>clearance(player.x,player.z);}
+  function allowed(x,z){if(x< -34||x>100||z>27||groundHeight(x,z)<-.65||x>35&&!shoreClear(x,z))return false;const next=clearance(x,z);return next>=RADIUS||next>clearance(player.x,player.z);}
   function cameraBlocked(p){for(const c of colliders){const b=c.box;if(p.x>b.min.x-.2&&p.x<b.max.x+.2&&p.y>b.min.y-.2&&p.y<b.max.y+.2&&p.z>b.min.z-.2&&p.z<b.max.z+.2)return true;}return false;}
   function update(dt){dt=Math.min(dt,.05);let dx=0,dz=0;
     if(active&&!photo&&!busy&&!driven){const forward=hold?0:Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'))-joyY,side=hold?0:Number(keys.has('KeyD'))-Number(keys.has('KeyA'))+joyX;yaw+=(Number(keys.has('ArrowLeft'))-Number(keys.has('ArrowRight')))*2.2*dt;const amount=Math.hypot(forward,side),norm=Math.max(1,amount),wet=groundHeight(player.x,player.z)<.02,target=amount>.01?(keys.has('ShiftLeft')||keys.has('ShiftRight')?4.5:1.8)*(wet?.42:1)*Math.min(1,amount):0;
@@ -109,7 +118,7 @@ export function createExplore({ scene, camera, renderer, config, results, group,
       if(dt>0)moveSpeed=Math.min(moveSpeed,Math.hypot(dx,dz)/dt+.05);
       // Walking downhill the ground drops faster than gravity pulls; stay snapped unless a jump launched us.
       const ground=groundHeight(player.x,player.z);if(grounded&&player.y-ground<.3){player.y=ground;velocityY=0;}else{velocityY-=9.8*dt;player.y=Math.max(ground,player.y+velocityY*dt);if(player.y===ground){velocityY=0;grounded=true;}else grounded=false;}
-      const moving=Math.hypot(dx,dz);phase+=moving*5;if(moving>.001){avatar.rotation.y=Math.atan2(dx,dz);if(wet&&(splashTime-=dt)<=0){const r=rings[ringIndex++%rings.length];r.age=0;r.mesh.position.set(player.x,.09,player.z);r.mesh.visible=true;splashTime=.22;}}
+      const moving=Math.hypot(dx,dz);phase+=moving*5;if(moving>.001){avatar.rotation.y=Math.atan2(dx,dz);}
       const swing=moving>.001?Math.sin(phase)*.55:0;const blend=1-Math.exp(-18*dt);arms[0].rotation.x=legs[1].rotation.x=T.MathUtils.lerp(arms[0].rotation.x,swing,blend);arms[1].rotation.x=legs[0].rotation.x=-arms[0].rotation.x;
     }
     movementSpeed=dt>0?Math.hypot(dx,dz)/dt:movementSpeed;
@@ -120,7 +129,11 @@ export function createExplore({ scene, camera, renderer, config, results, group,
       camera.position.y=Math.max(camera.position.y,landHeight(camera.position.x,camera.position.z)+.3);camera.lookAt(target);if(gameCamera&&!first)gameCamera.update(dt,player,yaw,pitch);
       let nearest=null,best=4;for(const c of colliders){const d=Math.hypot(Math.max(c.box.min.x-player.x,0,player.x-c.box.max.x),Math.max(c.box.min.z-player.z,0,player.z-c.box.max.z));if(d<best){best=d;nearest=c;}}
       if(nearest!==lastPoi||group!==lastPoiGroup){lastPoi=nearest;lastPoiGroup=group;poi.textContent=nearest?`${nearest.id} · ${labels[group]}${group==='A'?' · code-generated':` · ${nearest.slot.paths[group].split('/').at(-1)}`}`:'';poi.hidden=!nearest;}
-      for(const r of rings){if(r.age<1){r.age+=dt;r.mesh.scale.setScalar(1+r.age*3);r.mesh.material.opacity=(1-r.age)*.45;}else r.mesh.visible=false;}
+      waterMesh??=scene.getObjectByName('lagoon-water');
+      if(waterMesh?.material.uniforms.wadeRings){const t=waterMesh.material.uniforms.time.value,deep=surfaceHeight(player.x,player.z,t)-groundHeight(player.x,player.z);
+        if(deep>.03&&dt>0&&(splashTime-=dt)<=0){const pace=Math.hypot(moveDir.x,moveDir.z)*movementSpeed,side=wadeFoot++%2?.11:-.11,c=Math.cos(avatar.rotation.y),sn=Math.sin(avatar.rotation.y);
+          wade[wadeNext++%wade.length].set(player.x+c*side,player.z-sn*side,t,Math.min(1,deep*5)*(pace>.2?.55+.2*Math.min(pace,2.5):.3));splashTime=pace>.2?.3:1.1;}
+        for(const r of wade)if(t-r.z>2.4||r.z>t+1e-6)r.w=0;waterMesh.material.uniforms.wadeRings.value.forEach((u,i)=>u.copy(wade[i]));}
     }
   }
   camera.position.set(player.x+1,player.y+3,player.z+5);update(0);

@@ -129,7 +129,7 @@ function foliageMaterial(){
 
 // Plant islands into shared instanced meshes: plant() once per island, then finish().
 export function createVegetation(group){
- const lists={crownNear:[],crownFar:[],shrub:[],palm:[],trunk:[],boulder:[],plant:[]},obstacles=[];
+ const lists={crownNear:[],crownFar:[],shrub:[],palm:[],trunk:[],boulder:[],plant:[]};
  // shape(x,z): the island's height at local (x, z); rock(x,z,y): bare rock there; detail 'near' or 'far'.
  function plant({cx,cz,rx,rz,shape,rock,seed,detail,counts}){
   const r=rng(seed),o=new THREE.Object3D(),color=new THREE.Color();
@@ -152,13 +152,13 @@ export function createVegetation(group){
   // Coconut palms: many along the shore, leaning downhill towards the water, and scattered up the slopes standing
   // out of the canopy.
   for(let i=0;i<counts.palm;i++){const p=pick((x,z,y)=>{const e=(x/rx)**2+(z/rz)**2;return i%3===0?y>4&&slope(x,z)<1.3:y>.6&&y<8&&e>.5&&slope(x,z)<1.4;});if(!p)continue;const [x,z,y]=p,shore=i%3!==0;
-   obstacles.push([cx+x,cz+z,.3]);put(lists.palm,(o,c)=>{const h=shore?7+r()*5:12+r()*6;o.position.set(cx+x,y-.3,cz+z);o.scale.setScalar(h);
+   put(lists.palm,(o,c)=>{const h=shore?7+r()*5:12+r()*6;o.position.set(cx+x,y-.3,cz+z);o.scale.setScalar(h);
     // The trunk bends towards local +x: turn that downhill, then lean a little more that way (more on the shore).
     o.rotation.set(0,0,0);o.rotateY(downhill(x,z)+(r()-.5)*.6);o.rotateZ(-(shore?.08+r()*.22:r()*.08));const k=.95+r()*.3;c.setRGB(k,k,k*.92);});}
   // Boulders scattered along the water line (inside the island's outline: outside it the height is flat, buried
   // under the beach or out at sea), some half in the water: weed round the foot, some green all over.
   for(let i=0;i<(counts.boulder||0);i++){const p=pick((x,z,y)=>y>-.6&&y<1.6&&(x/rx)**2+(z/rz)**2<.99);if(!p)continue;const [x,z,y]=p;
-   put(lists.boulder,(o,c)=>{const s=.5+r()**2*2.2,sx=s*(1+r()*.5),sy=s*(.6+r()*.5),sz=s*(1+r()*.4);obstacles.push([cx+x,cz+z,Math.max(sx,sz)*.9]);o.position.set(cx+x,y-s*.15,cz+z);o.scale.set(sx,sy,sz);o.rotation.set((r()-.5)*.3,r()*6.3,(r()-.5)*.3);const k=.8+r()*.4;if(r()<.25)c.setRGB(k*.85,k*1.02,k*.75);else c.setRGB(k,k,k);});}
+   put(lists.boulder,(o,c)=>{const s=.5+r()**2*2.2,sx=s*(1+r()*.5),sy=s*(.6+r()*.5),sz=s*(1+r()*.4);o.position.set(cx+x,y-s*.15,cz+z);o.scale.set(sx,sy,sz);o.rotation.set((r()-.5)*.3,r()*6.3,(r()-.5)*.3);const k=.8+r()*.4;if(r()<.25)c.setRGB(k*.85,k*1.02,k*.75);else c.setRGB(k,k,k);});}
   // Leafy ground plants: a thick fringe along the forest edge spilling onto the sand, and some in the gaps under
   // the canopy and between the rocks.
   for(let i=0;i<(counts.plant||0);i++){const p=pick((x,z,y)=>i%4===0?y>2&&y<12&&slope(x,z)<1.5:y>.15&&y<3.2&&slope(x,z)<1.6);if(!p)continue;const [x,z,y]=p;
@@ -173,6 +173,5 @@ export function createVegetation(group){
    for(const m of meshes){m.instanceMatrix.needsUpdate=true;if(m.instanceColor)m.instanceColor.needsUpdate=true;m.computeBoundingSphere();}}
   return Object.fromEntries(Object.entries(lists).map(([k,v])=>[k,v.length]));
  }
- // Palm trunks and boulders as circles [x, z, radius], for walkers along the shore (src/coast.js landHeight()).
- return {plant,finish,obstacles};
+ return {plant,finish};
 }

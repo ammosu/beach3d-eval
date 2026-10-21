@@ -2,21 +2,16 @@ import * as THREE from 'three';
 import { shore, groundHeight } from './terrain.js';
 import { createVegetation, haze } from './vegetation.js';
 // Shared landscape details, deliberately outside the experimental prop root.
-// The islands' heights (local shape per island) and their palm trunks and boulders, filled by addCoastDetails(), so
-// walkers can reach the headland's forest edge along the sand without walking into the hill.
-const islands=[],obstacles=[];
+// The islands' heights (local shape per island), filled by addCoastDetails(), so walkers can reach the headland's
+// forest edge along the sand without walking into the hill (its plants, rocks and trunks block in src/explore.js).
+const islands=[];
 export const islandHeight=(x,z)=>{let y=-Infinity;for(const i of islands){const lx=x-i.cx,lz=z-i.cz;if((lx/i.rx)**2+(lz/i.rz)**2<1)y=Math.max(y,i.shape(lx,lz));}return y;};
 // The ground a walker or camera stands on: the beach or, where it rises out of the sand, an island.
 export const landHeight=(x,z)=>Math.max(groundHeight(x,z),islandHeight(x,z));
-// Can a walker stand here? Not where the island rises more than 15 cm out of the sand (the forest edge) or on a palm
-// trunk or boulder (radius: the walker's).
-export function shoreClear(x,z,radius){
- if(islandHeight(x,z)>groundHeight(x,z)+.15)return false;
- for(const [ox,oz,r] of obstacles)if((x-ox)**2+(z-oz)**2<(r+radius)**2)return false;
- return true;
-}
+// Can a walker stand here? Not where the island rises more than 15 cm out of the sand (the forest edge).
+export const shoreClear=(x,z)=>islandHeight(x,z)<=groundHeight(x,z)+.15;
 export function addCoastDetails(scene) {
- islands.length=obstacles.length=0;
+ islands.length=0;
  let seed=7921;
  const rand=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296;};
  const land=new THREE.Group();land.name='shared-coastal-landforms';scene.add(land);
@@ -47,8 +42,6 @@ export function addCoastDetails(scene) {
  const vegetation=createVegetation(plants);
  for(const [cx,cz,rx,rz,h,detail,counts,seed] of list){const {shape,rock}=hill(cx,cz,rx,rz,h);islands.push({cx,cz,rx,rz,shape});vegetation.plant({cx,cz,rx,rz,shape,rock,seed,detail,counts});}
  vegetation.finish();
- // Only the trunks and boulders a walker on the sand can reach.
- obstacles.push(...vegetation.obstacles.filter(([x,z,r])=>z>-60&&islandHeight(x,z)<groundHeight(x,z)+.15+r));
  const debris=new THREE.Group();debris.name='shared-tide-debris';scene.add(debris);
  const geometries=[new THREE.SphereGeometry(1,7,4),new THREE.IcosahedronGeometry(1,0),new THREE.TorusGeometry(1,.12,4,7,3.5)];
  const materials=[new THREE.MeshStandardMaterial({color:0xeee1c8}),new THREE.MeshStandardMaterial({color:0x6e7167}),new THREE.MeshStandardMaterial({color:0x494333})];

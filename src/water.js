@@ -98,7 +98,7 @@ vec2 swellState(vec2 p,float t){
 }
 `;
 
-export const WAKE_RINGS=24;
+export const WAKE_RINGS=24,WADE_RINGS=10;
 const grid={xs:null,ds:null};
 function waterGeometry() {
  // Preserve the terrain entirely. Only the water mesh follows the coast, with
@@ -129,6 +129,13 @@ export function createWater(sun) {
  // boat speed; 0 switches it off). A ring of small waves spreads from each; together they draw the V behind the boat (a kinematic wake:
  // circles emitted along the path). Shading only: the surface itself does not move.
  water.material.uniforms.wakeRings={value:Array.from({length:WAKE_RINGS},()=>new THREE.Vector4())};
+ // Ripples round a walker's legs in the water (set by src/explore.js): x, z, time, strength (0 switches it off).
+ // Short waves (about 35 cm) that run out at walking pace and die within a couple of seconds. Shading only.
+ water.material.uniforms.wadeRings={value:Array.from({length:WADE_RINGS},()=>new THREE.Vector4())};
+ // Shallow water is see-through: the real sand and whatever stands in it (legs, the ball, a hull) show under it,
+ // tinted by the water and fading out by about 1.6 m deep. Premultiplied: the shader writes the water's own light
+ // and how much of what lies under it still comes through.
+ water.material.transparent=true;water.material.premultipliedAlpha=true;water.material.depthWrite=true;
  water.material.vertexShader=`
  uniform mat4 textureMatrix;uniform float time;
  varying vec4 mirrorCoord;varying vec4 worldPosition;
@@ -156,7 +163,7 @@ export function createWater(sun) {
  }`;
  water.material.fragmentShader=`
  uniform mat4 textureMatrix;uniform sampler2D mirrorSampler;uniform float time;uniform vec3 eye;uniform vec3 sunDirection;uniform vec3 sunColor;
- uniform vec4 wakeRings[${WAKE_RINGS}];
+ uniform vec4 wakeRings[${WAKE_RINGS}];uniform vec4 wadeRings[${WADE_RINGS}];
  varying vec4 mirrorCoord;varying vec4 worldPosition;varying vec3 vWaveNormal;varying vec2 vWaterRest;
  #include <common>
  #include <fog_pars_fragment>
@@ -191,10 +198,15 @@ export function createWater(sun) {
   vec2 small=fineSlope(worldPosition.xz,distanceToEye)*mix(.25,1.,smoothstep(-1.,6.,coast));
   // Wake ripples: crests about 0.9 m apart; each ring runs out at a third of the boat's speed, so the rings
   // together keep the Kelvin wake's ~19.5° V at any speed. Weaker as they spread and age.
-  vec2 rip=vec2(0.);
+  vec2 rip=vec2(0.);float wadeFoam=0.;
   for(int i=0;i<${WAKE_RINGS};i++){vec4 r=wakeRings[i];if(r.w<=.3)continue;vec2 q=worldPosition.xz-r.xy;float dist=length(q),age=time-r.z;
    float x=dist-min(.34*r.w,3.)*age;if(age<0.||abs(x)>2.||dist<.01)continue;
    float env=clamp((r.w-.3)/2.5,0.,1.)*exp(-x*x*1.4)*exp(-age*.35)/(1.+.12*dist);rip+=q/dist*cos(x*7.)*.55*env;}
+  for(int i=0;i<${WADE_RINGS};i++){vec4 r=wadeRings[i];if(r.w<=0.)continue;vec2 q=worldPosition.xz-r.xy;float dist=length(q),age=time-r.z;
+   float x=dist-.12-.42*age;if(age<0.||age>2.4||abs(x)>.5||dist<.01)continue;
+   float env=r.w*exp(-x*x*16.)*exp(-age*1.1)/(1.+1.5*dist);rip+=q/dist*sin(x*18.)*.6*env;
+   // A broken ring of foam pushed out by the leg, gone within a second.
+   wadeFoam=max(wadeFoam,r.w*exp(-x*x*110.)*exp(-age*2.6)*smoothstep(.25,.55,waterNoise(worldPosition.xz*9.+r.z*7.)));}
   small+=rip;
   vec3 N=normalize(vWaveNormal+vec3(-small.x,0.,-small.y));
   N=mix(N,normalize(vec3(-small.x,1.,-small.y)),smoothstep(-.1,1.,d));
@@ -227,7 +239,9 @@ export function createWater(sun) {
   bottom*=1.+caustic*.14*exp(-depth*.55);
   vec3 transmission=exp(-vec3(.85,.24,.16)*path);
   vec3 waterTint=mix(vec3(.008,.44,.50),vec3(.006,.075,.14),1.-exp(-depth*.055));
-  vec3 sea=bottom*transmission+waterTint*(1.-transmission);
+  vec3 sea=bottom*transmission+waterTint*(1.-transmission),sea0=sea;
+  // The same water over the real bottom: its own light only (the caustics added on), the bottom left to the blend.
+  vec3 seaClear=waterTint*(1.-transmission)+vec3(.62,.53,.39)*caustic*.14*exp(-depth*.55)*transmission;
   float crestTint=smoothstep(.03,.32,worldPosition.y)*(1.-smoothstep(10.,35.,coast));
   sea+=vec3(.005,.038,.027)*crestTint*max(dot(V,-sunDirection),0.);
   // Light through the swell: a wave's upper part is thin enough for sunlight to come through it green-blue, most
@@ -236,13 +250,14 @@ export function createWater(sun) {
   float thin=smoothstep(-.12,.35,swell.x)*smoothstep(0.,6.,coast);
   float backlit=pow(max(dot(normalize(vec3(-V.x,0.,-V.z)),normalize(vec3(sunDirection.x,0.,sunDirection.z))),0.),3.);
   sea+=vec3(.03,.3,.23)*thin*thin*(.3+.7*backlit)*(1.-fresnel);
-  vec3 color=mix(sea,reflected,clamp(fresnel,0.,.97));
+  seaClear+=sea-sea0;float Fc=clamp(fresnel,0.,.97);
+  vec3 color=mix(sea,reflected,Fc),colorClear=mix(seaClear,reflected,Fc);
   // Seen from above the water shows mostly its own colour, so a ripple's slope would hardly show: the faces
   // tilted towards the eye catch more sky and read lighter, the others darker.
-  color+=vec3(.05,.09,.1)*clamp(dot(rip,normalize(-V.xz+1e-4))*2.5,-1.,1.);
+  vec3 lit=vec3(.05,.09,.1)*clamp(dot(rip,normalize(-V.xz+1e-4))*2.5,-1.,1.);
   vec3 H=normalize(V+sunDirection);
   float glitter=pow(max(dot(N,H),0.),420.);
-  color+=sunColor*glitter*.85;
+  lit+=sunColor*glitter*.85;color+=lit;colorClear+=lit;
   // A broken leading crest and a lace-like aerated wake, only in shallow water.
   float phase=surfPhase(p,time);
   float behind=mod(phase-1.10+6.283185,6.283185);
@@ -266,10 +281,11 @@ export function createWater(sun) {
   float capLace=foamLace(p*.8+vec2(0.,time*.15)),far=smoothstep(60.,220.,distanceToEye);
   float detail=mix(capLace,.5,far);
   float whitecap=patches*(smoothstep(.15,.5,squeeze*detail)+earlier*smoothstep(.35,.75,detail)*.4)*smoothstep(6.,20.,coast);
-  foam=max(foam,whitecap*.85);
+  foam=max(foam,whitecap*.85);foam=max(foam,wadeFoam*.9);
   vec3 foamColor=vec3(.88,.96,.94)*(.80+.24*max(dot(N,sunDirection),0.));
-  color=mix(color,foamColor,clamp(foam,0.,.94));
-  gl_FragColor=vec4(color,1.);
+  float fm=clamp(foam,0.,.94);color=mix(color,foamColor,fm);colorClear=mix(colorClear,foamColor,fm);
+  float clear=1.-smoothstep(.3,1.6,depth),through=.85*clear*dot(transmission,vec3(.2,.4,.4))*(1.-Fc)*(1.-fm);
+  gl_FragColor=vec4(mix(color,colorClear,.85*clear),1.-through);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
   #include <fog_fragment>
