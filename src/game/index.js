@@ -10,6 +10,7 @@ import {createGameCamera,MIN_BOOM} from './camera.js';
 import {MeshBVH,acceleratedRaycast} from 'three-mesh-bvh';
 import {createTidePool,createLagoon} from './lagoon.js';
 import {createSea,SEA} from './sea.js';
+import {createSplash} from './splash.js';
 import '../game.css';
 
 export async function createGame({scene,camera,renderer,water,config,explore:e,auto}) {
@@ -36,7 +37,8 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  const vessel=new T.Group();vessel.name='game-rowboat';scene.add(vessel);vessel.visible=false;
  // Double-bladed paddle along its local x. One stroke phase drives it, both hands, the torso and the boat's thrust.
  const oar=new T.Group(),oarMat=new T.MeshStandardMaterial({color:0xc7a075});const shaft=new T.Mesh(new T.CylinderGeometry(.03,.03,2.6,6),oarMat);shaft.rotation.z=Math.PI/2;oar.add(shaft);for(const x of [-1.22,1.22]){const blade=new T.Mesh(new T.BoxGeometry(.42,.19,.025),oarMat);blade.position.x=x;oar.add(blade);}oar.rotation.order='YZX';vessel.add(oar);
- const row={phase:0,amount:0,dip:.6,hands:[new T.Vector3(),new T.Vector3()],feet:[new T.Vector3(),new T.Vector3()],aim:[0,1].map(()=>({dir:new T.Vector3(),palm:new T.Vector3()})),axis:new T.Vector3(),p:new T.Vector3(),dir:new T.Vector3(),palm:new T.Vector3(),twist:0,lean:0,floorY:0};
+ const splash=createSplash(scene),blade=new T.Vector3(),splashWave={};
+ const row={wet:[false,false],spray:0,phase:0,amount:0,dip:.6,hands:[new T.Vector3(),new T.Vector3()],feet:[new T.Vector3(),new T.Vector3()],aim:[0,1].map(()=>({dir:new T.Vector3(),palm:new T.Vector3()})),axis:new T.Vector3(),p:new T.Vector3(),dir:new T.Vector3(),palm:new T.Vector3(),twist:0,lean:0,floorY:0};
  let boatModel=null,hiddenBoat=null,fallbackModel=null;
  const followCamera=createGameCamera(camera,propRoot);e.setCameraController(followCamera);
  for(const child of e.avatar.children)child.visible=false;
@@ -325,7 +327,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
     for(let z=hull.min.z+.02;z<hull.max.z;z+=.05){const o=new T.Vector3(cx,y,z);const side=d=>{probe.set(o,new T.Vector3(d,0,0));probe.far=hull.max.x-hull.min.x;return probe.intersectObject(boatModel,true)[0]?.distance;};
      const l=side(-1),r=side(1);if(l==null||r==null||l>(hull.max.x-hull.min.x)*.7||r>(hull.max.x-hull.min.x)*.7)continue;left.push([cx-l,z]);right.push([cx+r,z]);}
     if(left.length>2){const shape=new T.Shape([...left,...right.reverse()].map(([x,z])=>new T.Vector2(x,-z)));const g=new T.ShapeGeometry(shape).rotateX(-Math.PI/2).translate(0,y,0);
-     boat.mask=new T.Mesh(g,new T.MeshBasicMaterial({colorWrite:false,side:T.DoubleSide}));boat.mask.renderOrder=1;boat.mask.name='hull-water-mask';vessel.add(boat.mask);water.renderOrder=2;}}row.dip=Math.asin(T.MathUtils.clamp((boatSeat.point.y+.48+.1)/1.22,.3,.55));}vessel.position.copy(oldPosition);vessel.quaternion.copy(oldRotation);vessel.updateMatrixWorld(true);
+     boat.mask=new T.Mesh(g,new T.MeshBasicMaterial({colorWrite:false,side:T.DoubleSide}));boat.mask.renderOrder=1;boat.mask.name='hull-water-mask';vessel.add(boat.mask);water.renderOrder=2;}}row.dip=Math.asin(T.MathUtils.clamp((boatSeat.point.y+.46+.14)/1.22,.3,.95));}vessel.position.copy(oldPosition);vessel.quaternion.copy(oldRotation);vessel.updateMatrixWorld(true);
   if(mode==='boat'&&source){source.visible=false;hiddenBoat=source;}
  }
  syncAnchors();
@@ -396,7 +398,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  }
  addEventListener('keydown',event=>{if(event.code==='KeyE'&&!event.repeat){event.preventDefault();interact();}});$('#interact').onclick=interact;$('#game-audio').onclick=()=>e.mute();
  function complete(){camera.position.fromArray(config.cameras.wide.pos);target.fromArray(config.cameras.wide.target);camera.lookAt(target);completed=true;running=false;e.setDriven(true);e.clearInput();document.exitPointerLock?.();$('#start').hidden=true;$('#complete').hidden=false;document.body.classList.add('game-complete');$('#finish-time').textContent=`這次的海邊時光　${formatTime(elapsed)}`;$('#finish-bonus').textContent=state.footprints?'還留下了一串會消失的腳印。':'下次來，試著在沙灘上留一串腳印。';$('#replay').focus();}
- function reset(){if(pickup){pickup=null;e.setHold(false);}if(hiddenBoat)hiddenBoat.visible=true;hiddenBoat=null;vessel.visible=false;mode='walk';completed=false;running=false;elapsed=0;boatSpeed=0;footDistance=0;for(const key of Object.keys(state))state[key]=['shells','footprints','spotted','observed'].includes(key)?0:false;lagoon.reset();sea.reset();objects.reset();ball.reset();e.player.set(-7,groundHeight(-7,12),12);lastPlayer.copy(e.player);e.avatar.rotation.set(0,0,0);seated(false);e.setDriven(false);e.setView(.15);e.clearInput();$('#complete').hidden=true;document.body.classList.remove('game-complete');lastHud='';$('#footnote').textContent='額外的小紀念：在沙上留下腳印';e.start();begin();fade();}
+ function reset(){if(pickup){pickup=null;e.setHold(false);}if(hiddenBoat)hiddenBoat.visible=true;hiddenBoat=null;vessel.visible=false;mode='walk';completed=false;running=false;elapsed=0;boatSpeed=0;footDistance=0;for(const key of Object.keys(state))state[key]=['shells','footprints','spotted','observed'].includes(key)?0:false;lagoon.reset();sea.reset();splash.reset();objects.reset();ball.reset();e.player.set(-7,groundHeight(-7,12),12);lastPlayer.copy(e.player);e.avatar.rotation.set(0,0,0);seated(false);e.setDriven(false);e.setView(.15);e.clearInput();$('#complete').hidden=true;document.body.classList.remove('game-complete');lastHud='';$('#footnote').textContent='額外的小紀念：在沙上留下腳印';e.start();begin();fade();}
  $('#replay').onclick=reset;
  document.addEventListener('pointerlockchange',()=>{if(completed||mode==='tidepool'||lagoon.isOpen)$('#start').hidden=true;});
  // Kayak stroke: over one cycle each blade enters forward of the hip, pulls back and lifts out (phase 0..π: +x blade).
@@ -440,12 +442,17 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   vessel.position.y=(bow+stern+port+starboard)/4;vessel.rotation.set(T.MathUtils.clamp(Math.atan2(bow-stern,hh.len),-tilt,tilt),boatYaw,T.MathUtils.clamp(Math.atan2(starboard-port,hh.beam),-tilt,tilt),'YXZ');
   vessel.updateMatrixWorld(true);e.player.copy(boatSeat.point).applyMatrix4(vessel.matrixWorld);e.avatar.position.copy(e.player);e.avatar.rotation.set(vessel.rotation.x,boatYaw+Math.PI,vessel.rotation.z,'YXZ');
   rowPaddle(dt,t,f);
+  // Splashes: a blade cutting into the water and lifting out of it, and spray off both sides of the bow under way.
+  for(let i=0;i<2;i++){blade.copy(oar.children[i+1].position).applyMatrix4(oar.matrix).applyMatrix4(vessel.matrixWorld);const h=sampleWater(blade.x,blade.z,t,splashWave).height,wet=blade.y<h-.02;
+   if(wet!==row.wet[i]&&dt>0)splash.emit(t,blade.x,h,blade.z,wet?.3+.2*row.amount:.14+.1*row.amount);row.wet[i]=wet;}
+  if(boatSpeed>1.2&&(row.spray-=dt)<=0){row.spray=.1;const hh=boat.hull??{x:0,z:0,len:3,beam:1.2},size=Math.min(.25,.03+.04*boatSpeed);
+   for(const k of [-1,1]){blade.set(hh.x+k*hh.beam*.3,0,hh.z-hh.len*.42).applyMatrix4(vessel.matrixWorld);const out=new T.Vector3(k,0,-.6).normalize().transformDirection(vessel.matrixWorld);splash.emit(t,blade.x,sampleWater(blade.x,blade.z,t,splashWave).height,blade.z,size,out.x,out.z,.5);}}
   const dist=Math.hypot(vessel.position.x-island.x,vessel.position.z-island.z);if(!state.island&&dist<11){state.island=true;objects.burst(vessel.position.x,vessel.position.y+1,vessel.position.z,t);e.sfx('pickup');toast('抵達浮標！等海洋生物浮出水面，按 E 觀察。');}
   camGoal.set(vessel.position.x+Math.sin(boatYaw)*9,vessel.position.y+4.8,vessel.position.z+Math.cos(boatYaw)*9);camLook.set(vessel.position.x-Math.sin(boatYaw)*7,1,vessel.position.z-Math.cos(boatYaw)*7);
  }
  function update(dt,t){
   if(lagoon.isOpen){document.body.classList.remove('game-paused');return;}
-  sea.update(t);
+  sea.update(t);splash.update(t);
   if(e.group!==currentGroup&&!e.busy){currentGroup=e.group;if(mode==='rest')e.player.copy(restPoint());else if(mode==='tower')e.player.copy(anchors.lifeguard.surface.point);}
   document.body.classList.toggle('game-paused',running&&!e.active&&!completed&&mode!=='tidepool');
   const active=running&&e.active&&!e.busy&&!completed,simDt=active?dt:0;
