@@ -249,8 +249,9 @@ export async function createCharacter(group='A'){
   if(!dt&&posed&&!animation)return;posed=true;
   age+=dt;actionAge+=dt;oneAge+=dt;if(oneAge>.85)oneShot='';
   // While moving, locomotion wins: a pickup only layers its arm reach on top, a kick is skipped.
-  // Speed eases between walk and run; from 2.9 to 4.3 m/s both cycles play, weighted, on one shared stride phase.
-  pace=dt?T.MathUtils.damp(pace,speed,4,dt):speed;const blendRun=T.MathUtils.smoothstep(pace,2.9,4.3);
+  // Speed eases between walk and run (the body itself speeds up and slows down over a few strides, src/explore.js);
+  // from 2.9 to 4.3 m/s both cycles play, weighted, on one shared stride phase.
+  pace=dt?T.MathUtils.damp(pace,speed,10,dt):speed;const blendRun=T.MathUtils.smoothstep(pace,2.9,4.3);
   const gait=speed>.12?(blendRun>.5?'run':'walk'):'idle',layered=gait!=='idle'&&oneShot==='interact'&&!animation;
   const selected=animation??(pose==='climb'?'climb':pose==='paddle'?'paddle':pose==='lie'?'lie':pose==='sit'||pose==='sand'?'sit':airborne?'jump':gait!=='idle'?gait:oneShot||gait);
   // Stopping: crossfading walk into idle would slide the planted feet across the sand. Pin them where they are and
@@ -313,7 +314,7 @@ export async function createCharacter(group='A'){
   opacity=T.MathUtils.damp(opacity,fade,12,dt);for(const m of materials){m.mat.opacity=m.opacity*opacity;m.mat.transparent=m.transparent||opacity<.995;m.mat.depthWrite=m.depthWrite&&opacity>.5;}
   root.updateMatrixWorld(true);
  }
- function info(){return {group,source:CHARACTER_SOURCES[source],fallback,triangles,clips:clips.map(c=>c.name),animation:active,actionTime:actionAge,skinnedMeshes:meshes.filter(m=>m.isSkinnedMesh).length,bones:allBones.length,height:1.75,headHidden:rig.head?.scale.x<.01,poseSample:rig.thigh.map(b=>b?.quaternion.toArray()),clipTime:actions.get(active)?.time??null,footSep:rig.foot?.[0]&&rig.foot?.[1]?rig.foot[0].getWorldPosition(V()).distanceTo(rig.foot[1].getWorldPosition(V())):null,calfSep:rig.calf?.[0]&&rig.calf?.[1]?rig.calf[0].getWorldPosition(V()).distanceTo(rig.calf[1].getWorldPosition(V())):null,nativeSpeed,ik:{hands:[...error.hands],feet:[...error.feet]},side,timeScale:actions.get(active)?.getEffectiveTimeScale()??null};}
+ function info(){return {pace,blendRun:T.MathUtils.smoothstep(pace,2.9,4.3),group,source:CHARACTER_SOURCES[source],fallback,triangles,clips:clips.map(c=>c.name),animation:active,actionTime:actionAge,skinnedMeshes:meshes.filter(m=>m.isSkinnedMesh).length,bones:allBones.length,height:1.75,headHidden:rig.head?.scale.x<.01,poseSample:rig.thigh.map(b=>b?.quaternion.toArray()),clipTime:actions.get(active)?.time??null,footSep:rig.foot?.[0]&&rig.foot?.[1]?rig.foot[0].getWorldPosition(V()).distanceTo(rig.foot[1].getWorldPosition(V())):null,calfSep:rig.calf?.[0]&&rig.calf?.[1]?rig.calf[0].getWorldPosition(V()).distanceTo(rig.calf[1].getWorldPosition(V())):null,nativeSpeed,ik:{hands:[...error.hands],feet:[...error.feet]},side,timeScale:actions.get(active)?.getEffectiveTimeScale()??null};}
  function footWorld(i,out=V()){return rig.foot?.[i]?rig.foot[i].getWorldPosition(out):null;}
  function palm(i,out=V()){const h=rig.hand[i];if(!h)return head(out);h.getWorldPosition(out);return grip[i]?out.lerp(grip[i].bone.getWorldPosition(A1),.75):out;}
  function head(out=headWorld){return rig.head?rig.head.getWorldPosition(out):out.copy(root.position).add(V(0,1.6,0));}

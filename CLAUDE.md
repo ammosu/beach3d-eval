@@ -113,7 +113,7 @@ There is no lint or unit-test setup. Verification means running the Playwright s
     3. Otherwise (B): the widest railing opening with standing room, or a railed stretch to climb over (found with vertical probes). The game draws a ladder there.
     Mantling over a railing ducks under a low roof.
   - C's shin end bone does not follow its clips. An `ankle-mark` helper on each shin tracks the animated `Foot.*` bone and serves as the leg IK effector.
-  - Walk and run blend between 2.9 and 4.3 m/s on one shared stride phase, aligned at foot plants. Speed eases in, so Shift does not pop.
+  - Walk and run blend between 2.9 and 4.3 m/s on one shared stride phase, aligned at foot plants. The body's speed itself changes at a limited rate (`src/explore.js`, game and explore alike): about 0.3 s to start or stop walking, ~0.8 s from a walk up to a run or back down (a few shortening strides), ~1 s to stop from a run; with no input the last direction carries it to a stop; setHold/setDriven/clearInput stop it at once. The blend follows that speed closely (pace damping 10), and the game leans the upper body into the change (`e.accel`, ±0.1 rad via `spine.lean`). `verify-game` waits 0.9 s for the run.
   - `node scripts/probe-ik.mjs <boat|shell|tower|walk> [groups]` saves close-up stills to `shots/ik/` and logs IK errors.
 - **Tide pool and open sea (game quests 5 and 6).**
   - Rock pool on the beach → `tidepool.html?group=<g>&embedded=1` (`src/tidepool/`) in a full-screen iframe overlay (`src/game/lagoon.js`). Gameplay: lift stones, observe 6 intertidal species. The parent polls `__TIDEPOOL__.found`.

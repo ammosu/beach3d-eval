@@ -20,7 +20,7 @@ export function createExplore({ scene, camera, renderer, config, results, group,
   const arms=[part(skin,-.34,1.03,0,.65,1,.65),part(skin,.34,1.03,0,.65,1,.65)];
   const legs=[part(pants,-.15,.38,0,.85,1.1,.85),part(pants,.15,.38,0,.85,1.1,.85)];
   const rings=[], ringGeo=new T.RingGeometry(.25,.29,24);for(let i=0;i<10;i++){const m=new T.Mesh(ringGeo,new T.MeshBasicMaterial({color:0xe5ffff,transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide}));m.rotation.x=-Math.PI/2;m.visible=false;scene.add(m);rings.push({mesh:m,age:2});}
-  let driven=false,gameCamera=null,groupChanged=null,movementSpeed=0;
+  let driven=false,gameCamera=null,groupChanged=null,movementSpeed=0,moveSpeed=0,moveAccel=0;const moveDir={x:0,z:0};
   let hold=false,active=false,photo=false,first=false,muted=false,yaw=.15,pitch=.08,velocityY=0,grounded=true,phase=0,splashTime=0,ringIndex=0,busy=false,desired=group;
   let colliders=[],currentResults=results, audio, gain;
   // Player blocking uses the props' real geometry within body height (0.12–1.85 m above the sand), rasterised into
@@ -94,8 +94,18 @@ export function createExplore({ scene, camera, renderer, config, results, group,
   function allowed(x,z){if(x< -34||x>35||z>27||groundHeight(x,z)<-.65)return false;const next=clearance(x,z);return next>=RADIUS||next>clearance(player.x,player.z);}
   function cameraBlocked(p){for(const c of colliders){const b=c.box;if(p.x>b.min.x-.2&&p.x<b.max.x+.2&&p.y>b.min.y-.2&&p.y<b.max.y+.2&&p.z>b.min.z-.2&&p.z<b.max.z+.2)return true;}return false;}
   function update(dt){dt=Math.min(dt,.05);let dx=0,dz=0;
-    if(active&&!photo&&!busy&&!driven){const forward=hold?0:Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'))-joyY,side=hold?0:Number(keys.has('KeyD'))-Number(keys.has('KeyA'))+joyX;yaw+=(Number(keys.has('ArrowLeft'))-Number(keys.has('ArrowRight')))*2.2*dt;const norm=Math.max(1,Math.hypot(forward,side)),wet=groundHeight(player.x,player.z)<.02,speed=(keys.has('ShiftLeft')||keys.has('ShiftRight')?4.5:1.8)*(wet?.42:1);dx=(side*Math.cos(yaw)-forward*Math.sin(yaw))/norm*speed*dt;dz=(-forward*Math.cos(yaw)-side*Math.sin(yaw))/norm*speed*dt;
+    if(active&&!photo&&!busy&&!driven){const forward=hold?0:Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'))-joyY,side=hold?0:Number(keys.has('KeyD'))-Number(keys.has('KeyA'))+joyX;yaw+=(Number(keys.has('ArrowLeft'))-Number(keys.has('ArrowRight')))*2.2*dt;const amount=Math.hypot(forward,side),norm=Math.max(1,amount),wet=groundHeight(player.x,player.z)<.02,target=amount>.01?(keys.has('ShiftLeft')||keys.has('ShiftRight')?4.5:1.8)*(wet?.42:1)*Math.min(1,amount):0;
+      // Speed changes at a body's pace, not in one frame: about 0.3 s to start walking, 0.8 s from a walk up to a run
+      // or back down (a few shortening strides), 0.3 s to stop from a walk and about a second from a run. The
+      // direction follows the input at once; with no input the last one carries the body to a stop.
+      if(amount>.01){moveDir.x=(side*Math.cos(yaw)-forward*Math.sin(yaw))/norm/Math.min(1,amount);moveDir.z=(-forward*Math.cos(yaw)-side*Math.sin(yaw))/norm/Math.min(1,amount);}
+      const rate=target>moveSpeed?(moveSpeed<1.6?6:3.4):target>.5?3.4:moveSpeed>2.4?4.8:6,before=moveSpeed;
+      moveSpeed=target>moveSpeed?Math.min(target,moveSpeed+rate*dt):Math.max(target,moveSpeed-rate*dt);
+      moveAccel=dt>0?(moveSpeed-before)/dt:0;
+      const speed=moveSpeed;dx=moveDir.x*speed*dt;dz=moveDir.z*speed*dt;
       if(allowed(player.x+dx,player.z))player.x+=dx;else dx=0;if(allowed(player.x,player.z+dz))player.z+=dz;else dz=0;
+      // Blocked by a prop: the body stops there instead of keeping its pace against it.
+      if(dt>0)moveSpeed=Math.min(moveSpeed,Math.hypot(dx,dz)/dt+.05);
       // Walking downhill the ground drops faster than gravity pulls; stay snapped unless a jump launched us.
       const ground=groundHeight(player.x,player.z);if(grounded&&player.y-ground<.3){player.y=ground;velocityY=0;}else{velocityY-=9.8*dt;player.y=Math.max(ground,player.y+velocityY*dt);if(player.y===ground){velocityY=0;grounded=true;}else grounded=false;}
       const moving=Math.hypot(dx,dz);phase+=moving*5;if(moving>.001){avatar.rotation.y=Math.atan2(dx,dz);if(wet&&(splashTime-=dt)<=0){const r=rings[ringIndex++%rings.length];r.age=0;r.mesh.position.set(player.x,.09,player.z);r.mesh.visible=true;splashTime=.22;}}
@@ -116,7 +126,7 @@ export function createExplore({ scene, camera, renderer, config, results, group,
   // Optional game adapter: default Explore and comparison behavior stays unchanged.
   function input(out){out.forward=Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'))-joyY;out.side=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'))+joyX;out.yaw=yaw;return out;}
   function sfx(kind){if(!audio||muted)return;const osc=audio.createOscillator(),env=audio.createGain(),t=audio.currentTime;const f=kind==='pickup'?880:kind==='kick'?110:kind==='paddle'?230:350;osc.type=kind==='kick'?'sine':'triangle';osc.frequency.setValueAtTime(f,t);osc.frequency.exponentialRampToValueAtTime(kind==='pickup'?1760:55,t+.22);env.gain.setValueAtTime(.001,t);env.gain.linearRampToValueAtTime(kind==='pickup'?.6:.8,t+.015);env.gain.exponentialRampToValueAtTime(.001,t+.28);osc.connect(env);env.connect(gain);osc.start(t);osc.stop(t+.3);osc.onended=()=>{osc.disconnect();env.disconnect();};}
-  const api={setFirstPerson(value){first=value;},setCameraController(controller){gameCamera=controller;},onGroupChange(fn){groupChanged=fn;},get speed(){return movementSpeed;},get airborne(){return !grounded;},start:startExperience,input,sfx,mute,avatar,arms,legs,shoes,setDriven(value){driven=value;velocityY=0;grounded=true;},setHold(value){hold=value;},setView(angle,elevation=.08){yaw=angle;pitch=elevation;},clearInput(){keys.clear();joyX=joyY=0;},get muted(){return muted;},refresh,update,switchGroup,player,get group(){return group;},get busy(){return busy;},get photo(){return photo;},get first(){return first;},get active(){return active;},get colliders(){return colliders;},clearance};
+  const api={setFirstPerson(value){first=value;},setCameraController(controller){gameCamera=controller;},onGroupChange(fn){groupChanged=fn;},get speed(){return movementSpeed;},get accel(){return moveAccel;},get airborne(){return !grounded;},start:startExperience,input,sfx,mute,avatar,arms,legs,shoes,setDriven(value){driven=value;velocityY=0;grounded=true;moveSpeed=moveAccel=0;},setHold(value){hold=value;if(value)moveSpeed=moveAccel=0;},setView(angle,elevation=.08){yaw=angle;pitch=elevation;},clearInput(){keys.clear();joyX=joyY=0;moveSpeed=moveAccel=0;},get muted(){return muted;},refresh,update,switchGroup,player,get group(){return group;},get busy(){return busy;},get photo(){return photo;},get first(){return first;},get active(){return active;},get colliders(){return colliders;},clearance};
   if(auto)window.__EXPLORE__=api;
   return api;
 }

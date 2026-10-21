@@ -71,7 +71,8 @@ try{
   if(group==='B')assert(info.clips.length>=4);if(group==='C')assert(info.clips.length>=20);
   const idlePose=info.poseSample;
   await page.keyboard.down('KeyW');await step(.45);info=await page.evaluate(()=>window.__GAME__.character);assert.equal(info.animation,'walk');assert.notDeepEqual(info.poseSample,idlePose);
-  await page.keyboard.down('ShiftLeft');await step(.35);info=await page.evaluate(()=>window.__GAME__.character);assert.equal(info.animation,'run');if(group!=='A')assert(info.clipTime>0);await page.keyboard.up('ShiftLeft');await page.keyboard.up('KeyW');
+  await page.keyboard.down('ShiftLeft');await step(.9);// speeds up from a walk to a run over ~0.8 s
+  info=await page.evaluate(()=>window.__GAME__.character);assert.equal(info.animation,'run');if(group!=='A')assert(info.clipTime>0);await page.keyboard.up('ShiftLeft');await page.keyboard.up('KeyW');
   await page.keyboard.press('Space');await step(.12);assert.equal((await page.evaluate(()=>window.__GAME__.character)).animation,'jump');await step(.9);
   characterChecks.push(info);
   for(const [id,name] of [['umbrella','lounger'],['lifeguard','tower'],['boat','boat']]){
