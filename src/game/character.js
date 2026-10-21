@@ -251,6 +251,8 @@ export async function createCharacter(group='A'){
   // While moving, locomotion wins: a pickup only layers its arm reach on top, a kick is skipped.
   // Speed eases between walk and run (the body itself speeds up and slows down over a few strides, src/explore.js);
   // from 2.9 to 4.3 m/s both cycles play, weighted, on one shared stride phase.
+  // A negative speed walks backwards (pulling the boat back): the same gait, its phase running the other way.
+  const back=speed<0?-1:1;speed=Math.abs(speed);
   pace=dt?T.MathUtils.damp(pace,speed,10,dt):speed;const blendRun=T.MathUtils.smoothstep(pace,2.9,4.3);
   const gait=speed>.12?(blendRun>.5?'run':'walk'):'idle',layered=gait!=='idle'&&oneShot==='interact'&&!animation;
   const selected=animation??(pose==='climb'?'climb':pose==='paddle'?'paddle':pose==='lie'?'lie':pose==='sit'||pose==='sand'?'sit':airborne?'jump':gait!=='idle'?gait:oneShot||gait);
@@ -265,10 +267,10 @@ export async function createCharacter(group='A'){
    const frac=x=>(x%1+1)%1,lead=n=>frac((contact[n]?.[0]?.[0]??0)*cycles[n]),stride=n=>nativeSpeed[n]*actions.get(n).getClip().duration/cycles[n];
    const cycle=T.MathUtils.lerp(stride('walk'),stride('run'),blendRun);
    if(!locoSync){const n=active==='run'?'run':'walk',a=actions.get(n);locoPhase=frac(a.time/a.getClip().duration*cycles[n]-lead(n));}
-   locoSync=true;locoPhase=frac(locoPhase+dt*Math.min(speed,cycle*3)/cycle);
+   locoSync=true;locoPhase=frac(locoPhase+back*dt*Math.min(speed,cycle*3)/cycle);
    for(const [a,w,n] of [[walkA,1-blendRun,'walk'],[runA,blendRun,'run']]){a.enabled=true;if(!a.isRunning())a.play();a.setEffectiveTimeScale(0).setEffectiveWeight(w);a.time=frac(locoPhase+lead(n))/cycles[n]*a.getClip().duration;}
   }
-  else if(nativeSpeed[selected]&&!animation)actions.get(selected).setEffectiveTimeScale(T.MathUtils.clamp(speed/nativeSpeed[selected],.5,5));
+  else if(nativeSpeed[selected]&&!animation)actions.get(selected).setEffectiveTimeScale(back*T.MathUtils.clamp(speed/nativeSpeed[selected],.5,5));
   restore();mixer.update(dt);
   // Foot plants: report each foot whose contact phase the clip passed this frame.
   steps.length=0;const clipAction=actions.get(selected);
@@ -281,7 +283,7 @@ export async function createCharacter(group='A'){
    // Procedural gait (no clip): fixed cadence; the stance leg stays straight and its amplitude is matched to speed so
    // the foot sweeps back at ground speed as it passes under the hip (leg·amplitude·ω = speed). That moment is the plant.
    const rate=loco(selected)?T.MathUtils.lerp(7,10,blendRun):0,gait=rate?T.MathUtils.clamp(speed/(legLength*rate),.15,1.1):0;
-   if(rate&&dt){const before=stride;stride+=rate*dt;if(Math.floor(stride/Math.PI)!==Math.floor(before/Math.PI))steps.push(Math.floor(stride/Math.PI)%2?1:0);}
+   if(rate&&dt){const before=stride;stride+=back*rate*dt;if(Math.floor(stride/Math.PI)!==Math.floor(before/Math.PI))steps.push(Math.floor(stride/Math.PI)%2?1:0);}
    const cycle=rate?stride:age*8,swing=Math.sin(cycle)*gait;
    for(let i=0;i<2;i++){const sign=i?1:-1,s=i?swing:-swing,stance=rate&&(i?Math.cos(cycle):-Math.cos(cycle))<0;let thigh=[0,-Math.cos(s),Math.sin(s)],calf=stance?thigh:[0,-1,Math.max(0,-s)*.7],arm=[sign*.15,-1,-s*.7],fore=[0,-1,.12];
     if(seated){thigh=[0,-.12,1];calf=pose==='sand'?[0,-.05,1]:[0,-1,.08];arm=[sign*.3,-1,.45];fore=[0,-.15,1];if(selected==='paddle'){arm=[sign*.4,-.4,.8+Math.sin(age*6+i)*.5];fore=[sign*.25,-.2,.9];}}

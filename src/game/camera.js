@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {MeshBVH,acceleratedRaycast} from 'three-mesh-bvh';
-import {groundHeight} from '../terrain.js';
+import {landHeight} from '../coast.js';
 export const MIN_BOOM=1.6;
 // A five-ray swept near-plane, against only source prop meshes. Broad-phase
 // boxes reject distant props but never decide a collision on their own.
@@ -14,7 +14,7 @@ export function createGameCamera(camera,propRoot){
   for(const [x,y] of [[0,0],[.18,0],[-.18,0],[0,.18],[0,-.18]]){origin.copy(start).addScaledVector(right,x).addScaledVector(up,y);ray.set(origin,dir);ray.far=distance+.2;
    for(const e of entries){if(!e.source.visible||!ray.ray.intersectBox(e.box,hitPoint)||origin.distanceTo(hitPoint)>distance+.2)continue;const hits=ray.intersectObject(e.root,true);if(hits.length)distance=Math.min(distance,Math.max(0,hits[0].distance-.22));}
   }
-  for(let d=.3;d<distance;d+=.3){hitPoint.copy(start).addScaledVector(dir,d);if(hitPoint.y<groundHeight(hitPoint.x,hitPoint.z)+.35){distance=d;break;}}
+  for(let d=.3;d<distance;d+=.3){hitPoint.copy(start).addScaledVector(dir,d);if(hitPoint.y<landHeight(hitPoint.x,hitPoint.z)+.35){distance=d;break;}}
   return distance;
  }
  function update(dt,player,yaw,pitch){head.copy(player).add(new T.Vector3(0,1.6,0));direction.set(Math.sin(yaw)*Math.cos(pitch),.073+Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch)).normalize();let desired=clearance(head,direction,6.2);
@@ -31,6 +31,6 @@ export function createGameCamera(camera,propRoot){
   if(safe<length-.01){if(safe>=MIN_BOOM)camera.position.copy(head).addScaledVector(delta,safe);else camera.position.copy(goal);}
   enforce(head);camera.lookAt(head);return lastDistance;
  }
- function enforce(point){delta.subVectors(camera.position,point);if(delta.length()<MIN_BOOM){if(delta.length()<.01)delta.set(0,1,.15);delta.setLength(MIN_BOOM);camera.position.copy(point).add(delta);}camera.position.y=Math.max(camera.position.y,groundHeight(camera.position.x,camera.position.z)+.3);lastDistance=camera.position.distanceTo(point);minObserved=Math.min(minObserved,lastDistance);return lastDistance;}
+ function enforce(point){delta.subVectors(camera.position,point);if(delta.length()<MIN_BOOM){if(delta.length()<.01)delta.set(0,1,.15);delta.setLength(MIN_BOOM);camera.position.copy(point).add(delta);}camera.position.y=Math.max(camera.position.y,landHeight(camera.position.x,camera.position.z)+.3);lastDistance=camera.position.distanceTo(point);minObserved=Math.min(minObserved,lastDistance);return lastDistance;}
  refresh();return {refresh,update,enforce,get distance(){return lastDistance;},get minObserved(){return minObserved;},resetAudit(){minObserved=Infinity;},get boom(){return boom;}};
 }

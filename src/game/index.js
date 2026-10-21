@@ -470,11 +470,13 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  // (A / D bend the course); it slides on the sand, then floats where the water is deeper than its draft. Once the
  // water under its middle is deep enough to row (the boat's own limit), the rower climbs in over the stern.
  function launchUpdate(dt,t){
-  e.input(input);const driving=running&&e.active&&!e.busy,f=driving?Math.max(0,input.forward):0,s=driving?input.side:0,hh=boat.hull??{x:0,z:0,len:3,beam:1.2};
+  e.input(input);const driving=running&&e.active&&!e.busy,f=driving?input.forward:0,s=driving?input.side:0,hh=boat.hull??{x:0,z:0,len:3,beam:1.2};
   const local=(lx,lz,out)=>{const c=Math.cos(boatYaw),sn=Math.sin(boatYaw);return out.set(vessel.position.x+c*(lx+hh.x)+sn*(lz+hh.z),0,vessel.position.z-sn*(lx+hh.x)+c*(lz+hh.z));};
   if(launch.board<0){
    const mid=local(0,0,blade),wading=groundHeight(mid.x,mid.z)<0;
-   launch.speed=T.MathUtils.damp(launch.speed,f*(wading?1.4:2.1),3,dt);launch.steer=T.MathUtils.clamp(launch.steer-s*dt*.5,-.5,.5);
+   // S pulls it back (slower, walking backwards), so a hull run into a lounger or the umbrella can be backed off;
+   // A / D then swing its bow while it comes back.
+   launch.speed=T.MathUtils.damp(launch.speed,f>0?f*(wading?1.4:2.1):f*.9,3,dt);if(f>=0)launch.steer=T.MathUtils.clamp(launch.steer-s*dt*.5,-.5,.5);
    const step=launch.speed*dt,aim=Math.atan2(-(launch.to.x-vessel.position.x),-(launch.to.z-vessel.position.z))+launch.steer,err=Math.atan2(Math.sin(aim-boatYaw),Math.cos(aim-boatYaw));
    // The hull's corners must stay clear of the other props.
    const clear=(x,z,yaw)=>{if(x<-48||x>145)return false;const c=Math.cos(yaw),sn=Math.sin(yaw);
@@ -483,7 +485,8 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
    // Facing well away from the sea (a boat beached bow up the sand), it is first swung round on the spot, its middle
    // staying put; then pushed ahead, easing onto the course. A blocked course bends a little either way.
    const moves=[];
-   if(Math.abs(err)>.5){const yaw=boatYaw+Math.sign(err)*Math.min(Math.abs(err),step*.6),mid=local(0,0,blade),c=Math.cos(yaw),sn=Math.sin(yaw);moves.push([mid.x-(c*hh.x+sn*hh.z),mid.z-(-sn*hh.x+c*hh.z),yaw]);}
+   if(step<0){const yaw=boatYaw-s*step*.5;moves.push([vessel.position.x-Math.sin(boatYaw)*step,vessel.position.z-Math.cos(boatYaw)*step,yaw],[vessel.position.x-Math.sin(boatYaw)*step,vessel.position.z-Math.cos(boatYaw)*step,boatYaw]);}
+   else if(Math.abs(err)>.5){const yaw=boatYaw+Math.sign(err)*Math.min(Math.abs(err),step*.6),mid=local(0,0,blade),c=Math.cos(yaw),sn=Math.sin(yaw);moves.push([mid.x-(c*hh.x+sn*hh.z),mid.z-(-sn*hh.x+c*hh.z),yaw]);}
    else for(const bend of [0,.03,-.03,.06,-.06]){const yaw=boatYaw+err*Math.min(1,step*.45)+bend;moves.push([vessel.position.x-Math.sin(yaw)*step,vessel.position.z-Math.cos(yaw)*step,yaw]);}
    let moved=!step;
    for(const [x,z,yaw] of step?moves:[])if(clear(x,z,yaw)){vessel.position.x=x;vessel.position.z=z;boatYaw=yaw;moved=true;break;}
@@ -628,7 +631,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   destination.visible=mode==='boat';buoy.visible=mode==='boat';const dest=state.island&&state.opensea?dock:island;destination.position.set(dest.x,.6,dest.z);sampleWater(dest.x,dest.z,t,wave);destination.position.y=wave.height+.14;buoy.position.set(dest.x,wave.height+1.4,dest.z);
   near=active?nearTarget():null;const prompt=$('#target-prompt'),button=$('#interact');button.disabled=!near;button.firstChild.textContent=mode==='boat'?(near?.kind==='opensea'?'觀察 ':near?.kind==='skip'?'跳過 ':near?'下船 ':'划行中 '):mode==='tower'?'下塔 ':mode==='rest'?'起身 ':'互動 ';objects.halo.visible=!!near&&mode==='walk';prompt.hidden=!near;
   if(near){const p=near.position;screen.set(p.x,p.y??p.height??groundHeight(p.x,p.z),p.z);if(near.kind==='shell')screen.y=near.item.y;if(near.kind==='shell'&&screen.y<.04){sampleWater(screen.x,screen.z,t,wave);screen.y=Math.max(screen.y,wave.height);}objects.halo.position.set(screen.x,screen.y+.025,screen.z);screen.y+=1.2;screen.project(camera);const onScreen=screen.z<1&&screen.z>-1&&Math.abs(screen.x)<.95&&Math.abs(screen.y)<.95;prompt.hidden=!onScreen;prompt.style.left=`${(screen.x*.5+.5)*innerWidth}px`;prompt.style.top=`${(-screen.y*.5+.5)*innerHeight}px`;prompt.querySelector('span').textContent=near.label;}
-  let goal=null,label='';if(mode==='boat'&&launch.active){goal=launch.to;label='按住 W 把船推進水深處';}else if(mode==='boat'){goal=dest;label=state.island&&state.opensea?'岸邊圓環 · E 下船':'外海浮標 · 浮出水面時按 E 觀察';}else if(state.shells<8){let d=Infinity;for(const item of objects.items){const n=Math.hypot(item.x-e.player.x,item.z-e.player.z);if(!item.collected&&n<d){d=n;goal=item;}}label='下一枚貝殼';}else if(!state.ball){goal=objects.ball.position;label='沙灘球';}else if(!state.lounger){goal=anchors.umbrella.point;label='躺椅';}else if(!state.tower){goal=anchors.lifeguard.point;label='救生塔';}else if(!state.tidepool){goal=pool.point;label='潮池';}else if((!state.opensea||!state.boat)){goal=anchors.boat.point;label='岸上的小船';}
+  let goal=null,label='';if(mode==='boat'&&launch.active){goal=launch.to;label='按住 W 把船推進水深處 · S 往回拉';}else if(mode==='boat'){goal=dest;label=state.island&&state.opensea?'岸邊圓環 · E 下船':'外海浮標 · 浮出水面時按 E 觀察';}else if(state.shells<8){let d=Infinity;for(const item of objects.items){const n=Math.hypot(item.x-e.player.x,item.z-e.player.z);if(!item.collected&&n<d){d=n;goal=item;}}label='下一枚貝殼';}else if(!state.ball){goal=objects.ball.position;label='沙灘球';}else if(!state.lounger){goal=anchors.umbrella.point;label='躺椅';}else if(!state.tower){goal=anchors.lifeguard.point;label='救生塔';}else if(!state.tidepool){goal=pool.point;label='潮池';}else if((!state.opensea||!state.boat)){goal=anchors.boat.point;label='岸上的小船';}
   if(goal){const dx=goal.x-e.player.x,dz=goal.z-e.player.z;$('#nav-text').textContent=`${label}　${Math.round(Math.hypot(dx,dz))} m`;e.input(input);$('#nav-arrow').style.transform=`rotate(${Math.atan2(dx,-dz)+(mode==='boat'?boatYaw:input.yaw)}rad)`;}$('#navigation').hidden=!goal||!active||mode==='rest'||mode==='tower'||mode==='tidepool';
   $('#game-audio').textContent=e.muted?'聲音 關':'聲音 開';$('#game-audio').setAttribute('aria-pressed',String(e.muted));$('#game-toast').classList.toggle('visible',active&&t<toastUntil);$('#game-fade').style.opacity=String(Math.max(0,1-(t-fadeAt)/.65)*.65);renderHud();
   if(active&&mode==='walk'&&state.shells===8&&state.ball&&state.lounger&&state.tower&&state.tidepool&&state.opensea&&state.boat)complete();

@@ -1,5 +1,6 @@
 import * as T from 'three';
 import { groundHeight } from './terrain.js';
+import { landHeight, shoreClear } from './coast.js';
 import { loadProps, propRoot } from './props.js';
 import './explore.css';
 
@@ -91,7 +92,7 @@ export function createExplore({ scene, camera, renderer, config, results, group,
   drag($('#stick'),(x,y)=>{joyX=T.MathUtils.clamp(x/45,-1,1);joyY=T.MathUtils.clamp(y/45,-1,1);$('#stick i').style.transform=`translate(${joyX*30}px,${joyY*30}px)`;},()=>{joyX=joyY=0;$('#stick i').style.transform='';});
   let lastX=0,lastY=0;drag($('#look'),(x,y)=>{look(x-lastX,y-lastY);lastX=x;lastY=y;},()=>{lastX=lastY=0;});
   // Free space, or a move that gets out of a prop the player is already inside (e.g. after a teleport).
-  function allowed(x,z){if(x< -34||x>35||z>27||groundHeight(x,z)<-.65)return false;const next=clearance(x,z);return next>=RADIUS||next>clearance(player.x,player.z);}
+  function allowed(x,z){if(x< -34||x>100||z>27||groundHeight(x,z)<-.65||x>35&&!shoreClear(x,z,RADIUS))return false;const next=clearance(x,z);return next>=RADIUS||next>clearance(player.x,player.z);}
   function cameraBlocked(p){for(const c of colliders){const b=c.box;if(p.x>b.min.x-.2&&p.x<b.max.x+.2&&p.y>b.min.y-.2&&p.y<b.max.y+.2&&p.z>b.min.z-.2&&p.z<b.max.z+.2)return true;}return false;}
   function update(dt){dt=Math.min(dt,.05);let dx=0,dz=0;
     if(active&&!photo&&!busy&&!driven){const forward=hold?0:Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'))-joyY,side=hold?0:Number(keys.has('KeyD'))-Number(keys.has('KeyA'))+joyX;yaw+=(Number(keys.has('ArrowLeft'))-Number(keys.has('ArrowRight')))*2.2*dt;const amount=Math.hypot(forward,side),norm=Math.max(1,amount),wet=groundHeight(player.x,player.z)<.02,target=amount>.01?(keys.has('ShiftLeft')||keys.has('ShiftRight')?4.5:1.8)*(wet?.42:1)*Math.min(1,amount):0;
@@ -114,9 +115,9 @@ export function createExplore({ scene, camera, renderer, config, results, group,
     movementSpeed=dt>0?Math.hypot(dx,dz)/dt:movementSpeed;
     if(!driven)avatar.position.copy(player);avatar.position.y+=Math.hypot(dx,dz)>.001?Math.abs(Math.sin(phase))*.045:0;avatar.visible=gameMode||!first;
     if(!photo&&!driven){target.copy(player);target.y+=1.45;desiredCamera.copy(target);if(first){desiredCamera.x-=Math.sin(yaw)*.05;desiredCamera.z-=Math.cos(yaw)*.05;camera.position.copy(desiredCamera);target.x-=Math.sin(yaw)*10;target.z-=Math.cos(yaw)*10;target.y-=Math.sin(pitch)*10;}else{desiredCamera.x+=Math.sin(yaw)*6.2*Math.cos(pitch);desiredCamera.z+=Math.cos(yaw)*6.2*Math.cos(pitch);desiredCamera.y+=.45+Math.sin(pitch)*6.2;
-      for(let i=1;!gameCamera&&i<=24;i++){probe.lerpVectors(target,desiredCamera,i/24);if(probe.y<groundHeight(probe.x,probe.z)+.35||cameraBlocked(probe)){desiredCamera.lerpVectors(target,desiredCamera,(i-1)/24);break;}}
+      for(let i=1;!gameCamera&&i<=24;i++){probe.lerpVectors(target,desiredCamera,i/24);if(probe.y<landHeight(probe.x,probe.z)+.35||cameraBlocked(probe)){desiredCamera.lerpVectors(target,desiredCamera,(i-1)/24);break;}}
       if(!gameCamera)camera.position.lerp(desiredCamera,1-Math.exp(-10*dt));}
-      camera.position.y=Math.max(camera.position.y,groundHeight(camera.position.x,camera.position.z)+.3);camera.lookAt(target);if(gameCamera&&!first)gameCamera.update(dt,player,yaw,pitch);
+      camera.position.y=Math.max(camera.position.y,landHeight(camera.position.x,camera.position.z)+.3);camera.lookAt(target);if(gameCamera&&!first)gameCamera.update(dt,player,yaw,pitch);
       let nearest=null,best=4;for(const c of colliders){const d=Math.hypot(Math.max(c.box.min.x-player.x,0,player.x-c.box.max.x),Math.max(c.box.min.z-player.z,0,player.z-c.box.max.z));if(d<best){best=d;nearest=c;}}
       if(nearest!==lastPoi||group!==lastPoiGroup){lastPoi=nearest;lastPoiGroup=group;poi.textContent=nearest?`${nearest.id} · ${labels[group]}${group==='A'?' · code-generated':` · ${nearest.slot.paths[group].split('/').at(-1)}`}`:'';poi.hidden=!nearest;}
       for(const r of rings){if(r.age<1){r.age+=dt;r.mesh.scale.setScalar(1+r.age*3);r.mesh.material.opacity=(1-r.age)*.45;}else r.mesh.visible=false;}

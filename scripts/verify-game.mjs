@@ -16,6 +16,10 @@ try{
  assert.equal(await page.evaluate(()=>window.__EXPLORE__.group),'B');await shot('start');await page.click('#begin');
  // On-foot input and passive footprints use the shared controller.
  await page.keyboard.down('KeyW');await step(1.5);await page.keyboard.up('KeyW');assert((await page.evaluate(()=>window.__GAME__.state)).footprints>0);
+ // The beach runs on to the headland's forest edge: walkers reach it but do not walk up into the island.
+ {await page.evaluate(()=>{const g=window.__GAME__;g.teleport(56,2);g.view(1.5*Math.PI);g.step(.3);});await page.keyboard.down('KeyW');await step(14);await page.keyboard.up('KeyW');
+  const p=await page.evaluate(async()=>{const [x,y,z]=window.__GAME__.boardInfo().player,u=performance.getEntriesByType('resource').map(e=>e.name).find(n=>/\/src\/coast\.js/.test(n)),m=await import(u),t=await import('/src/terrain.js');return {x,z,lift:Math.max(-9,m.islandHeight(x,z)-t.groundHeight(x,z))};});
+  console.log('headland',JSON.stringify(p));assert(p.x>75,'walk along the beach to the headland');assert(p.lift<=.16,'stay out of the island hill');await shot('headland');}
  const targets=await page.evaluate(()=>window.__GAME__.targets());console.log('targets',JSON.stringify(targets));
  await at(targets.shells[0].x,targets.shells[0].z+1);await shot('shells');
  for(const shell of targets.shells){await at(shell.x,shell.z+.8);await e();await step(1.3);}
@@ -34,6 +38,9 @@ try{
  await e();await page.waitForFunction(()=>document.querySelector('#lagoon iframe').contentWindow.__READY__,null,{timeout:120000});assert.equal(await page.evaluate(()=>document.querySelector('#lagoon iframe').contentWindow.__TIDEPOOL__.found.length),6);await page.click('#lagoon-back');await step(.2);
  // Launch: hold W to push the boat from where it lies down the beach into the water, then climb in.
  await page.evaluate(()=>window.__GAME__.pushBoat=true);await at(targets.boat[0],targets.boat[2]);await e();await step(.5);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'boat');assert(await page.evaluate(()=>window.__GAME__.launch.active));
+ // S pulls the boat back (a hull run into a lounger can be backed off), then W pushes it on again.
+ {const v=()=>page.evaluate(()=>window.__GAME__.vessel);await page.keyboard.down('KeyW');await step(2);await page.keyboard.up('KeyW');const a=await v();await page.keyboard.down('KeyS');await step(2.5);await page.keyboard.up('KeyS');const b=await v();
+  console.log('pull back',JSON.stringify({a,b}));assert(Math.hypot(b.x-a.x,b.z-a.z)>.5&&b.z>a.z,'S must pull the boat back up the beach');}
  {let worst=0;await page.keyboard.down('KeyW');for(let i=0;i<60&&await page.evaluate(()=>window.__GAME__.launch.active);i++){await step(.5);const l=await page.evaluate(()=>({...window.__GAME__.launch,ik:window.__GAME__.character.ik.hands}));if(l.active&&l.board<0)worst=Math.max(worst,...l.ik);if(i===8)await shot('push');}
   await page.keyboard.up('KeyW');const v=await page.evaluate(()=>window.__GAME__.vessel),launch=await page.evaluate(()=>window.__GAME__.launch);console.log('launch',JSON.stringify({v,worst}));
   assert(!launch.active,'boat must be launched within 30 s');assert(worst<.5,`pusher hands off the stern by ${worst}`);assert(v.z<-15,'launched into the water');}
