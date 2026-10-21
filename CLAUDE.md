@@ -92,7 +92,7 @@ There is no lint or unit-test setup. Verification means running the Playwright s
   - `window.__TIME__`: when set, it overrides the water/sand clock.
   - `?time=N`: freezes time.
   - With `?auto=1` only: `window.__EXPLORE__` and `window.__GAME__` (including deterministic `step(seconds)`, `teleport`, `view`, `interact`).
-  - In game mode, game/explore dt is derived from the water clock, so a frozen clock freezes play.
+  - In game mode, game/explore dt is derived from the water clock, so a frozen clock freezes play. `__GAME__.step()` records the time it advanced to (`water.userData.simTime`), and the frame loop only simulates past it; before 2026-10-21 a recorder that stepped and then waited for a frame advanced play twice per step (game recordings ran at double speed).
 - **Characters.** `src/game/character.js` serves both the game and the solo viewer.
   - A: procedural SkinnedMesh.
   - B: Tripo `assets/character/{idle,walk,run,jump,climb}.glb`, with clips merged onto one skeleton. Since 2026-10-20 the rig is Tripo v3.0 `spec=unity` (67 joints, three-joint fingers). It was re-rigged from the original model task with `tools/tripo_rig_test.py` and `tools/tripo_retarget_v3.py`; credits are in `assets/tripo/log.csv`. The old 41-joint rig had no fingers.
