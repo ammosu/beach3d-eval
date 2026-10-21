@@ -39,7 +39,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  // Double-bladed paddle along its local x. One stroke phase drives it, both hands, the torso and the boat's thrust.
  const oar=new T.Group(),oarMat=new T.MeshStandardMaterial({color:0xc7a075});const shaft=new T.Mesh(new T.CylinderGeometry(.03,.03,2.6,6),oarMat);shaft.rotation.z=Math.PI/2;oar.add(shaft);for(const x of [-1.22,1.22]){const blade=new T.Mesh(new T.BoxGeometry(.42,.19,.025),oarMat);blade.position.x=x;oar.add(blade);}oar.rotation.order='YZX';vessel.add(oar);
  const splash=createSplash(scene),wake=createWake(scene),blade=new T.Vector3();
- const row={wet:[false,false],swirl:[0,0],reach:1.22,spray:0,phase:0,amount:0,dip:.6,hands:[new T.Vector3(),new T.Vector3()],feet:[new T.Vector3(),new T.Vector3()],aim:[0,1].map(()=>({dir:new T.Vector3(),palm:new T.Vector3()})),axis:new T.Vector3(),p:new T.Vector3(),dir:new T.Vector3(),palm:new T.Vector3(),twist:0,lean:0,floorY:0};
+ const row={wet:[false,false],swirl:[0,0],drip:[0,0],dripEvery:[0,0],reach:1.22,spray:0,phase:0,amount:0,dip:.6,hands:[new T.Vector3(),new T.Vector3()],feet:[new T.Vector3(),new T.Vector3()],aim:[0,1].map(()=>({dir:new T.Vector3(),palm:new T.Vector3()})),axis:new T.Vector3(),p:new T.Vector3(),dir:new T.Vector3(),palm:new T.Vector3(),twist:0,lean:0,floorY:0};
  let boatModel=null,hiddenBoat=null,fallbackModel=null;
  const followCamera=createGameCamera(camera,propRoot);e.setCameraController(followCamera);
  for(const child of e.avatar.children)child.visible=false;
@@ -523,7 +523,9 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   rowPaddle(dt,t,f);
   // Splashes: a blade cutting into the water and lifting out of it, and spray off both sides of the bow under way.
   for(let i=0;i<2;i++){blade.copy(oar.children[i+1].position).applyMatrix4(oar.matrix).applyMatrix4(vessel.matrixWorld);const h=surfaceHeight(blade.x,blade.z,t),wet=blade.y<h-.02;
-   if(wet!==row.wet[i]&&dt>0){splash.emit(t,blade.x,h,blade.z,wet?.3+.2*row.amount:.14+.1*row.amount);row.swirl[i]=.08;}
+   if(wet!==row.wet[i]&&dt>0){splash.emit(t,blade.x,h,blade.z,wet?.3+.2*row.amount:.14+.1*row.amount);row.swirl[i]=.08;if(!wet){row.drip[i]=.8;row.dripEvery[i]=.05;}}
+   // A blade just out of the water drips for a moment as it swings forward.
+   else if(!wet&&dt>0&&row.drip[i]>0){row.drip[i]-=dt;if((row.dripEvery[i]-=dt)<=0&&blade.y>h+.06){row.dripEvery[i]=.07;splash.emit(t,blade.x,blade.y-.06,blade.z,.05,0,0,1.6,'drip');}}
    // While it pulls, the blade leaves a trail of small swirls on the water.
    else if(wet&&dt>0&&(row.swirl[i]-=dt)<=0){row.swirl[i]=.08;splash.emit(t,blade.x,h,blade.z,.12,0,0,1.1);}
    row.wet[i]=wet;}
