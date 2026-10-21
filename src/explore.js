@@ -1,6 +1,6 @@
 import * as T from 'three';
-import { groundHeight } from './terrain.js';
-import { surfaceHeight, WADE_RINGS } from './water.js';
+import { groundHeight, shore } from './terrain.js';
+import { surfaceHeight, swashReach, WADE_RINGS } from './water.js';
 import { landHeight, islandHeight, shoreClear } from './coast.js';
 import { loadProps, propRoot } from './props.js';
 import './explore.css';
@@ -130,7 +130,7 @@ export function createExplore({ scene, camera, renderer, config, results, group,
       let nearest=null,best=4;for(const c of colliders){const d=Math.hypot(Math.max(c.box.min.x-player.x,0,player.x-c.box.max.x),Math.max(c.box.min.z-player.z,0,player.z-c.box.max.z));if(d<best){best=d;nearest=c;}}
       if(nearest!==lastPoi||group!==lastPoiGroup){lastPoi=nearest;lastPoiGroup=group;poi.textContent=nearest?`${nearest.id} · ${labels[group]}${group==='A'?' · code-generated':` · ${nearest.slot.paths[group].split('/').at(-1)}`}`:'';poi.hidden=!nearest;}
       waterMesh??=scene.getObjectByName('lagoon-water');
-      if(waterMesh?.material.uniforms.wadeRings){const t=waterMesh.material.uniforms.time.value,deep=surfaceHeight(player.x,player.z,t)-groundHeight(player.x,player.z);
+      if(waterMesh?.material.uniforms.wadeRings){const t=waterMesh.material.uniforms.time.value,deep=player.z-shore(player.x)<swashReach(player.x,t)?surfaceHeight(player.x,player.z,t)-groundHeight(player.x,player.z):0;
         if(deep>.03&&dt>0&&(splashTime-=dt)<=0){const pace=Math.hypot(moveDir.x,moveDir.z)*movementSpeed,side=wadeFoot++%2?.11:-.11,c=Math.cos(avatar.rotation.y),sn=Math.sin(avatar.rotation.y);
           wade[wadeNext++%wade.length].set(player.x+c*side,player.z-sn*side,t,Math.min(1,deep*5)*(pace>.2?.55+.2*Math.min(pace,2.5):.3));splashTime=pace>.2?.3:1.1;}
         for(const r of wade)if(t-r.z>2.4||r.z>t+1e-6)r.w=0;waterMesh.material.uniforms.wadeRings.value.forEach((u,i)=>u.copy(wade[i]));}
