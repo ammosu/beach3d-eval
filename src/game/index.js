@@ -22,6 +22,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  // The old node was replaced, so transfer its behavior through an explicit adapter.
  const ui=document.createElement('div');ui.id='game';ui.innerHTML=`<section class="quest-book" aria-label="任務清單"><header><h2>海灘小任務</h2><span id="game-clock">0:00</span></header><p class="quest-intro">慢慢走，海風會等你。</p><ul><li data-quest="shells"><i></i><span>撿貝殼 <b id="shell-count">0 / 8</b></span></li><li data-quest="ball"><i></i><span>把沙灘球踢進海裡</span></li><li data-quest="lounger"><i></i><span>在躺椅上休息</span></li><li data-quest="tower"><i></i><span>登上救生塔看海</span></li><li data-quest="tidepool"><i></i><span>潮池觀察 <b id="tidepool-hud">0 / 6</b></span></li><li data-quest="opensea"><i></i><span>在外海觀察大型海洋生物 <b id="lagoon-hud">0 / 7</b></span></li><li data-quest="boat"><i></i><span>划到小島，再回岸邊</span></li></ul><p id="footnote">額外的小紀念：在沙上留下腳印</p></section><div id="navigation"><span id="nav-arrow">↑</span><span id="nav-text"></span></div><div id="game-toast" role="status" aria-live="polite"></div><div id="target-prompt"><kbd>E</kbd><span></span></div><button id="interact" disabled>互動 <kbd>E</kbd></button><div class="game-controls">WASD 移動　滑鼠／←→ 轉視角　E 互動　Shift 跑步<br>1 / 2 / 3 素材　M 靜音　Esc 暫停</div><button id="game-audio" aria-label="切換聲音">聲音 開</button><div id="game-fade"></div><section id="complete" hidden role="dialog" aria-modal="true" aria-labelledby="complete-title"><div><span class="postmark" aria-hidden="true">☀</span><p>海風、浪花，和你的小小足跡</p><h1 id="complete-title">今天的海灘，收集完成。</h1><p>8 枚貝殼 · 6 種潮池生物 · 7 種海洋生物</p><strong id="finish-time"></strong><p id="finish-bonus"></p><button id="replay">再玩一次</button><a href="/">回到首頁</a></div></section>`;document.body.append(ui);
  const objects=createObjects(scene,water.material.uniforms.time,config);
+ const plant=[0,1].map(()=>({down:true,still:0,px:NaN,pz:NaN,lx:1e9,lz:1e9}));let plantRig=null,footBase=Infinity;
  const state={shells:0,ball:false,lounger:false,tower:false,tidepool:false,observed:0,opensea:false,spotted:0,boat:false,island:false,footprints:0};
  const pool=createTidePool(scene);
  const lagoon=createLagoon({onObserve(id,count){state.observed=count;state.tidepool=count===6;renderHud();},onClose(){e.clearInput();leave();if(running&&!completed&&!auto)e.start();}});
@@ -623,10 +624,18 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   }else{camera.getWorldDirection(target);target.multiplyScalar(10).add(camera.position);}
   if(pickup&&mode==='walk')pickupSpeed=runPickup(simDt,t);
   updateCharacter(simDt);
-  // Footprints at the real foot plants of the walk/run clip; distance-based for poses without a clip.
+  // Footprints where a foot really comes down: it has stopped moving across the sand (0.08 s under 0.3 m/s) near
+  // the rig's lowest foot height; it must lift (8 cm higher or moving fast) before it can print again. So the steps
+  // of a stop, a turn on the spot or a change of pace print where the feet are. (Clip contact times drifted from the
+  // feet as the pace changed, and the old fallback printed every 0.55 m beside the body's centre.)
   if(active&&mode==='walk'&&simDt){const yaw=e.avatar.rotation.y;
-   if(character.plants){for(const i of character.steps){const f=character.footWorld(i,screen);if(!f)continue;f.x+=Math.sin(yaw)*.06;f.z+=Math.cos(yaw)*.06;if(groundHeight(f.x,f.z)>.015){objects.footprint(f.x,f.z,yaw,t,true);state.footprints++;}}footDistance=0;}
-   else{footDistance+=moved<1?moved:0;if(footDistance>.55&&groundHeight(e.player.x,e.player.z)>.015){objects.footprint(e.player.x,e.player.z,yaw,t);state.footprints++;footDistance=0;}}}if(e.first&&mode==='walk'){camera.getWorldDirection(screen);camera.position.copy(character.head());camera.lookAt(screen.add(camera.position));}if(!completed&&!e.first)followCamera.enforce(character.head());
+   if(plantRig!==character.root){plantRig=character.root;footBase=Infinity;for(const s of plant){s.down=true;s.px=NaN;s.still=0;}}
+   for(let i=0;i<2;i++){const f=character.footWorld(i,screen);if(!f)break;const s=plant[i],h=f.y-groundHeight(f.x,f.z),v=s.px===s.px?Math.hypot(f.x-s.px,f.z-s.pz)/simDt:0;s.px=f.x;s.pz=f.z;
+    footBase=Math.min(footBase,h);s.still=v<.3?s.still+simDt:0;
+    if(s.down){if(v>.8||h>footBase+.08)s.down=false;}
+    else if(s.still>=.08&&h<footBase+.06){s.down=true;f.x+=Math.sin(yaw)*.06;f.z+=Math.cos(yaw)*.06;
+     // A foot that shuffles a few centimetres (settling into the stance) does not print again.
+     if(Math.hypot(f.x-s.lx,f.z-s.lz)>.15&&groundHeight(f.x,f.z)>.015){s.lx=f.x;s.lz=f.z;objects.footprint(f.x,f.z,yaw,t,true);state.footprints++;}}}}if(e.first&&mode==='walk'){camera.getWorldDirection(screen);camera.position.copy(character.head());camera.lookAt(screen.add(camera.position));}if(!completed&&!e.first)followCamera.enforce(character.head());
   lastPlayer.copy(e.player);objects.update(t);
   destination.visible=mode==='boat';buoy.visible=mode==='boat';const dest=state.island&&state.opensea?dock:island;destination.position.set(dest.x,.6,dest.z);sampleWater(dest.x,dest.z,t,wave);destination.position.y=wave.height+.14;buoy.position.set(dest.x,wave.height+1.4,dest.z);
   near=active?nearTarget():null;const prompt=$('#target-prompt'),button=$('#interact');button.disabled=!near;button.firstChild.textContent=mode==='boat'?(near?.kind==='opensea'?'觀察 ':near?.kind==='skip'?'跳過 ':near?'下船 ':'划行中 '):mode==='tower'?'下塔 ':mode==='rest'?'起身 ':'互動 ';objects.halo.visible=!!near&&mode==='walk';prompt.hidden=!near;
