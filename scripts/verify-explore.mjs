@@ -17,7 +17,9 @@ try{
  await page.evaluate(async()=>{await Promise.all([window.__EXPLORE__.switchGroup('C'),window.__EXPLORE__.switchGroup('A')]);});await page.waitForFunction(()=>!window.__EXPLORE__.busy&&window.__EXPLORE__.group==='A');
  assert.equal(await page.evaluate(()=>window.__SCENE__.propRoot.children.length),8);
  await page.keyboard.press('KeyP');assert.equal(await page.locator('.hud').isVisible(),false);await page.keyboard.press('KeyP');
- const mobile=await browser.newPage({viewport:{width:390,height:844},hasTouch:true,isMobile:true});await mobile.goto('http://localhost:5191/scene.html?explore=1&auto=1');await mobile.waitForFunction(()=>window.__READY__);await mobile.tap('#begin');
+ const mobile=await browser.newPage({viewport:{width:390,height:844},hasTouch:true,isMobile:true});await mobile.goto('http://localhost:5191/scene.html?explore=1&auto=1');
+ // SwiftShader renders both pages on the CPU; with the desktop page still running the phone page takes ~40 s.
+ await mobile.waitForFunction(()=>window.__READY__,null,{timeout:120000});await mobile.tap('#begin');
  const before=await mobile.evaluate(()=>window.__EXPLORE__.player.z);
  await mobile.locator('#stick').dispatchEvent('pointerdown',{pointerId:1,clientX:80,clientY:690});await mobile.locator('#stick').dispatchEvent('pointermove',{pointerId:1,clientX:80,clientY:645});await mobile.evaluate(()=>{for(let i=0;i<120;i++)window.__EXPLORE__.update(1/60);});await mobile.locator('#stick').dispatchEvent('pointerup',{pointerId:1});
  assert(await mobile.evaluate(z=>window.__EXPLORE__.player.z<z-1,before));await mobile.screenshot({path:'shots/explore/mobile.png'});
