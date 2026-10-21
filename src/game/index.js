@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {groundHeight,shore} from '../terrain.js';
-import {sampleWater} from '../water.js';
+import {sampleWater,surfaceHeight} from '../water.js';
 import {propRoot} from '../props.js';
 import {createObjects,fallbackBoat} from './objects.js';
 import {createBall} from './physics.js';
@@ -37,8 +37,8 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  const vessel=new T.Group();vessel.name='game-rowboat';scene.add(vessel);vessel.visible=false;
  // Double-bladed paddle along its local x. One stroke phase drives it, both hands, the torso and the boat's thrust.
  const oar=new T.Group(),oarMat=new T.MeshStandardMaterial({color:0xc7a075});const shaft=new T.Mesh(new T.CylinderGeometry(.03,.03,2.6,6),oarMat);shaft.rotation.z=Math.PI/2;oar.add(shaft);for(const x of [-1.22,1.22]){const blade=new T.Mesh(new T.BoxGeometry(.42,.19,.025),oarMat);blade.position.x=x;oar.add(blade);}oar.rotation.order='YZX';vessel.add(oar);
- const splash=createSplash(scene),blade=new T.Vector3(),splashWave={};
- const row={wet:[false,false],spray:0,phase:0,amount:0,dip:.6,hands:[new T.Vector3(),new T.Vector3()],feet:[new T.Vector3(),new T.Vector3()],aim:[0,1].map(()=>({dir:new T.Vector3(),palm:new T.Vector3()})),axis:new T.Vector3(),p:new T.Vector3(),dir:new T.Vector3(),palm:new T.Vector3(),twist:0,lean:0,floorY:0};
+ const splash=createSplash(scene),blade=new T.Vector3();
+ const row={wet:[false,false],swirl:[0,0],reach:1.22,spray:0,phase:0,amount:0,dip:.6,hands:[new T.Vector3(),new T.Vector3()],feet:[new T.Vector3(),new T.Vector3()],aim:[0,1].map(()=>({dir:new T.Vector3(),palm:new T.Vector3()})),axis:new T.Vector3(),p:new T.Vector3(),dir:new T.Vector3(),palm:new T.Vector3(),twist:0,lean:0,floorY:0};
  let boatModel=null,hiddenBoat=null,fallbackModel=null;
  const followCamera=createGameCamera(camera,propRoot);e.setCameraController(followCamera);
  for(const child of e.avatar.children)child.visible=false;
@@ -289,6 +289,10 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
    // vertices but would widen the box and skew it.
    const box=new T.Box3(),base=boatModel.rotation.y,pts=[],vtx=new T.Vector3();boatModel.updateMatrixWorld(true);boatModel.traverse(o=>{if(!o.isMesh)return;const p=o.geometry.attributes.position,step=Math.max(1,Math.floor(p.count/4000));for(let i=0;i<p.count;i+=step){vtx.fromBufferAttribute(p,i).applyMatrix4(o.matrixWorld);pts.push(vtx.x,vtx.z);}});
    let best=base,narrow=Infinity;for(let k=0;k<72;k++){const a=k*Math.PI/72,c=Math.cos(a),sn=Math.sin(a);let m=0,m2=0,n=0;for(let i=0;i<pts.length;i+=2){const x=c*pts[i]+sn*pts[i+1];m+=x;m2+=x*x;n++;}const spread=m2/n-(m/n)**2;if(spread<narrow){narrow=spread;best=base+a;}}boatModel.rotation.y=best;
+   // That fixes the axis, not the heading: the bow (travel, local -z) is the narrower end; a transom stern is wide.
+   {boatModel.updateMatrixWorld(true);const q=[];boatModel.traverse(o=>{if(!o.isMesh)return;const p=o.geometry.attributes.position,step=Math.max(1,Math.floor(p.count/4000));for(let i=0;i<p.count;i+=step){vtx.fromBufferAttribute(p,i).applyMatrix4(o.matrixWorld);q.push([vtx.x,vtx.z]);}});
+    const zs=q.map(v=>v[1]).sort((m,n)=>m-n),lo=zs[Math.floor(zs.length*.02)],hi=zs[Math.floor(zs.length*.98)],end=(a,b)=>{const xs=q.filter(v=>v[1]>=a&&v[1]<=b).map(v=>v[0]).sort((m,n)=>m-n);return xs.length?xs[Math.floor(xs.length*.95)]-xs[Math.floor(xs.length*.05)]:0;};
+    const cut=(hi-lo)*.15;if(end(lo,lo+cut)>end(hi-cut,hi))boatModel.rotation.y+=Math.PI;}
    // Single-skin hulls (C) are culled from inside; draw both faces so the inside of the hull shows, not the sea.
    boatModel.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.side=T.DoubleSide;}});
    // Float with a draft: the keel a quarter of the hull height under the water line (local y 0), not on top of it.
@@ -311,7 +315,9 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
    if(boatSeat.real){const h=hull.max.y-hull.min.y,len=hull.max.z-hull.min.z,x=(hull.min.x+hull.max.x)/2,runs=[];let run=null;
     for(let z=hull.min.z+.1;z<hull.max.z-.1;z+=.04){const hit=surfacesAt(boatModel,x,z,hull).find(h2=>h2.point.y>hull.min.y+h*.3&&h2.point.y<hull.min.y+h*.85);
      if(hit&&run&&Math.abs(hit.point.y-run.y)<.05){run.z1=z;}else{run=hit?{z0:z,z1:z,y:hit.point.y}:null;if(run)runs.push(run);}}
-    const aim=mid+len*.08,thwart=runs.filter(r=>r.z1-r.z0>.12&&r.z1-r.z0<.7).sort((a,b)=>Math.abs((a.z0+a.z1)/2-aim)-Math.abs((b.z0+b.z1)/2-aim))[0];
+    // A real thwart stands clear of the floor; one in the aft half leaves the legs room before the bow narrows.
+    const floor=Math.min(...runs.map(r=>r.y)),fit=runs.filter(r=>r.z1-r.z0>.12&&r.z1-r.z0<.7),high=fit.filter(r=>r.y>floor+.15),seats=high.length?high:fit,aft=seats.filter(r=>(r.z0+r.z1)/2>=mid-.05);
+    const aim=mid+len*.08,thwart=(aft.length?aft:seats).sort((a,b)=>Math.abs((a.z0+a.z1)/2-aim)-Math.abs((b.z0+b.z1)/2-aim))[0];
     if(thwart)boatSeat.point.set(x,thwart.y+.035,(thwart.z0+thwart.z1)/2);}
    row.bow=hull.min.z;row.floorY=Math.max(hull.min.y+.16,boatSeat.point.y-.5);
    // The floor where the feet go: the highest upward face under the seat at the foot spots (the inner floor, not the
@@ -327,7 +333,10 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
     for(let z=hull.min.z+.02;z<hull.max.z;z+=.05){const o=new T.Vector3(cx,y,z);const side=d=>{probe.set(o,new T.Vector3(d,0,0));probe.far=hull.max.x-hull.min.x;return probe.intersectObject(boatModel,true)[0]?.distance;};
      const l=side(-1),r=side(1);if(l==null||r==null||l>(hull.max.x-hull.min.x)*.7||r>(hull.max.x-hull.min.x)*.7)continue;left.push([cx-l,z]);right.push([cx+r,z]);}
     if(left.length>2){const shape=new T.Shape([...left,...right.reverse()].map(([x,z])=>new T.Vector2(x,-z)));const g=new T.ShapeGeometry(shape).rotateX(-Math.PI/2).translate(0,y,0);
-     boat.mask=new T.Mesh(g,new T.MeshBasicMaterial({colorWrite:false,side:T.DoubleSide}));boat.mask.renderOrder=1;boat.mask.name='hull-water-mask';vessel.add(boat.mask);water.renderOrder=2;}}row.dip=Math.asin(T.MathUtils.clamp((boatSeat.point.y+.46+.14)/1.22,.3,.95));}vessel.position.copy(oldPosition);vessel.quaternion.copy(oldRotation);vessel.updateMatrixWorld(true);
+     boat.mask=new T.Mesh(g,new T.MeshBasicMaterial({colorWrite:false,side:T.DoubleSide}));boat.mask.renderOrder=1;boat.mask.name='hull-water-mask';vessel.add(boat.mask);water.renderOrder=2;}}// Paddle length and roll from where the blade should be at the bottom of the stroke: 16 cm under the water and
+   // 45 cm clear of the hull's side (a blade dipped beside the hull read as spray thrown up by the boat).
+   {const drop=boatSeat.point.y+.46+.16,out=boat.hull.beam/2+.45;row.reach=T.MathUtils.clamp(Math.hypot(drop,out),1.22,1.9);row.dip=Math.asin(T.MathUtils.clamp(drop/row.reach,.3,.95));
+    oar.children[0].scale.y=(2*row.reach+.16)/2.6;oar.children[1].position.x=-row.reach;oar.children[2].position.x=row.reach;}}vessel.position.copy(oldPosition);vessel.quaternion.copy(oldRotation);vessel.updateMatrixWorld(true);
   if(mode==='boat'&&source){source.visible=false;hiddenBoat=source;}
  }
  syncAnchors();
@@ -405,7 +414,8 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  function rowPaddle(dt,t,f){
   const before=row.phase;row.phase+=dt*Math.PI/.7*Math.sign(f)*Math.min(1,Math.abs(f));
   row.amount=T.MathUtils.damp(row.amount,f?1:0,4,dt);
-  const a=row.amount,seat=boatSeat.point,roll=Math.sin(row.phase)*row.dip*a,yaw=Math.cos(row.phase)*.5*a;
+  // The roll lingers near either extreme (a blade spends longer in the water) and the sweep runs from the feet to the hips.
+  const a=row.amount,seat=boatSeat.point,sr=Math.sin(row.phase),roll=Math.sign(sr)*Math.abs(sr)**.6*row.dip*a,yaw=Math.cos(row.phase)*.65*a;
   // Shaft centre: in the lap at rest, at chest height and forward while stroking.
   const arm=character.armLength;oar.position.set(seat.x,seat.y+.3+.16*a,seat.z-.1-arm*(.45+.15*a));oar.rotation.set(0,yaw,-roll);oar.updateMatrix();
   // Hands grip the shaft at shoulder width; the wrists sit a little behind it.
@@ -436,17 +446,21 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   if(allowed){vessel.position.x=x;vessel.position.z=z;}else boatSpeed=0;
   // Ride the water over the whole hull, not the slope at one point: near the shore the waves are short, and a hull
   // levelled at its centre had the water up to 15 cm over its inside at bow or stern. Height and tilt come from the
-  // water at bow, stern and both sides.
-  const c=Math.cos(boatYaw),sine=Math.sin(boatYaw),hh=boat.hull??{x:0,z:0,len:3,beam:1.2},at=(lx,lz)=>{lx+=hh.x;lz+=hh.z;return sampleWater(vessel.position.x+c*lx+sine*lz,vessel.position.z-sine*lx+c*lz,t,wave).height;};
+  // water as drawn (surfaceHeight: offshore the mesh is coarse and its surface strays from the exact field) at bow,
+  // stern and both sides.
+  const c=Math.cos(boatYaw),sine=Math.sin(boatYaw),hh=boat.hull??{x:0,z:0,len:3,beam:1.2},at=(lx,lz)=>{lx+=hh.x;lz+=hh.z;return surfaceHeight(vessel.position.x+c*lx+sine*lz,vessel.position.z-sine*lx+c*lz,t);};
   const bow=at(0,-hh.len/2),stern=at(0,hh.len/2),port=at(-hh.beam/2,0),starboard=at(hh.beam/2,0),tilt=.3;
   vessel.position.y=(bow+stern+port+starboard)/4;vessel.rotation.set(T.MathUtils.clamp(Math.atan2(bow-stern,hh.len),-tilt,tilt),boatYaw,T.MathUtils.clamp(Math.atan2(starboard-port,hh.beam),-tilt,tilt),'YXZ');
   vessel.updateMatrixWorld(true);e.player.copy(boatSeat.point).applyMatrix4(vessel.matrixWorld);e.avatar.position.copy(e.player);e.avatar.rotation.set(vessel.rotation.x,boatYaw+Math.PI,vessel.rotation.z,'YXZ');
   rowPaddle(dt,t,f);
   // Splashes: a blade cutting into the water and lifting out of it, and spray off both sides of the bow under way.
-  for(let i=0;i<2;i++){blade.copy(oar.children[i+1].position).applyMatrix4(oar.matrix).applyMatrix4(vessel.matrixWorld);const h=sampleWater(blade.x,blade.z,t,splashWave).height,wet=blade.y<h-.02;
-   if(wet!==row.wet[i]&&dt>0)splash.emit(t,blade.x,h,blade.z,wet?.3+.2*row.amount:.14+.1*row.amount);row.wet[i]=wet;}
+  for(let i=0;i<2;i++){blade.copy(oar.children[i+1].position).applyMatrix4(oar.matrix).applyMatrix4(vessel.matrixWorld);const h=surfaceHeight(blade.x,blade.z,t),wet=blade.y<h-.02;
+   if(wet!==row.wet[i]&&dt>0){splash.emit(t,blade.x,h,blade.z,wet?.3+.2*row.amount:.14+.1*row.amount);row.swirl[i]=.08;}
+   // While it pulls, the blade leaves a trail of small swirls on the water.
+   else if(wet&&dt>0&&(row.swirl[i]-=dt)<=0){row.swirl[i]=.08;splash.emit(t,blade.x,h,blade.z,.12,0,0,1.1);}
+   row.wet[i]=wet;}
   if(boatSpeed>1.2&&(row.spray-=dt)<=0){row.spray=.1;const hh=boat.hull??{x:0,z:0,len:3,beam:1.2},size=Math.min(.25,.03+.04*boatSpeed);
-   for(const k of [-1,1]){blade.set(hh.x+k*hh.beam*.3,0,hh.z-hh.len*.42).applyMatrix4(vessel.matrixWorld);const out=new T.Vector3(k,0,-.6).normalize().transformDirection(vessel.matrixWorld);splash.emit(t,blade.x,sampleWater(blade.x,blade.z,t,splashWave).height,blade.z,size,out.x,out.z,.5);}}
+   for(const k of [-1,1]){blade.set(hh.x+k*hh.beam*.3,0,hh.z-hh.len*.42).applyMatrix4(vessel.matrixWorld);const out=new T.Vector3(k,0,-.6).normalize().transformDirection(vessel.matrixWorld);splash.emit(t,blade.x,surfaceHeight(blade.x,blade.z,t),blade.z,size,out.x,out.z,.5);}}
   const dist=Math.hypot(vessel.position.x-island.x,vessel.position.z-island.z);if(!state.island&&dist<11){state.island=true;objects.burst(vessel.position.x,vessel.position.y+1,vessel.position.z,t);e.sfx('pickup');toast('抵達浮標！等海洋生物浮出水面，按 E 觀察。');}
   camGoal.set(vessel.position.x+Math.sin(boatYaw)*9,vessel.position.y+4.8,vessel.position.z+Math.cos(boatYaw)*9);camLook.set(vessel.position.x-Math.sin(boatYaw)*7,1,vessel.position.z-Math.cos(boatYaw)*7);
  }
@@ -528,6 +542,6 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
    }});
   return [...targets,sand].map(t=>({id:t.id,n:t.n,max:+t.max.toFixed(3),worst:t.worst}));
  }
- if(auto){Object.assign(api,{penetration,boatInfo(){const b=new T.Box3().setFromObject(boatModel,true);return {draft:boat.draft,mask:boat.mask?boat.mask.geometry.attributes.position.count:0,keelBelowWater:+(vessel.position.y-b.min.y).toFixed(3),gunwaleAboveWater:+(b.max.y-vessel.position.y).toFixed(3)};},ladder(){return anchors.lifeguard.ladder;},climbState(){return {towerT,towerDir,root:climb.root.toArray(),hands:climb.hands.map(h=>h.toArray()),player:e.player.toArray(),total:towerTotal()};},handWorld(i){return character.rig.hand[i].getWorldPosition(new T.Vector3());},teleport(x,z){if(mode!=='walk')throw Error('Teleport is only available on foot');e.player.set(x,groundHeight(x,z),z);lastPlayer.copy(e.player);},targets(){return {shells:objects.items.map(s=>({x:s.x,y:s.y,z:s.z,collected:s.collected})),ball:objects.ball.position.toArray(),umbrella:anchors.umbrella.point.toArray(),tidepool:pool.point.toArray(),lagoon:pool.point.toArray(),lifeguard:anchors.lifeguard.point.toArray(),boat:anchors.boat.point.toArray(),dock,island};},step(seconds){let remaining=seconds;while(remaining>1e-6){const dt=Math.min(1/60,remaining);window.__TIME__=time()+dt;water.material.uniforms.time.value=window.__TIME__;e.update(dt);update(dt,window.__TIME__);remaining-=dt;}},steer(angle){if(mode!=='boat')throw Error('Not in boat');boatYaw=angle;},view(yaw){e.setView(yaw);},wave(x,z,t){return {...sampleWater(x,z,t,{})};}});Object.defineProperty(api,'vessel',{get(){return {x:vessel.position.x,y:vessel.position.y,z:vessel.position.z,yaw:boatYaw,speed:boatSpeed};}});window.__GAME__=api;}
+ if(auto){Object.assign(api,{penetration,boatInfo(){const b=new T.Box3().setFromObject(boatModel,true);return {draft:boat.draft,mask:boat.mask?boat.mask.geometry.attributes.position.count:0,keelBelowWater:+(vessel.position.y-b.min.y).toFixed(3),gunwaleAboveWater:+(b.max.y-vessel.position.y).toFixed(3)};},ladder(){return anchors.lifeguard.ladder;},climbState(){return {towerT,towerDir,root:climb.root.toArray(),hands:climb.hands.map(h=>h.toArray()),player:e.player.toArray(),total:towerTotal()};},handWorld(i){return character.rig.hand[i].getWorldPosition(new T.Vector3());},teleport(x,z){if(mode!=='walk')throw Error('Teleport is only available on foot');e.player.set(x,groundHeight(x,z),z);lastPlayer.copy(e.player);},targets(){return {shells:objects.items.map(s=>({x:s.x,y:s.y,z:s.z,collected:s.collected})),ball:objects.ball.position.toArray(),umbrella:anchors.umbrella.point.toArray(),tidepool:pool.point.toArray(),lagoon:pool.point.toArray(),lifeguard:anchors.lifeguard.point.toArray(),boat:anchors.boat.point.toArray(),dock,island};},step(seconds){let remaining=seconds;while(remaining>1e-6){const dt=Math.min(1/60,remaining);window.__TIME__=time()+dt;water.material.uniforms.time.value=window.__TIME__;e.update(dt);update(dt,window.__TIME__);remaining-=dt;}},steer(angle){if(mode!=='boat')throw Error('Not in boat');boatYaw=angle;},view(yaw){e.setView(yaw);},wave(x,z,t){return {...sampleWater(x,z,t,{}),drawn:surfaceHeight(x,z,t)};}});Object.defineProperty(api,'vessel',{get(){return {x:vessel.position.x,y:vessel.position.y,z:vessel.position.z,yaw:boatYaw,speed:boatSpeed};}});window.__GAME__=api;}
  update(0,time());return api;
 }

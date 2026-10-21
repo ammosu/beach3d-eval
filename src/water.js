@@ -81,6 +81,7 @@ void waterSurface(vec2 p,float t,out vec3 displaced,out vec3 waveNormal){
 }
 `;
 
+const grid={xs:null,ds:null};
 function waterGeometry() {
  // Preserve the terrain entirely. Only the water mesh follows the coast, with
  // ~35 cm rows across the surf, smoothly coarsening into the distant ocean.
@@ -90,6 +91,7 @@ function waterGeometry() {
  for(let i=1;i<=40;i++)xs.push(140+1860*(i/40)**2);
  for(let i=0;i<=186;i++)ds.push(-5+i*.35);
  for(let i=1;i<=70;i++)ds.push(60.1+2140*(i/70)**2);
+ grid.xs=xs;grid.ds=ds;
  const positions=[],indices=[];
  for(const d of ds)for(const x of xs)positions.push(x,-(shore(x)-d),0);
  const width=xs.length;
@@ -276,6 +278,30 @@ function waterField(x,z,t,out){
  out.x=x+ox;out.z=z+oz;out.height=y;
 }
 function waterHeightAt(x,z,t,out){let u=x,v=z;for(let i=0;i<4;i++){waterField(u,v,t,out);u+=x-out.x;v+=z-out.z;}waterField(u,v,t,out);return out.height;}
+// The water as drawn: the mesh's vertices move with the wave field and the surface between them is flat. Offshore the
+// rows are 10-16 m apart, so the drawn surface can sit 20-30 cm off the exact field (sampleWater) between them; things
+// that must not cut through it (the rowboat's hull) follow this one.
+const corner={};
+function lowerIndex(a,v){let lo=0,hi=a.length-2;while(lo<hi){const m=(lo+hi+1)>>1;if(a[m]<=v)lo=m;else hi=m-1;}return lo;}
+export function surfaceHeight(x,z,t){
+ if(!grid.xs)waterGeometry();
+ const {xs,ds}=grid;let u=x,v=z,h=0;
+ for(let it=0;it<5;it++){
+  const i=lowerIndex(xs,u),j=lowerIndex(ds,shore(u)-v);
+  const rest=(a,b)=>[xs[a],shore(xs[a])-ds[b]];
+  const A=rest(i,j),B=rest(i+1,j),C=rest(i,j+1),D=rest(i+1,j+1);
+  let pick=null;
+  for(const T3 of [[A,B,D,[i,j],[i+1,j],[i+1,j+1]],[A,D,C,[i,j],[i+1,j+1],[i,j+1]]]){
+   const [p,q,r]=T3,det=(q[0]-p[0])*(r[1]-p[1])-(r[0]-p[0])*(q[1]-p[1]);
+   const w1=((u-p[0])*(r[1]-p[1])-(r[0]-p[0])*(v-p[1]))/det,w2=((q[0]-p[0])*(v-p[1])-(u-p[0])*(q[1]-p[1]))/det,w0=1-w1-w2;
+   const worst=Math.min(w0,w1,w2);if(!pick||worst>pick.worst)pick={worst,w:[w0,w1,w2],ix:T3.slice(3)};
+  }
+  let X=0,Z=0;h=0;
+  for(let k=0;k<3;k++){const [a,b]=pick.ix[k],cx=xs[a];waterField(cx,shore(cx)-ds[b],t,corner);X+=pick.w[k]*corner.x;Z+=pick.w[k]*corner.z;h+=pick.w[k]*corner.height;}
+  u+=x-X;v+=z-Z;
+ }
+ return h;
+}
 export function sampleWater(x,z,t,out){
  const h=waterHeightAt(x,z,t,out),hx=waterHeightAt(x+.06,z,t,out),hz=waterHeightAt(x,z+.06,t,out),nx=(h-hx)/.06,nz=(h-hz)/.06,n=Math.hypot(nx,1,nz);
  out.x=x;out.z=z;out.height=h;out.nx=nx/n;out.ny=1/n;out.nz=nz/n;return out;
