@@ -1,0 +1,31 @@
+{
+  "work_root": "~/explainer-videos/beach3d-eval",
+  "font": "Noto Sans CJK TC",
+  "gap": 0.45,
+  "brand": {
+    "name": "AI 海邊 3D 驗證",
+    "url": "beach3d-eval",
+    "logo": ""
+  },
+  "palette": {
+    "accent": "#4696F0",
+    "codex": "#F0963C",
+    "tripo": "#4696F0",
+    "library": "#5ABE6E",
+    "opus": "#966EDC",
+    "neutral": "#BBBBBB"
+  },
+  "tts": {
+    "voice": "anna_casual",
+    "seed": 7,
+    "speed": 1.05,
+    "url": "http://127.0.0.1:19080",
+    "env_file": "~/.config/voxcpm-api.env"
+  },
+  "asr": {
+    "bin": "~/git_project/meeting-asr/qwen_asr",
+    "model": "~/git_project/meeting-asr/qwen3-asr-1.7b"
+  },
+  "slack": null,
+  "project": "beach3d-eval"
+}

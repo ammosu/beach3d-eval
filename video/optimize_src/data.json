@@ -1,0 +1,9 @@
+{
+ "walk": {"before": "2ebc139", "after": "cee44b7", "group": "C", "source": "bdd7c70：dt=0 的繪製更新把骨架重設回站姿（逐格錄影）"},
+ "climb": {"before": "af534a5", "after": "cee44b7", "group": "B", "source": "NOTES.md:278-279（c8f120d、d208c41）"},
+ "lounger": {"before": "d208c41", "after": "cee44b7", "group": "B", "max_cm_all": 5, "source": "NOTES.md:280：所有互動陷入 ≤ 5 cm；probe-clip rest B 現在最深 2 cm"},
+ "shadow": {"before": "c234601", "after": "cee44b7", "gap_m": 0.5, "bias_cm": 20, "sun_deg": 22, "source": "NOTES.md:281"},
+ "ground": {"before": "c234601", "after": "cee44b7", "rock_C_cm": {"min": 8, "median": 11, "max": 15}, "after_median_cm": 0, "source": "probe-ground.mjs（舊版指到 5196）"},
+ "boat": {"before": "5d3c354", "after": "cee44b7", "blade_above_cm": 17, "blade_below_cm": 16, "source": "NOTES.md:282-283"},
+ "hull": {"before": "5d3c354", "after": "cee44b7", "time_s": 18.7, "source": "同時間俯視截圖；NOTES.md:283"}
+}
