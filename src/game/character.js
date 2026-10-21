@@ -243,7 +243,7 @@ export async function createCharacter(group='A'){
   // Head turns toward a point of interest, within a comfortable neck range.
   if(look&&rig.head&&headForward){const h=rig.head.getWorldPosition(A1);rig.head.getWorldQuaternion(q);from.copy(headForward).applyQuaternion(q);dir.copy(look).sub(h).normalize();const angle=from.angleTo(dir);if(angle>1e-4){const limit=Math.min(angle,1.05)/angle;turn.setFromUnitVectors(from,dir);const partial=new T.Quaternion().slerp(turn,limit*lookWeight);q.premultiply(partial);rig.head.parent.getWorldQuaternion(parentQ).invert();q.premultiply(parentQ);rig.head.quaternion.copy(q);rig.head.updateWorldMatrix(false,true);}}
  }
- function update(dt,{speed=0,airborne=false,pose='stand',first=false,fade=1,animation=null,ik=null,recline=0}={}){
+ function update(dt,{speed=0,airborne=false,pose='stand',first=false,fade=1,animation=null,ik=null,recline=0,snapPose=false}={}){
   // A dt=0 call (a render between offline steps) keeps the current pose. Re-running restore() there would leave
   // the rest pose on screen: three.js PropertyMixer skips writing values that did not change since its last apply.
   if(!dt&&posed&&!animation)return;posed=true;
@@ -304,7 +304,8 @@ export async function createCharacter(group='A'){
   // Lying: the body tips back about the hips (which rest .135 above the avatar origin) to the recline.
   if(lying){const tip=recline-Math.PI/2;posePosition.set(0,.135-hipY*Math.cos(tip),-hipY*Math.sin(tip));poseRotation.setFromAxisAngle(V(1,0,0),tip);}
   else if(seated)posePosition.set(0,-hipY+.10,0);
-  bodyRotation.slerp(poseRotation,dt?blend:1);bodyPosition.lerp(posePosition,dt?blend:1);
+  // snapPose: the caller has already brought the body to the new pose's height (climbing into the boat ends seated).
+  bodyRotation.slerp(poseRotation,dt&&!snapPose?blend:1);bodyPosition.lerp(posePosition,dt&&!snapPose?blend:1);
   pivot.quaternion.copy(bodyRotation);pivot.position.copy(bodyPosition);
   if(ik)solve(ik);else{error.hands.fill(null);error.feet.fill(null);}
   for(let i=0;i<2;i++)endOf(i,true)?.getWorldPosition(lastFeet[i]);
@@ -318,5 +319,5 @@ export async function createCharacter(group='A'){
  function palm(i,out=V()){const h=rig.hand[i];if(!h)return head(out);h.getWorldPosition(out);return grip[i]?out.lerp(grip[i].bone.getWorldPosition(A1),.75):out;}
  function head(out=headWorld){return rig.head?rig.head.getWorldPosition(out):out.copy(root.position).add(V(0,1.6,0));}
  update(0);
- return {root,update,trigger,info,head,palm,footWorld,steps,side,armLength,ankleHeight:(ankle[0]+ankle[1])/2,get gripReach(){return grip[0]?grip[0].bone.getWorldPosition(V()).distanceTo(rig.hand[0].getWorldPosition(V())):0;},hasGrip:!!grip[0],grip,get plants(){return !!contact[active]||!actions.has(active)&&(active==='walk'||active==='run');},mixer,rig,meshes,dispose(){mixer.stopAllAction();mixer.uncacheRoot(model);disposeModel(model);root.removeFromParent();},animations:[...new Set(['idle','walk','run','jump','climb','sit','lie','paddle','kick','interact',...actions.keys()])]};
+ return {root,update,trigger,info,head,palm,footWorld,steps,side,armLength,hipHeight:hipY,ankleHeight:(ankle[0]+ankle[1])/2,get gripReach(){return grip[0]?grip[0].bone.getWorldPosition(V()).distanceTo(rig.hand[0].getWorldPosition(V())):0;},hasGrip:!!grip[0],grip,get plants(){return !!contact[active]||!actions.has(active)&&(active==='walk'||active==='run');},mixer,rig,meshes,dispose(){mixer.stopAllAction();mixer.uncacheRoot(model);disposeModel(model);root.removeFromParent();},animations:[...new Set(['idle','walk','run','jump','climb','sit','lie','paddle','kick','interact',...actions.keys()])]};
 }
