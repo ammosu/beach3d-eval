@@ -1,6 +1,6 @@
 import * as T from 'three';
-import {groundHeight} from '../terrain.js';
-import {surfaceHeight,WAKE_RINGS} from '../water.js';
+import {groundHeight,shore} from '../terrain.js';
+import {surfaceHeight,swashReach,WAKE_RINGS} from '../water.js';
 
 // Foam the rowboat leaves on the water: a wake behind the stern that widens, breaks up and fades, and a foam line
 // round the hull at the water line. The wake is built from stern samples taken while under way (world time, place,
@@ -17,6 +17,10 @@ function foamTexture(w,h,profile,seed){
   for(const dx of [-w,0,w])for(const dy of [-h,0,h]){const x=u*w+dx,y=v*h+dy;if(x<-r||x>w+r||y<-r||y>h+r)continue;const gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,`rgba(255,255,255,${a})`);gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(x-r,y-r,2*r,2*r);}}
  const t=new T.CanvasTexture(c);t.wrapS=t.wrapT=T.RepeatWrapping;t.colorSpace=T.NoColorSpace;return t;
 }
+// Water at least 10 cm deep at (x,z) under the drawn surface y. The water mesh (and surfaceHeight) runs on up over the
+// dry beach, where the shader discards it beyond the swash front, so check that first (a boat pushed over the sand
+// used to wear its foam line there).
+const wet=(x,z,y,t)=>z-shore(x)<swashReach(x,t)&&groundHeight(x,z)<y-.1;
 const bump=(u,c,s)=>Math.exp(-(((u-c)/s)**2));
 // Two foam lines where the hull's bow waves spread, a churned middle from the strokes, a little foam in between.
 const WAKE=u=>.06+.9*bump(u,.06,.045)+.9*bump(u,.94,.045)+.35*bump(u,.5,.12);
@@ -65,7 +69,7 @@ export function createWake(scene){
    for(let k=0;k<COLS;k++){const u=k/(COLS-1),o=(u*2-1)*half,x=s.x+cx*o,z=s.z+sx*o,a=(i*COLS+k);
     p[a*3]=x;p[a*3+1]=surfaceHeight(x,z,t)+.025;p[a*3+2]=z;uv[a*2]=u;uv[a*2+1]=s.d/7;
     // Not over the sand where the wake reaches the beach.
-    f[a]=groundHeight(x,z)<p[a*3+1]-.08?fade:0;}
+    f[a]=wet(x,z,p[a*3+1]+.02,t)?fade:0;}
    if(i&&s.t-list[i-1].t<.4)for(let k=0;k<COLS-1;k++){const a=(i-1)*COLS+k,b=i*COLS+k;idx.push(a,a+1,b,a+1,b+1,b);}});
   trail.geometry.setIndex(idx);for(const k of ['position','uv','fade'])trail.geometry.attributes[k].needsUpdate=true;
  }
@@ -77,9 +81,8 @@ export function createWake(scene){
   const p=ring.geometry.attributes.position.array,uv=ring.geometry.attributes.uv.array,f=ring.geometry.attributes.fade.array,s=Math.abs(speed);
   loop.forEach((q,i)=>{v.set(q.x,0,q.z).applyMatrix4(matrix);n.set(q.nx,0,q.nz).transformDirection(matrix);n.y=0;n.normalize();
    const bow=Math.max(0,-q.nz),w=.14+.04*s+.22*bow*Math.min(s,4),y=surfaceHeight(v.x,v.z,t)+.02,fade=.42+.1*Math.min(1,s/3)+.12*bow*Math.min(1,s/3);
-   const wet=groundHeight(v.x,v.z)<y-.1;
-   p[i*3]=v.x-n.x*.03;p[i*3+1]=y;p[i*3+2]=v.z-n.z*.03;uv[i*2]=0;uv[i*2+1]=0;f[i]=wet?fade:0;
-   const ox=v.x+n.x*w,oz=v.z+n.z*w,j=RING+i;p[j*3]=ox;p[j*3+1]=surfaceHeight(ox,oz,t)+.02;p[j*3+2]=oz;uv[j*2]=1;uv[j*2+1]=0;f[j]=wet?fade*.6:0;});
+   p[i*3]=v.x-n.x*.03;p[i*3+1]=y;p[i*3+2]=v.z-n.z*.03;uv[i*2]=0;uv[i*2+1]=0;const inner=wet(v.x,v.z,y,t);f[i]=inner?fade:0;
+   const ox=v.x+n.x*w,oz=v.z+n.z*w,j=RING+i;p[j*3]=ox;p[j*3+1]=surfaceHeight(ox,oz,t)+.02;p[j*3+2]=oz;uv[j*2]=1;uv[j*2+1]=0;f[j]=inner?fade*.6:0;});
   for(const k of ['position','uv','fade'])ring.geometry.attributes[k].needsUpdate=true;
  }
  // The newest stern samples for the water shader's ripple rings (x, z, time, speed); the rest are switched off.
