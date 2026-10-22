@@ -24,11 +24,11 @@ export function createGameCamera(camera,propRoot){
   const cut=last.x===last.x&&player.distanceTo(last)>3;
   if(dt>0){if(cut||last.x!==last.x)leadGoal.set(0,0,0);else{leadGoal.set(player.x-last.x,0,player.z-last.z).divideScalar(dt);const speed=leadGoal.length();if(speed>.2)leadGoal.multiplyScalar(Math.min(.9,speed*.2)/speed);else leadGoal.set(0,0,0);}
    if(cut)lead.set(0,0,0);else lead.lerp(leadGoal,1-Math.exp(-dt/.3));last.copy(player);}
-  head.copy(player).add(lead).y+=1.6;direction.set(Math.sin(yaw)*Math.cos(pitch),.073+Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch)).normalize();let desired=clearance(head,direction,6.2);
+  const focus=api.focus?.()??0,range=6.2+focus*2.8;head.copy(player).add(lead).y+=1.6+focus;direction.set(Math.sin(yaw)*Math.cos(pitch),.073+Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch)).normalize();let desired=clearance(head,direction,range);
   if(desired<MIN_BOOM){
    // Lift the boom over the head rather than collapsing into it. Probe several
    // elevations so a chair back/rail does not trap the camera inside the body.
-   for(const elevation of [.6,.9,1.2,1.48]){direction.set(Math.sin(yaw)*Math.cos(elevation),Math.sin(elevation),Math.cos(yaw)*Math.cos(elevation));desired=clearance(head,direction,6.2);if(desired>=MIN_BOOM+.15)break;}
+   for(const elevation of [.6,.9,1.2,1.48]){direction.set(Math.sin(yaw)*Math.cos(elevation),Math.sin(elevation),Math.cos(yaw)*Math.cos(elevation));desired=clearance(head,direction,range);if(desired>=MIN_BOOM+.15)break;}
   }
   desired=Math.max(MIN_BOOM,desired);boom=T.MathUtils.damp(boom,desired,desired<boom?24:3.2,dt);boom=Math.max(MIN_BOOM,Math.min(boom,desired));goal.copy(head).addScaledVector(direction,boom);
   if(cut){boom=desired;goal.copy(head).addScaledVector(direction,boom);camera.position.copy(goal);}else camera.position.lerp(goal,1-Math.exp(-12*dt));
@@ -39,5 +39,5 @@ export function createGameCamera(camera,propRoot){
   enforce(head);camera.lookAt(head);return lastDistance;
  }
  function enforce(point){delta.subVectors(camera.position,point);if(delta.length()<MIN_BOOM){if(delta.length()<.01)delta.set(0,1,.15);delta.setLength(MIN_BOOM);camera.position.copy(point).add(delta);}camera.position.y=Math.max(camera.position.y,landHeight(camera.position.x,camera.position.z)+.3);lastDistance=camera.position.distanceTo(point);minObserved=Math.min(minObserved,lastDistance);return lastDistance;}
- refresh();return {refresh,update,enforce,get distance(){return lastDistance;},get minObserved(){return minObserved;},resetAudit(){minObserved=Infinity;},get boom(){return boom;}};
+ const api={refresh,update,enforce,get distance(){return lastDistance;},get minObserved(){return minObserved;},resetAudit(){minObserved=Infinity;},get boom(){return boom;}};refresh();return api;
 }

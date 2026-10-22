@@ -57,7 +57,9 @@ function palmGeometry(seed){
  // A few coconuts under the crown.
  for(let i=0;i<3;i++){const a=i*2.1+r(),c=new THREE.IcosahedronGeometry(.018,0).translate(top.x+Math.cos(a)*.022,top.y-.025,top.z+Math.sin(a)*.022);c.deleteAttribute('uv');c.deleteAttribute('normal');
   c.setAttribute('color',new THREE.Float32BufferAttribute(Array.from({length:c.attributes.position.count},()=>[.35,.28,.12]).flat(),3));parts.push(c);}
- const merged=mergeGeometries(parts);merged.computeVertexNormals();return merged;
+ const merged=mergeGeometries(parts);merged.computeVertexNormals();
+ const wp=merged.attributes.position,w=[];for(let i=0;i<wp.count;i++){const y=wp.getY(i),r=Math.hypot(wp.getX(i)-top.x,wp.getZ(i));w.push(y>.55?THREE.MathUtils.smoothstep(r,.035,.35):0);}
+ merged.setAttribute('palmWind',new THREE.Float32BufferAttribute(w,1));return merged;
 }
 
 // A shore boulder: a lumpy, flattened rock, height and radius about 1. Grey-brown and darker underneath, with a band of
@@ -168,10 +170,21 @@ export function createVegetation(group){
   const foliage=foliageMaterial(),plain=haze(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.9})),fronds=haze(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.85,side:THREE.DoubleSide}));
   const sets=[[lists.crownNear,[11,23,37].map(s=>crownGeometry(s,1,5)),foliage],[lists.crownFar,[11,23].map(s=>crownGeometry(s,0,4)),foliage],
    [lists.shrub,[51,63].map(s=>crownGeometry(s,0,4)),foliage],[lists.palm,[71,83].map(palmGeometry),fronds],[lists.trunk,[trunkGeometry()],plain],[lists.boulder,[5,9].map(boulderGeometry),plain],[lists.plant,[[91,false],[97,true],[103,false]].map(([s,n])=>leafPlantGeometry(s,n)),fronds]];
-  for(const [list,geos,material] of sets){const meshes=geos.map(g=>{const m=new THREE.InstancedMesh(g,material,Math.max(1,Math.ceil(list.length/geos.length)));m.count=0;m.castShadow=m.receiveShadow=true;group.add(m);return m;});
+  for(const [list,geos,material] of sets){const meshes=geos.map(g=>{const m=new THREE.InstancedMesh(g,material,Math.max(1,Math.ceil(list.length/geos.length)));m.userData.palmWind=!!g.attributes.palmWind;m.count=0;m.castShadow=m.receiveShadow=true;group.add(m);return m;});
    list.forEach(([matrix,color],i)=>{const m=meshes[i%meshes.length];m.setMatrixAt(m.count,matrix);m.setColorAt(m.count,color);m.count++;});
    for(const m of meshes){m.instanceMatrix.needsUpdate=true;if(m.instanceColor)m.instanceColor.needsUpdate=true;m.computeBoundingSphere();}}
   return Object.fromEntries(Object.entries(lists).map(([k,v])=>[k,v.length]));
  }
  return {plant,finish};
+}
+
+// Opt-in only: ordinary scene/compare/stills retain the original material and shader program.
+export function enablePalmWind(group,clock,enabled=true){
+ group?.traverse(o=>{if(!o.userData.palmWind)return;const m=o.material.clone(),prev=o.material.onBeforeCompile,on={value:Number(enabled)};m.userData.palmWindEnabled=on;
+  m.onBeforeCompile=(s,r)=>{prev.call(m,s,r);s.uniforms.palmClock=clock;s.uniforms.palmWindEnabled=on;
+   s.vertexShader='uniform float palmClock;uniform float palmWindEnabled;attribute float palmWind;\n'+s.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+    float phase=palmClock*1.1+instanceMatrix[3].x*.07+instanceMatrix[3].z*.05;
+    transformed.x+=palmWind*palmWindEnabled*.006*sin(phase+position.x*6.);transformed.z+=palmWind*palmWindEnabled*.004*sin(phase*.83+position.z*7.);`);};
+  m.customProgramCacheKey=()=>'island-palm-wind';o.material=m;
+ });
 }

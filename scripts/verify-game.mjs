@@ -14,6 +14,41 @@ try{
  const at=async(x,z)=>{await page.evaluate(([x,z])=>{const g=window.__GAME__;g.teleport(x,z);g.step(.35);},[x,z]);};
  const e=()=>page.keyboard.press('KeyE');
  assert.equal(await page.evaluate(()=>window.__EXPLORE__.group),'B');await shot('start');await page.click('#begin');
+
+ // Extras use the same E input and clock as the quests, but do not add completion prerequisites.
+ const extrasChecks=[];
+ async function checkExtras(group,all=false){
+  const p=await page.evaluate(()=>window.__GAME__.targets());
+  await at(p.castle[0],p.castle[2]+1);await page.evaluate(()=>window.__GAME__.view(.65));await e();
+  let c=await page.evaluate(()=>window.__GAME__.extras.castle);assert.equal(c.stage,'building');assert(c.startedAt>=4);
+  await step(.65);assert(await page.evaluate(()=>window.__GAME__.character.ik.hands.every(x=>x!==null&&x<.22)),'both hands reach the wall');
+  await page.evaluate(()=>{const g=window.__GAME__;g.step(g.extras.castle.startedAt+6.04-window.__TIME__);});
+  c=await page.evaluate(()=>window.__GAME__.extras.castle);assert.equal(c.stage,'built');assert(c.visible);await shot(group==='B'?'castle':`${group}_castle`);
+  const castleIK=await page.evaluate(()=>window.__GAME__.character.ik.hands);assert(castleIK.every(x=>x<.22));
+  await step(.6);await e();assert.equal(await page.evaluate(()=>window.__GAME__.extras.castle.stage),'washing');await step(4.1);
+  assert.equal(await page.evaluate(()=>window.__GAME__.extras.castle.stage),'idle');assert.equal(await page.evaluate(()=>window.__GAME__.extras.castle.visible),false);
+  // Build again after the wash, then reset so group checks are independent.
+  if(all){await e();await step(7);assert.equal(await page.evaluate(()=>window.__GAME__.extras.castle.stage),'built');await step(.3);await e();await step(4.1);}
+  await at(p.kite[0],p.kite[2]);await e();await step(7);
+  const kite=await page.evaluate(()=>{const g=window.__GAME__,s=window.__SCENE__,p=s.scene.getObjectByName('extra-kite').position.clone().project(s.camera);return {...g.extras.kite,screen:p.toArray(),ik:g.character.ik.hands};});
+  assert(kite.flying&&kite.height>20);assert(Math.abs(kite.screen[0])<.9&&Math.abs(kite.screen[1])<.9&&kite.screen[2]<1,`kite in view: ${JSON.stringify(kite)}`);
+  assert(kite.ik.every(x=>x<.12),'both hands grip the line handle');await shot(group==='B'?'kite':`${group}_kite`);
+  const held=await page.evaluate(()=>window.__EXPLORE__.player.toArray());await page.keyboard.down('KeyW');await step(.5);await page.keyboard.up('KeyW');assert.deepEqual(await page.evaluate(()=>window.__EXPLORE__.player.toArray()),held,'kite holds WASD');
+  const frozen=await page.evaluate(()=>window.__GAME__.extras);await step(0);assert.deepEqual(await page.evaluate(()=>window.__GAME__.extras),frozen,'frozen extra clock');
+  await e();await step(6);assert.equal(await page.evaluate(()=>window.__GAME__.extras.kite.flying),false);
+  if(all){
+   assert.equal(await page.evaluate(()=>window.__GAME__.extras.birds),4);
+   await at(-7,12);let exposed=null;
+   for(let n=0;n<40&&!exposed;n++){await step(.35);exposed=await page.evaluate(()=>window.__GAME__.extras.crabs.find(c=>c.state==='walking'));}
+   assert(exposed,'a crab emerges');await page.evaluate(([x,z])=>{const g=window.__GAME__;g.view(.9);g.teleport(x,z+1.1);g.step(.12);},exposed.hole);
+   assert(await page.evaluate(()=>window.__GAME__.extras.crabs.some(c=>c.scaredAt!==null)),'proximity scares a crab');
+   await shot('crabs');await step(.6);
+   assert(await page.evaluate(()=>window.__GAME__.extras.crabs.some(c=>c.state==='hidden'&&c.scaredAt!==null)),'crab hides');
+   await step(3);assert(await page.evaluate(()=>window.__GAME__.extras.crabs.some(c=>c.state==='hidden'&&c.scaredAt!==null)),'crab stays hidden for five seconds');
+  }
+  extrasChecks.push({group,castle:c,castleIK,kite});await at(-7,12);await page.evaluate(()=>window.__GAME__.view(0));
+ }
+ await checkExtras('B',true);
  // On-foot input and passive footprints use the shared controller.
  await page.keyboard.down('KeyW');await step(1.5);await page.keyboard.up('KeyW');assert((await page.evaluate(()=>window.__GAME__.state)).footprints>0);
  // The beach runs on to the headland's forest edge: walkers reach it but do not walk up into the island.
@@ -91,6 +126,7 @@ try{
    await e();await step(id==="lifeguard"?5.5:.25);
   }
  }
+ for(const group of ['A','C']){await page.evaluate(g=>window.__EXPLORE__.switchGroup(g),group);await checkExtras(group);}
  await page.keyboard.press('KeyV');await step(.1);assert(await page.evaluate(()=>window.__EXPLORE__.first&&window.__GAME__.character.headHidden));await page.keyboard.press('KeyV');await step(.1);assert.equal(await page.evaluate(()=>window.__GAME__.character.headHidden),false);
  await page.evaluate(()=>{const g=window.__GAME__,p=g.targets().ball;g.teleport(p[0],p[2]+1.3);g.interact();g.step(.12);});assert(await page.evaluate(()=>window.__GAME__.kick));await step(1.6);assert.equal(await page.evaluate(()=>window.__GAME__.kick),null);
  await page.evaluate(()=>{const g=window.__GAME__,p=g.targets().shells[0];g.teleport(p.x,p.z+.8);g.interact();g.step(.35);});assert.equal((await page.evaluate(()=>window.__GAME__.character)).animation,'interact');await step(1);
@@ -107,13 +143,17 @@ try{
  {const skip=await browser.newPage({viewport:{width:800,height:500}});monitor(skip);await skip.goto(`http://localhost:${process.env.PORT||5191}/game.html?auto=1&time=4`);await skip.waitForFunction(()=>window.__READY__,null,{timeout:120000});await skip.click('#begin');
   const r=await skip.evaluate(()=>{const G=window.__GAME__;G.pushBoat=true;const t=G.targets().boat;G.teleport(t[0],t[2]);G.step(.2);G.interact();G.step(.5);const pushing=G.launch;G.interact();G.step(1.5);return {pushing,after:G.launch,mode:G.mode};});
   assert(r.pushing.active&&!r.pushing.oar&&r.mode==='boat'&&!r.after.active&&r.after.oar,'skipping the push must leave the paddle shown: '+JSON.stringify(r));await skip.close();}
- const mobile=await browser.newPage({viewport:{width:390,height:844},hasTouch:true,isMobile:true});monitor(mobile);await mobile.goto(`http://localhost:${process.env.PORT||5191}/game.html?auto=1&time=4`);await mobile.waitForFunction(()=>window.__READY__);await mobile.tap('#begin');
+ const mobile=await browser.newPage({viewport:{width:390,height:844},hasTouch:true,isMobile:true});monitor(mobile);await mobile.goto(`http://localhost:${process.env.PORT||5191}/game.html?auto=1&lite=1&time=4`);await mobile.waitForFunction(()=>window.__READY__);await mobile.tap('#begin');
  const before=await mobile.evaluate(()=>window.__EXPLORE__.player.z);await mobile.locator('#stick').dispatchEvent('pointerdown',{pointerId:1,clientX:75,clientY:680});await mobile.locator('#stick').dispatchEvent('pointermove',{pointerId:1,clientX:75,clientY:635});await mobile.evaluate(()=>window.__GAME__.step(1));await mobile.locator('#stick').dispatchEvent('pointerup',{pointerId:1});assert((await mobile.evaluate(()=>window.__EXPLORE__.player.z))<before-1);
- await mobile.evaluate(()=>{const g=window.__GAME__,s=g.targets().shells[0];g.teleport(s.x,s.z+.8);g.step(.5);});await mobile.tap('#interact');await mobile.evaluate(()=>window.__GAME__.step(1.3));assert.equal((await mobile.evaluate(()=>window.__GAME__.state)).shells,1);await mobile.evaluate(()=>window.__GAME__.step(1));await mobile.screenshot({path:`${output}/mobile.png`});assert(await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await mobile.close();
+ await mobile.evaluate(()=>{const g=window.__GAME__,s=g.targets().shells[0];g.teleport(s.x,s.z+.8);g.step(.5);});await mobile.tap('#interact');await mobile.evaluate(()=>window.__GAME__.step(1.3));assert.equal((await mobile.evaluate(()=>window.__GAME__.state)).shells,1);await mobile.evaluate(()=>window.__GAME__.step(1));await mobile.screenshot({path:`${output}/mobile.png`});assert(await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)); // Lite rendering also supports the two free experiences through the touch interaction button.
+ await mobile.evaluate(()=>{const g=window.__GAME__,p=g.targets().castle;g.teleport(p[0],p[2]+1);g.view(.8);g.step(.3);});await mobile.tap('#interact');await mobile.evaluate(()=>window.__GAME__.step(7.6));assert.equal(await mobile.evaluate(()=>window.__GAME__.extras.castle.stage),'built');
+ await mobile.evaluate(()=>{const g=window.__GAME__,p=g.targets().kite;g.teleport(p[0],p[2]);g.step(.4);});await mobile.tap('#interact');await mobile.evaluate(()=>window.__GAME__.step(7));assert(await mobile.evaluate(()=>window.__GAME__.extras.kite.height>20));
+ await mobile.screenshot({path:`${output}/mobile-kite.png`});await mobile.tap('#interact');await mobile.evaluate(()=>window.__GAME__.step(6));assert.equal(await mobile.evaluate(()=>window.__GAME__.extras.kite.flying),false);
+await mobile.close();
  // Missing meshes still expose every slot interaction and a usable boat.
  const missing=await browser.newPage({viewport:{width:800,height:600}});monitor(missing,true);await missing.route('**/assets/tripo/*.glb',r=>r.fulfill({status:404,body:'unavailable'}));await missing.route('**/assets/character/*.glb',r=>r.fulfill({status:404,body:'unavailable'}));await missing.goto(`http://localhost:${process.env.PORT||5191}/game.html?auto=1&time=4`);await missing.waitForFunction(()=>window.__READY__);await missing.click('#begin');assert.equal(await missing.evaluate(()=>window.__GAME__.character.fallback),true);
  for(const [id,mode] of [['umbrella','rest'],['lifeguard','tower'],['boat','boat']]){await missing.evaluate(id=>{const g=window.__GAME__,p=g.targets()[id];g.teleport(p[0],p[2]);g.step(.2);g.interact();g.step(2);},id);assert.equal(await missing.evaluate(()=>window.__GAME__.mode),mode);await missing.keyboard.press('KeyE');await missing.evaluate(()=>window.__GAME__.step(.2));}
  await missing.route('**/assets/character_C/character.glb',r=>r.fulfill({status:404,body:'unavailable'}));await missing.goto(`http://localhost:${process.env.PORT||5191}/game.html?group=C&auto=1&time=4`);await missing.waitForFunction(()=>window.__READY__);assert.equal(await missing.evaluate(()=>window.__GAME__.character.fallback),true);
  await missing.close();
- assert.deepEqual(errors,[]);await writeFile(`${output}/results.json`,JSON.stringify({...result,errors,characterChecks,contacts,cpuUpdates,checks:['seven quests','six tide-pool observations','tide-pool progress survives iframe unload','offshore observation at buoy','Esc and back preserve boat mode and vessel','overlay iframe unload','boat round trip','early disembark blocked','restart','ABC keys','CPU waves seek','mobile joystick and interaction','missing assets and characters','ABC real surface contacts','ABC skeleton idle walk run jump','minimum camera boom across scripted run','frozen animation clock']},null,2));console.log('Game verification passed',result);
+ assert.deepEqual(errors,[]);await writeFile(`${output}/results.json`,JSON.stringify({...result,errors,characterChecks,contacts,cpuUpdates,extrasChecks,checks:['ABC castle build/wash and kite flight/return','kite framing and held movement','crab proximity and five-second hide','four birds','frozen extras clock','seven quests','six tide-pool observations','tide-pool progress survives iframe unload','offshore observation at buoy','Esc and back preserve boat mode and vessel','overlay iframe unload','boat round trip','early disembark blocked','restart','ABC keys','CPU waves seek','mobile joystick and interaction','missing assets and characters','ABC real surface contacts','ABC skeleton idle walk run jump','minimum camera boom across scripted run','frozen animation clock']},null,2));console.log('Game verification passed',result);
 }finally{await browser.close();}

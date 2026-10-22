@@ -1,5 +1,5 @@
 // Group C uses third-party models (mostly CC BY): a small "素材出處" button next to the group label shows title, author, source and licence on hover / focus / tap.
-// Same data as assets/{library,character_C,sea/C,tidepool/C}/CREDITS.md; keep both in step.
+// Same data as assets/{library,character_C,sea/C,tidepool/C,extras/C}/CREDITS.md; keep both in step.
 const sketchfab=id=>`https://sketchfab.com/3d-models/${id}`,haven=id=>`https://polyhaven.com/a/${id}`,pizza=id=>`https://poly.pizza/m/${id}`;
 const BY4=['CC BY 4.0','https://creativecommons.org/licenses/by/4.0/'],BY3=['CC BY 3.0','https://creativecommons.org/licenses/by/3.0/'],CC0=['CC0','https://creativecommons.org/publicdomain/zero/1.0/'];
 export const CREDITS=[
@@ -27,7 +27,12 @@ export const CREDITS=[
   ['海星','Starfish','Poly by Google',pizza('6H-0K9IEr56'),BY3],
   ['海葵','Sea anemone','Poly by Google',pizza('5mWGVL6VgMd'),BY3],
   ['海膽','Sea Urchin','Poly by Google',pizza('f4iwEhEP3-d'),BY3],
-  ['章魚','Octopus','Poly by Google',pizza('9F8QJKUT77V'),BY3]]]];
+  ['章魚','Octopus','Poly by Google',pizza('9F8QJKUT77V'),BY3]]],
+ ['沙灘小樂趣',[
+  ['沙堡','Sand castle - Day 19','patrakeevasveta',sketchfab('0379b3c84e7944dab7537a0799375ee4'),BY4],
+  ['風箏','Kite','phac',sketchfab('881a6736d0eb4f53b38d75c5b03dc7fe'),BY4],
+  ['沙蟹','CC0 ツノメガニ Horn-eyed Ghost Crab','ffishAsia-and-floraZia',sketchfab('bf68a281970e461584f1352d67316197'),CC0],
+  ['海鷗','seagull v1','FreddyFoxFreddy',sketchfab('f3fa166ff6bd4ffe8133f6f6eed74d64'),BY4]]]];
 
 const CSS=`.credits-btn{font:inherit;font-size:12px;line-height:1;margin-left:.5em;padding:3px 7px;border-radius:999px;border:1px solid currentColor;background:transparent;color:inherit;opacity:.8;cursor:help;vertical-align:middle;pointer-events:auto}
 .credits-btn:hover,.credits-btn:focus-visible,.credits-btn[aria-expanded=true]{opacity:1}

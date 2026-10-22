@@ -1,0 +1,14 @@
+{
+  "wide": {
+    "identical": true,
+    "max_difference": 0
+  },
+  "beach": {
+    "identical": true,
+    "max_difference": 0
+  },
+  "closeup": {
+    "identical": true,
+    "max_difference": 0
+  }
+}
