@@ -1,4 +1,5 @@
 import * as T from 'three';
+import { lite } from '../lite.js';
 import {SPECIES} from './species.js';
 import {loadCreature} from './creatures.js';
 import {createPool} from './scene.js';
@@ -6,7 +7,7 @@ import './style.css';
 import {creditsButton} from '../credits.js';
 const params=new URLSearchParams(location.search),group=['A','B','C'].includes(params.get('group'))?params.get('group'):'A',auto=params.get('auto')==='1',fixed=params.has('time')?Number(params.get('time')):null;
 if(params.get('embedded')==='1')document.body.classList.add('embedded');
-const $=s=>document.querySelector(s),renderer=new T.WebGLRenderer({canvas:$('#view'),antialias:true,alpha:false});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
+const $=s=>document.querySelector(s),renderer=new T.WebGLRenderer({canvas:$('#view'),antialias:true,alpha:false});renderer.setPixelRatio(lite?1:Math.min(devicePixelRatio,1.5));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
 const pool=createPool(renderer),{scene,camera}=pool,clock=new T.Clock();
 let time=window.__TIME__??fixed??0,muted=params.get('muted')==='1',audio,selected=null;
 const found=new Set((params.get('found')||'').split(',').filter(id=>SPECIES.some(s=>s.id===id)));
