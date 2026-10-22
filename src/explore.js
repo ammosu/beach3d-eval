@@ -4,6 +4,7 @@ import { surfaceHeight, swashReach, WADE_RINGS } from './water.js';
 import { landHeight, islandHeight, shoreClear } from './coast.js';
 import { loadProps, propRoot } from './props.js';
 import './explore.css';
+import { creditsButton } from './credits.js';
 
 export function createExplore({ scene, camera, renderer, config, results, group, auto, comparison=false, gameMode=false }) {
   const labels = { A: 'A｜codex 程序化', B: 'B｜Tripo', C: 'C｜免費素材庫' };
@@ -11,6 +12,9 @@ export function createExplore({ scene, camera, renderer, config, results, group,
   ui.innerHTML = `<div class="hud panel"><small>BEACH FIELD NOTES / EXPLORE</small><strong id="group-label"></strong><span id="stats"></span><nav aria-label="Prop group">${['A','B','C'].map(g=>`<button data-group="${g}">${g}</button>`).join('')}</nav></div><div class="help panel">WASD 移動 · ←→ 轉向 · 拖曳或滑鼠環顧 · Shift 跑步 · Space 跳躍<br>V 視角 · P 拍照 · M 靜音 · Esc 暫停 <button id="mute">聲音 開</button><button id="view">切換視角</button><button id="photo">拍照</button></div><div id="poi" class="panel" hidden></div><div id="start"><div class="welcome"><small>WALK • COMPARE • DISCOVER</small><h1>Beach 3D — AI 場景驗證</h1><p>沿著海岸散步，近看三種 AI 場景素材。</p><p>WASD 移動，←→ 轉向，滑鼠環顧（或按住拖曳），Shift 跑步，Space 跳躍。<br>1 / 2 / 3 切換素材，V 切換視角，P 拍照，M 靜音。<br>觸控：左側搖桿移動，右側拖曳環顧。</p><button id="begin">點擊開始</button></div></div><div id="stick"><i></i></div><div id="look"></div><button id="jump" class="touch">跳躍</button><button id="exit-photo" hidden>結束拍照 P</button>`;
   document.body.append(ui);
   const $ = s=>ui.querySelector(s), start=$('#start'), poi=$('#poi');
+  // C credits: by the group label, and on the start/pause panel (while playing, pointer lock leaves no cursor to hover with).
+  const credits=creditsButton();credits.dataset.groupC='';$('#group-label').after(credits);
+  const startCredits=creditsButton();startCredits.dataset.groupC='';$('#start .welcome').append(startCredits);
   const keys = new Set(), player = new T.Vector3(-7, groundHeight(-7,12),12);
   const avatar = new T.Group();scene.add(avatar);
   const skin=new T.MeshStandardMaterial({color:0xdba879}), shirt=new T.MeshStandardMaterial({color:0xdc6b42}), pants=new T.MeshStandardMaterial({color:0x284858});
@@ -61,7 +65,7 @@ export function createExplore({ scene, camera, renderer, config, results, group,
     propRoot.updateMatrixWorld(true);
     rebuildBlocked();
     for(const marker of propRoot.children){const box=new T.Box3().setFromObject(marker);if(!box.isEmpty())colliders.push({box,id:marker.name,slot:marker.userData.slot});marker.traverse(o=>{if(o.isMesh)triangles+=(o.geometry.index?.count??o.geometry.attributes.position.count)/3*(o.isInstancedMesh?o.count:1);});}
-    $('#group-label').textContent=labels[group];const missing=currentResults.filter(r=>!['loaded','procedural'].includes(r.status)).length;
+    $('#group-label').textContent=labels[group];for(const b of ui.querySelectorAll('[data-group-c]'))b.hidden=group!=='C';const missing=currentResults.filter(r=>!['loaded','procedural'].includes(r.status)).length;
     $('#stats').textContent=`${triangles.toLocaleString()} triangles${missing ? ` · ${missing} 個素材尚未提供` : ''}`;
     ui.querySelectorAll('[data-group]').forEach(b=>{b.setAttribute('aria-pressed',String(b.dataset.group===group));});
   }

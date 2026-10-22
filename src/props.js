@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { groundHeight } from './terrain.js';
 import * as procedural from './props-a.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import {asset} from './url.js';
 export const propRoot = new THREE.Group();
 propRoot.name='prop-slots';
 export const slotStubs = Object.fromEntries(Object.entries(procedural));
@@ -25,7 +26,7 @@ function settle(model){
 }
 export async function loadProps(group='A') {
  if (!['A','B','C'].includes(group)) throw new Error(`Unknown group: ${group}`);
- const response=await fetch('/assets/props.json');
+ const response=await fetch(asset('assets/props.json'));
  if(!response.ok) throw new Error('Unable to read assets/props.json');
  const config=await response.json();
  propRoot.clear();
@@ -47,7 +48,7 @@ export async function loadProps(group='A') {
   const path=swap?.[1]??slot.paths?.[group];
   if(!path) return {id:slot.id,status:'missing-path'};
   try {
-   const {scene:model}=await loader.loadAsync(path);
+   const {scene:model}=await loader.loadAsync(asset(path));
    const box=new THREE.Box3().setFromObject(model); const size=box.getSize(new THREE.Vector3());
    if(!Number.isFinite(size.y)||size.y<=0) throw new Error('Model has no measurable height');
    model.scale.multiplyScalar(fitScale(slot,size)); model.updateMatrixWorld(true);

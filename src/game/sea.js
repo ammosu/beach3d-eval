@@ -2,6 +2,7 @@ import * as T from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {sampleWater} from '../water.js';
 import {buildSeaCreature} from './sea-a.js';
+import {asset} from '../url.js';
 
 // Open-sea animals that live in the beach scene around the island buoy, there from the start for the rower to watch. The
 // water is opaque, so they show what a rower would see: dorsal fins, backs rolling out to breathe, spouts, leaps.
@@ -39,7 +40,7 @@ function swimmable(material,uniform){
 }
 // GLB (B/C) → one group in the shared frame; transforms baked so the bend sees model-space x.
 async function loadGlb(url){
- const gltf=await new GLTFLoader().loadAsync(url),root=new T.Group();gltf.scene.updateMatrixWorld(true);
+ const gltf=await new GLTFLoader().loadAsync(asset(url)),root=new T.Group();gltf.scene.updateMatrixWorld(true);
  gltf.scene.traverse(o=>{if(o.isMesh){const m=new T.Mesh(o.geometry.clone().applyMatrix4(o.matrixWorld),o.material);root.add(m);}});
  const box=new T.Box3().setFromObject(root);if(box.isEmpty())throw Error('Empty model');
  const size=box.getSize(new T.Vector3()),c=box.getCenter(new T.Vector3());
@@ -60,7 +61,7 @@ export function createSea(scene,{center,boat}){
 
  async function build(g){
   if(!cache.has(g))cache.set(g,Promise.all(SEA.map(async spec=>{let model,source=g;
-   if(g!=='A')try{model=await loadGlb(`/assets/sea/${g}/${spec.id}.glb`);}catch{source='A';}
+   if(g!=='A')try{model=await loadGlb(`assets/sea/${g}/${spec.id}.glb`);}catch{source='A';}
    return {model:model??buildSeaCreature(spec.id),source};})));
   return cache.get(g);
  }

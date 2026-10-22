@@ -1,10 +1,8 @@
 """一個指令啟動投影片與三個可試玩的場景（只需要 Python 3，不用 Node）。
 
 用法：在 slides 資料夾執行 `python3 start.py`，然後開 http://localhost:8730
-  8730 投影片
-  8731 主版本（codex 低推理場景＋A/B/C 三種物件、遊戲模式、同步比較、單件檢視）
-  8732 codex 高推理版本的場景
-  8733 Opus 5.5 版本的場景
+  投影片在根目錄，三個試玩版在 live/main、live/codex2、live/opus（tools/build_live.sh 打包，路徑都是相對的，
+  所以同一個資料夾也能直接放上 GitHub Pages）。
 按 Ctrl+C 結束。
 """
 import functools
@@ -14,7 +12,8 @@ import webbrowser
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SITES = [(8730, HERE), (8731, HERE / "live" / "main"), (8732, HERE / "live" / "codex2"), (8733, HERE / "live" / "opus")]
+SITES = [(8730, HERE)]
+LIVE = [HERE / "live" / name for name in ("main", "codex2", "opus")]
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -34,6 +33,9 @@ def serve(port, root):
 
 
 if __name__ == "__main__":
+    for root in LIVE:
+        if not root.exists():
+            raise SystemExit(f"找不到 {root}，請先在專案根目錄執行 tools/build_live.sh")
     for port, root in SITES:
         if not root.exists():
             raise SystemExit(f"找不到 {root}，請先在專案根目錄執行 tools/build_live.sh")

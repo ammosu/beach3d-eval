@@ -2,6 +2,7 @@ import * as T from 'three';
 import {loadProps,propRoot} from './props.js';
 import './ui.css';
 import './compare.css';
+import {creditsButton} from './credits.js';
 
 const labels={A:'A｜codex 程序化',B:'B｜Tripo AI',C:'C｜免費素材庫'};
 export async function createComparison({camera,renderer,composer,results,initialGroup}){
@@ -14,7 +15,7 @@ export async function createComparison({camera,renderer,composer,results,initial
  const requested=[...new Set((new URLSearchParams(location.search).get('groups')||'A,B').split(','))].filter(g=>labels[g]);
  let selected=requested.length>=2?requested:['A','B'],explore;
  const toolbar=document.createElement('nav');toolbar.className='viewer-toolbar';toolbar.setAttribute('aria-label','比較設定');
- toolbar.innerHTML='<a href="/">← 回入口</a><strong>並排比較</strong><label>比較組別 <select id="compare-groups"><option value="A,B">A + B</option><option value="A,C">A + C</option><option value="B,C">B + C</option><option value="A,B,C">A + B + C</option></select></label><span>同步視角・Esc 暫停後切換</span>';
+ toolbar.innerHTML='<a href="./">← 回入口</a><strong>並排比較</strong><label>比較組別 <select id="compare-groups"><option value="A,B">A + B</option><option value="A,C">A + C</option><option value="B,C">B + C</option><option value="A,B,C">A + B + C</option></select></label><span>同步視角・Esc 暫停後切換</span>';
  document.body.append(toolbar);
  const picker=toolbar.querySelector('select');
  const paneLabels=document.createElement('div');paneLabels.className='pane-labels';document.body.append(paneLabels);
@@ -35,7 +36,7 @@ export async function createComparison({camera,renderer,composer,results,initial
   propRoot.clear();for(const g of selected)propRoot.add(...cache.get(g).children);
   picker.value=[...selected].sort().join(',');
   paneLabels.style.gridTemplateColumns=`repeat(${selected.length},1fr)`;
-  paneLabels.replaceChildren(...selected.map(g=>{const el=document.createElement('div');const missing=cache.get(g).results.filter(r=>!['loaded','procedural'].includes(r.status)).length;el.textContent=labels[g];if(missing){const status=document.createElement('small');status.textContent=`${missing} 件生成中`;el.append(status);}return el;}));
+  paneLabels.replaceChildren(...selected.map(g=>{const el=document.createElement('div');const missing=cache.get(g).results.filter(r=>!['loaded','procedural'].includes(r.status)).length;el.textContent=labels[g];if(g==='C')el.append(creditsButton());if(missing){const status=document.createElement('small');status.textContent=`${missing} 件生成中`;el.append(status);}return el;}));
   explore?.refresh();resize();
  }
  picker.onchange=()=>{selected=picker.value.split(',');const url=new URL(location.href);url.searchParams.set('groups',selected.join(','));history.replaceState(null,'',url);select();};

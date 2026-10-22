@@ -1,0 +1,29 @@
+# 把 slides/（投影片＋live/ 裡打包好的三個試玩版）發佈到 GitHub Pages。
+# 試玩版不在 CI 重新打包：codex2／opus 兩版在另外的分支，assets/raw 也沒進 git；改了程式先在本機跑 tools/build_live.sh 再提交。
+name: Pages
+on:
+  push:
+    branches: [master]
+    paths: ['slides/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: slides
+      - id: deployment
+        uses: actions/deploy-pages@v4

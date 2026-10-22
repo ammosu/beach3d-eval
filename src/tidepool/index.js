@@ -3,6 +3,7 @@ import {SPECIES} from './species.js';
 import {loadCreature} from './creatures.js';
 import {createPool} from './scene.js';
 import './style.css';
+import {creditsButton} from '../credits.js';
 const params=new URLSearchParams(location.search),group=['A','B','C'].includes(params.get('group'))?params.get('group'):'A',auto=params.get('auto')==='1',fixed=params.has('time')?Number(params.get('time')):null;
 if(params.get('embedded')==='1')document.body.classList.add('embedded');
 const $=s=>document.querySelector(s),renderer=new T.WebGLRenderer({canvas:$('#view'),antialias:true,alpha:false});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
@@ -57,7 +58,7 @@ $('#view').addEventListener('click',event=>{
  // A 44px touch target for tiny animals, still gated by the covering stone.
  let closest=null,distance=24;for(const c of creatures){if(!c.root.visible||c.hidden&&time-c.revealedAt<.8)continue;const p=c.root.position.clone().project(camera),d=Math.hypot((p.x*.5+.5)*innerWidth-event.clientX,(-p.y*.5+.5)*innerHeight-event.clientY);if(d<distance){distance=d;closest=c;}}if(closest)observe(closest.id);
 });
-const fallback=creatures.filter(c=>c.fallback).map(c=>c.name);$('#stats').textContent=`素材 ${group} · ${fallback.length?`A 備援：${fallback.join('、')}`:'6 種載入完成'}`;updateUI();resize();addEventListener('resize',resize);
+const fallback=creatures.filter(c=>c.fallback).map(c=>c.name);if(group==='C')$('#stats').after(creditsButton());$('#stats').textContent=`素材 ${group} · ${fallback.length?`A 備援：${fallback.join('、')}`:'6 種載入完成'}`;updateUI();resize();addEventListener('resize',resize);
 window.__SCENE__={scene,camera,renderer,water:pool.water};
 const api={get found(){return [...found];},get done(){return found.size===6;},species:creatures.map(({id,name,size,source,fallback})=>({id,name,size,source,fallback})),get stones(){return stones.map(({index,lifted,creature})=>({index,lifted,creature}));},group};
 if(auto)Object.assign(api,{lift,observe,step(seconds){if(!Number.isFinite(seconds)||seconds<0)throw Error('step requires nonnegative seconds');window.__TIME__=time+seconds;update(window.__TIME__);render();},project(id){const c=creatures.find(c=>c.id===id),s=typeof id==='number'?stones[id]:null;const p=(c?.root.position??s?.mesh.position)?.clone().project(camera);return p?{x:(p.x*.5+.5)*innerWidth,y:(-p.y*.5+.5)*innerHeight}:null;}});

@@ -1,6 +1,7 @@
 import * as T from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import {asset} from '../url.js';
 
 export const CHARACTER_SOURCES={A:'A｜codex 程序化',B:'B｜Tripo AI',C:'C｜Quaternius CC0'};
 const V=(x=0,y=0,z=0)=>new T.Vector3(x,y,z);
@@ -45,8 +46,8 @@ export async function createCharacter(group='A'){
  let model,clips=[],source=group,fallback=false;
  try{
   if(group==='A')({model,clips}=procedural());
-  else {const loader=new GLTFLoader(),base=await loader.loadAsync(group==='B'?'/assets/character/idle.glb':'/assets/character_C/character.glb');model=base.scene;clips=base.animations;
-   if(group==='B'){const loaded=await Promise.allSettled(['walk','run','jump','climb'].map(async name=>{const gltf=await loader.loadAsync(`/assets/character/${name}.glb`);const clip=gltf.animations[0]?.clone();if(clip)clip.name=name;disposeModel(gltf.scene);return clip;}));clips=[...clips,...loaded.flatMap(r=>r.status==='fulfilled'&&r.value?[r.value]:[])];if(clips.length<5)throw Error('Incomplete Tripo animation set');}
+  else {const loader=new GLTFLoader(),base=await loader.loadAsync(group==='B'?asset('assets/character/idle.glb'):asset('assets/character_C/character.glb'));model=base.scene;clips=base.animations;
+   if(group==='B'){const loaded=await Promise.allSettled(['walk','run','jump','climb'].map(async name=>{const gltf=await loader.loadAsync(asset(`assets/character/${name}.glb`));const clip=gltf.animations[0]?.clone();if(clip)clip.name=name;disposeModel(gltf.scene);return clip;}));clips=[...clips,...loaded.flatMap(r=>r.status==='fulfilled'&&r.value?[r.value]:[])];if(clips.length<5)throw Error('Incomplete Tripo animation set');}
    // The CC0 download includes a separate display prop. Compare only the rigged person.
    if(group==='C'){const extra=[];model.traverse(o=>{if(o.isMesh&&!o.isSkinnedMesh)extra.push(o);});extra.forEach(o=>o.removeFromParent());}
   }

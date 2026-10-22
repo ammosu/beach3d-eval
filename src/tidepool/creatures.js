@@ -2,6 +2,7 @@ import * as T from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {MAGNIFICATION} from './species.js';
+import {asset} from '../url.js';
 const sphere=new T.SphereGeometry(1,16,10);
 const material=(color,roughness=.55)=>new T.MeshStandardMaterial({color,roughness});
 function ellipsoid(parent,mat,x,y,z,sx,sy,sz){const m=new T.Mesh(sphere,mat);m.position.set(x,y,z);m.scale.set(sx,sy,sz);parent.add(m);return m;}
@@ -48,7 +49,7 @@ export function procedural(id){
 }
 export async function loadCreature(spec,group){
  let model,source=group,fallback=false;
- if(group!=='A')try{model=(await new GLTFLoader().loadAsync(`/assets/tidepool/${group}/${spec.id}.glb`)).scene;const b=new T.Box3().setFromObject(model);if(b.isEmpty())throw Error('Empty model');}catch{fallback=true;source='A';}
+ if(group!=='A')try{model=(await new GLTFLoader().loadAsync(asset(`assets/tidepool/${group}/${spec.id}.glb`))).scene;const b=new T.Box3().setFromObject(model);if(b.isEmpty())throw Error('Empty model');}catch{fallback=true;source='A';}
  model??=procedural(spec.id);const root=new T.Group();root.add(model);root.scale.setScalar(spec.display??spec.size*MAGNIFICATION);root.traverse(m=>{if(m.isMesh){m.castShadow=true;m.receiveShadow=true;}});
  return {root,model,source,fallback,animate(t){model.userData.animate?.(t);model.rotation.y=Math.sin(t*.7)*.04;model.scale.y=1+Math.sin(t*1.8)*.025;}};
 }

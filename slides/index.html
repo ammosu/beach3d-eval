@@ -263,7 +263,7 @@
   <h2>實際試玩</h2>
   <p class="lead" id="live-note">點卡片會開新分頁；操作：WASD 移動、滑鼠看方向、E 互動、1／2／3 切換物件組別。</p>
   <div class="cards" id="live-cards"></div>
-  <div class="src">啟動方式：在 slides 資料夾執行 <code>python3 start.py</code>（只需 Python 3），開 http://localhost:8730</div>
+  <div class="src">線上版：<a href="https://ammosu.github.io/beach3d-eval/">ammosu.github.io/beach3d-eval</a>；本機：在 slides 資料夾執行 <code>python3 start.py</code>（只需 Python 3），開 http://localhost:8730</div>
 </section>
 
 <div class="nav prev" onclick="go(-1)"></div><div class="nav next" onclick="go(1)"></div>
@@ -305,22 +305,21 @@ zv.addEventListener('timeupdate', () => {
   const k = Math.min(ZOOM.length - 1, Math.floor(zv.currentTime / seg));
   document.querySelectorAll('#zoom-chips button').forEach((b, j) => b.classList.toggle('on', j === k));
 });
-// 實際試玩：各版本在不同 port（slides/start.py 一次啟動）
+// 實際試玩：各版本打包在 live/<版本>/（tools/build_live.sh），與投影片同一個網站
 const LIVE = [
-  [8731, 'game.html', '遊戲模式', '海灘 7 個小任務：貝殼、踢球、躺椅、救生塔、潮池觀察、外海觀察、划船；1／2／3 切換組別', 'var(--tripo)'],
-  [8731, 'tidepool.html?group=B', '潮池觀察', '翻石頭找 6 種潮間帶生物、記入圖鑑；網址 group=A／B／C 切換程序化／Tripo／素材庫模型', 'var(--tripo)'],
-  [8731, 'compare.html?groups=A,B,C', '三欄同步比較', '一個人走、三個畫面同步移動：codex／Tripo／素材庫物件', 'var(--tripo)'],
-  [8731, 'scene.html?explore=1&group=B', '遊覽模式', '第三人稱散步，V 切換第一人稱，P 拍照模式', 'var(--tripo)'],
-  [8731, 'props.html?solo=character&compare=1', '三組角色並排', '可切換動作（走、跑、跳、坐…）並旋轉觀看', 'var(--library)'],
-  [8731, 'props.html?group=B', '單件物件檢視', '8 件物件逐一旋轉，切換 A／B／C 來源', 'var(--library)'],
-  [8732, '', 'codex（高推理）的場景', '同一份需求、推理強度 high 做出的整個場景（可拖曳旋轉）', 'var(--codex)'],
-  [8733, '', 'Opus 5.5 的場景', '同一份需求、Opus 做出的整個場景（可拖曳旋轉）', 'var(--opus)'],
+  ['main', 'game.html', '遊戲模式', '海灘 7 個小任務：貝殼、踢球、躺椅、救生塔、潮池觀察、外海觀察、划船；1／2／3 切換組別', 'var(--tripo)'],
+  ['main', 'tidepool.html?group=B', '潮池觀察', '翻石頭找 6 種潮間帶生物、記入圖鑑；網址 group=A／B／C 切換程序化／Tripo／素材庫模型', 'var(--tripo)'],
+  ['main', 'compare.html?groups=A,B,C', '三欄同步比較', '一個人走、三個畫面同步移動：codex／Tripo／素材庫物件', 'var(--tripo)'],
+  ['main', 'scene.html?explore=1&group=B', '遊覽模式', '第三人稱散步，V 切換第一人稱，P 拍照模式', 'var(--tripo)'],
+  ['main', 'props.html?solo=character&compare=1', '三組角色並排', '可切換動作（走、跑、跳、坐…）並旋轉觀看', 'var(--library)'],
+  ['main', 'props.html?group=B', '單件物件檢視', '8 件物件逐一旋轉，切換 A／B／C 來源', 'var(--library)'],
+  ['codex2', '', 'codex（高推理）的場景', '同一份需求、推理強度 high 做出的整個場景（可拖曳旋轉）', 'var(--codex)'],
+  ['opus', '', 'Opus 5.5 的場景', '同一份需求、Opus 做出的整個場景（可拖曳旋轉）', 'var(--opus)'],
 ];
-const host = location.protocol === 'file:' ? 'localhost' : location.hostname;
-document.getElementById('live-cards').innerHTML = LIVE.map(([port, path, title, desc, c]) =>
-  `<a class="card" style="--c:${c}" href="http://${host}:${port}/${path}" target="_blank" rel="noopener"><b>${title}</b><span>${desc}</span><small>:${port}/${path}</small></a>`).join('');
+document.getElementById('live-cards').innerHTML = LIVE.map(([site, path, title, desc, c]) =>
+  `<a class="card" style="--c:${c}" href="live/${site}/${path}" target="_blank" rel="noopener"><b>${title}</b><span>${desc}</span><small>live/${site}/${path}</small></a>`).join('');
 if (location.protocol === 'file:') document.getElementById('live-note').innerHTML =
-  '<span class="warn">目前是直接開啟檔案，試玩頁連不到。請在 slides 資料夾執行 <code>python3 start.py</code>，改開 http://localhost:8730</span>';
+  '<span class="warn">目前是直接開啟檔案，試玩頁連不到。請開線上版 https://ammosu.github.io/beach3d-eval/ ，或在 slides 資料夾執行 <code>python3 start.py</code> 改開 http://localhost:8730</span>';
 const slides = [...document.querySelectorAll('.slide')];
 let i = Math.max(0, Math.min(slides.length - 1, (parseInt(location.hash.slice(1)) || 1) - 1));
 function animate(slide) {
