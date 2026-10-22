@@ -22,3 +22,7 @@ time,slot,task_id,status,seconds,credits,file
 2026-10-20T15:54:14,character:anim_v3_jump,e5c8eeb8-e605-44b4-b3f0-31ed4a1620ff,success,5,10,
 2026-10-20T15:54:26,character:anim_v3_climb,8676bd60-3119-4a9b-95d4-c9e78f17e7e6,success,10,10,
 2026-10-20T18:15:03,lifeguard_ladder,e5b2bbbe-42f5-4a80-9f30-ab0ec52138d8,success,160,30,image_to_model from Codex reference
+2026-10-22T22:58:23,extras:castle,b7a4a35f-8429-4082-aea4-66989ac4fb61,TaskStatus.SUCCESS,158,20.0,/home/cw/git_project/beach3d-eval/assets/raw/extras/B/castle/b7a4a35f-8429-4082-aea4-66989ac4fb61_model.glb
+2026-10-22T23:00:35,extras:kite,ab95317d-39e1-4c47-9dcc-fc4e8313a80f,TaskStatus.SUCCESS,127,20.0,/home/cw/git_project/beach3d-eval/assets/raw/extras/B/kite/ab95317d-39e1-4c47-9dcc-fc4e8313a80f_model.glb
+2026-10-22T23:03:18,extras:crab,b22d3a9d-9477-45df-8e4f-b07c1df95d26,TaskStatus.SUCCESS,158,20.0,/home/cw/git_project/beach3d-eval/assets/raw/extras/B/crab/b22d3a9d-9477-45df-8e4f-b07c1df95d26_model.glb
+2026-10-22T23:05:31,extras:bird,603278bb-b481-45d3-acd8-ec023b1882c3,TaskStatus.SUCCESS,127,20.0,/home/cw/git_project/beach3d-eval/assets/raw/extras/B/bird/603278bb-b481-45d3-acd8-ec023b1882c3_model.glb
