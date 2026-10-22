@@ -71,16 +71,16 @@ export function createTidePool(scene){
 
 export function createLagoon({onObserve,onClose}){
  const overlay=document.createElement('section');overlay.id='lagoon';overlay.hidden=true;
- overlay.innerHTML=`<iframe allow="autoplay"></iframe><div class="lagoon-bar"><div><strong></strong><span id="lagoon-count"></span></div><ol></ol><button id="lagoon-back"></button></div>`;
+ // The bar keeps the title, the count and the way back; the species list is the pool page's own collection.
+ overlay.innerHTML=`<iframe allow="autoplay"></iframe><div class="lagoon-bar"><div><strong></strong><span id="lagoon-count"></span></div><button id="lagoon-back"></button></div>`;
  document.body.append(overlay);
  const frame=overlay.querySelector('iframe'),observed=new Set(),title='潮池觀察：尋找 6 種潮池生物';
  let timer=0;
- function render(){overlay.querySelector('#lagoon-count').textContent=`${observed.size} / ${TIDE_SPECIES.length}`;overlay.querySelectorAll('li').forEach((li,i)=>li.classList.toggle('done',observed.has(TIDE_SPECIES[i].id)));overlay.classList.toggle('complete',observed.size===TIDE_SPECIES.length);}
+ function render(){overlay.querySelector('#lagoon-count').textContent=`${observed.size} / ${TIDE_SPECIES.length}`;overlay.classList.toggle('complete',observed.size===TIDE_SPECIES.length);}
  function poll(){for(const id of frame.contentWindow?.__TIDEPOOL__?.found??[]){if(!TIDE_SPECIES.some(s=>s.id===id)||observed.has(id))continue;observed.add(id);onObserve(id,observed.size);}render();}
  function keys(event){if(event.key==='Escape'){event.preventDefault();close();}}
  function open(group,{muted=false,auto=false}={}){
-  overlay.setAttribute('aria-label',title);frame.title=title;overlay.querySelector('strong').textContent=title;
-  overlay.querySelector('ol').innerHTML=TIDE_SPECIES.map((s,i)=>`<li><kbd>${i+1}</kbd>${s.name}</li>`).join('');
+  overlay.setAttribute('aria-label',title);frame.title=title;overlay.querySelector('strong').innerHTML='潮池觀察<span>：尋找 6 種潮池生物</span>';
   overlay.querySelector('#lagoon-back').innerHTML='回到沙灘 <kbd>Esc</kbd>';
   const query=new URLSearchParams({group,muted:muted?'1':'0',embedded:'1',found:[...observed].join(',')});if(auto)query.set('auto','1');
   frame.onload=()=>{frame.contentWindow.addEventListener('keydown',keys);poll();};

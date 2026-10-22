@@ -7,6 +7,7 @@ import {createKite} from './kite.js';
 import {createCrabs} from './crabs.js';
 import {createBirds} from './birds.js';
 import {enablePalmWind} from '../vegetation.js';
+import {touchOnly} from '../lite.js';
 import './extras.css';
 
 // B/C models: assets/extras/<group>/<id>.glb, normalised like the sea animals (length 1 along +x = head/nose, bbox centred).
@@ -22,7 +23,7 @@ export function createExtras({scene,camera,clock,explore:e,objects,toast}){
  function interact(){if(action?.kind==='kite'){if(!kite.info.returning){kite.recall(clock.value);toast('慢慢收線，讓風箏回到腳邊。');}return;}
   if(action)return;const p=e.player;
   if(p.distanceTo(castle.point)<2.5){if(castle.stage()==='washing')return;if(castle.stage()==='built'){castle.wash(clock.value);toast('讓浪花帶走，等一下還能再堆。');}else{castle.start(begin('castle',castle.stand)+.35);toast('蹲下來，慢慢把濕沙拍實。');}return;}
-  if(p.distanceTo(kite.point)<2.5){const at=begin('kite',kite.point);kite.start(at);e.setView(0,-.3);toast('風箏交給海風。滑鼠環顧，按 E 收回。');}}
+  if(p.distanceTo(kite.point)<2.5){const at=begin('kite',kite.point);kite.start(at);e.setView(0,-.3);toast(touchOnly?'風箏交給海風。拖曳環顧，點「收回風箏」收線。':'風箏交給海風。滑鼠環顧，按 E 收回。');}}
  function near(){if(action)return action.kind==='kite'?{kind:'extra',label:kite.info.returning?'正在慢慢收線':'收回風箏',position:kite.grip}:null;
   if(e.player.distanceTo(castle.point)<2.5)return castle.stage()==='washing'?null:{kind:'extra',label:castle.stage()==='built'?'讓浪帶走':'堆一座沙堡',position:castle.point};
   if(e.player.distanceTo(kite.point)<2.5)return {kind:'extra',label:'放風箏，交給海風',position:kite.point};return null;}
