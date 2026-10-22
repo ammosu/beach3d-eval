@@ -132,6 +132,11 @@ export function createWater(sun) {
  // Ripples round a walker's legs in the water (set by src/explore.js): x, z, time, strength (0 switches it off).
  // Short waves (about 35 cm) that run out at walking pace and die within a couple of seconds. Shading only.
  water.material.uniforms.wadeRings={value:Array.from({length:WADE_RINGS},()=>new THREE.Vector4())};
+ // Animals under the water (set by src/game/sea.js): a depth texture of the sea animals alone, drawn from the same
+ // camera just before the water. Where one lies behind the water closer than the seabed, the water lets it through
+ // by the water's thickness in front of it: a tinted shape within a metre or so, gone by about 3 m. 0 switches it off.
+ water.material.uniforms.seeDepth={value:null};water.material.uniforms.seeOn={value:0};
+ water.material.uniforms.seeInv={value:new THREE.Vector2(1,1)};water.material.uniforms.seeNear={value:.1};water.material.uniforms.seeFar={value:1000};
  // Shallow water is see-through: the real sand and whatever stands in it (legs, the ball, a hull) show under it,
  // tinted by the water and fading out by about 1.6 m deep. Premultiplied: the shader writes the water's own light
  // and how much of what lies under it still comes through.
@@ -164,8 +169,10 @@ export function createWater(sun) {
  water.material.fragmentShader=`
  uniform mat4 textureMatrix;uniform sampler2D mirrorSampler;uniform float time;uniform vec3 eye;uniform vec3 sunDirection;uniform vec3 sunColor;
  uniform vec4 wakeRings[${WAKE_RINGS}];uniform vec4 wadeRings[${WADE_RINGS}];
+ uniform sampler2D seeDepth;uniform float seeOn;uniform vec2 seeInv;uniform float seeNear;uniform float seeFar;
  varying vec4 mirrorCoord;varying vec4 worldPosition;varying vec3 vWaveNormal;varying vec2 vWaterRest;
  #include <common>
+ #include <packing>
  #include <fog_pars_fragment>
  #include <logdepthbuf_pars_fragment>
  ${coastalGLSL}
@@ -285,7 +292,21 @@ export function createWater(sun) {
   vec3 foamColor=vec3(.88,.96,.94)*(.80+.24*max(dot(N,sunDirection),0.));
   float fm=clamp(foam,0.,.94);color=mix(color,foamColor,fm);colorClear=mix(colorClear,foamColor,fm);
   float clear=1.-smoothstep(.3,1.6,depth),through=.85*clear*dot(transmission,vec3(.2,.4,.4))*(1.-Fc)*(1.-fm);
-  gl_FragColor=vec4(mix(color,colorClear,.85*clear),1.-through);
+  vec3 outColor=mix(color,colorClear,.85*clear);
+  if(seeOn>.5){
+   float animal=texture2D(seeDepth,gl_FragCoord.xy*seeInv).x;
+   float waterZ=perspectiveDepthToViewZ(gl_FragCoord.z,seeNear,seeFar),animalZ=perspectiveDepthToViewZ(animal,seeNear,seeFar);
+   float thick=(waterZ-animalZ)*distanceToEye/max(-waterZ,.001);
+   if(animal<1.&&thick>0.&&thick<path){
+    vec3 tc=exp(-vec3(.85,.24,.16)*thick);
+    float w=.9*exp(-thick/2.6),see=w*dot(tc,vec3(.2,.4,.4))*(1.-.65*Fc)*(1.-fm);
+    if(see>through){
+     vec3 seeClear=colorClear+(1.-.65*Fc)*(1.-fm)*(waterTint*(1.-tc)-waterTint*(1.-transmission));
+     outColor=mix(color,seeClear,w);through=see;
+    }
+   }
+  }
+  gl_FragColor=vec4(outColor,1.-through);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
   #include <fog_fragment>

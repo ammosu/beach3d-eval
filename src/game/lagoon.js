@@ -1,17 +1,69 @@
 import * as T from 'three';
 import {groundHeight,shore} from '../terrain.js';
 import {SPECIES as TIDE_SPECIES} from '../tidepool/species.js';
+import {rockGeometry,rippleNormals,grainGLSL} from '../tidepool/scene.js';
 
 // Disposable iframe host for the tide pool; quest progress outlives its WebGL context. (The open sea lives in the beach scene: sea.js.)
 
+// The rock pool on the beach, built like the tide-pool page's (same rock shape and grain) so the close-up does not look
+// like a different place: a ring of rocks holding a flat sheet of water over wet sand. The beach falls away seaward
+// (about 25 cm across the pool), so the water is level and the rocks on the low side stand taller to hold it.
+const POOL_RX=1.75,POOL_RZ=1.5,rimShape=a=>1+.055*Math.sin(a*5)+.035*Math.cos(a*9);
+function poolMaterial(color,kind,center,level){
+ const mat=new T.MeshStandardMaterial({color,roughness:kind==='sand'?.94:.8,metalness:0});
+ mat.onBeforeCompile=s=>{
+  s.uniforms.poolCenter={value:center};s.uniforms.poolLevel={value:level};
+  s.vertexShader='varying vec3 poolWorld;\n'+s.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\npoolWorld=(modelMatrix*vec4(position,1.)).xyz;');
+  s.fragmentShader='uniform vec3 poolCenter;uniform float poolLevel;varying vec3 poolWorld;\n'+grainGLSL+s.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+   vec3 q=poolWorld-poolCenter;
+   float broad=noise3(q*6.),fine=noise3(q*90.);
+   float basin=1.-smoothstep(.9,1.2,length(q.xz/vec2(${POOL_RX},${POOL_RZ})));
+   // Wet below the water line and a hand's width above it (splashed), with green algae in patches.
+   float wet=(1.-smoothstep(poolLevel+.02,poolLevel+.09,poolWorld.y))*basin;
+   diffuseColor.rgb*=.72+broad*.36+fine*.18;
+   ${kind==='sand'?`diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.7,.8,.76),wet*.5);`:`
+   float strata=pow(.5+.5*sin(q.y*40.+broad*5.+q.x*2.),12.);
+   diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*1.3,strata*.22);
+   diffuseColor.rgb*=mix(1.,.55,wet);
+   diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.075,.115,.045),wet*smoothstep(.45,.73,noise3(q*14.))*.45);
+   // Dry tops bleached lighter, crusted with pale barnacle speckle.
+   diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.78,.75,.68),(1.-wet)*smoothstep(.72,.8,noise3(q*55.))*.5);`}
+  `).replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,.32,wet);');
+ };
+ mat.customProgramCacheKey=()=>`beach-pool-${kind}`;return mat;
+}
+
 export function createTidePool(scene){
  const x=-26,z=shore(x)+4.5,y=groundHeight(x,z),root=new T.Group();root.name='game-tidepool';root.position.set(x,y,z);scene.add(root);
- const pool=new T.Mesh(new T.CircleGeometry(1.7,40),new T.MeshStandardMaterial({color:0x2fb4c2,roughness:.15,metalness:.1,emissive:0x0b5c6e,emissiveIntensity:.35}));pool.rotation.x=-Math.PI/2;pool.position.y=.03;root.add(pool);
- const rockGeo=new T.DodecahedronGeometry(1,0),rockMat=new T.MeshStandardMaterial({color:0xb3a894,roughness:.95,flatShading:true});
- const rocks=new T.InstancedMesh(rockGeo,rockMat,14),dummy=new T.Object3D();rocks.castShadow=true;
- for(let i=0;i<14;i++){const a=i/14*Math.PI*2,r=1.9+.15*Math.sin(i*2.7),s=.28+.12*Math.abs(Math.sin(i*1.9));dummy.position.set(Math.cos(a)*r,s*.35,Math.sin(a)*r);dummy.rotation.set(i,i*.7,i*1.3);dummy.scale.set(s*1.3,s,s*1.1);dummy.updateMatrix();rocks.setMatrixAt(i,dummy.matrix);}
- root.add(rocks);
- const star=new T.Mesh(new T.OctahedronGeometry(.18),new T.MeshStandardMaterial({color:0xff8a5c,roughness:.6}));star.scale.set(1,.3,1);star.position.set(.6,.06,-.4);root.add(star);
+ let seed=611;const rand=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
+ const ground=(lx,lz)=>groundHeight(x+lx,z+lz)-y,level=.1,bedY=(px,pz)=>Math.max(ground(px,pz)+.012,level-.1-.06*(1-Math.min(1,(px/POOL_RX)**2+(pz/POOL_RZ)**2))),center=new T.Vector3(x,y,z),worldLevel={value:y+level};
+ const outline=new T.Shape();
+ for(let i=0;i<=96;i++){const a=i/96*Math.PI*2,r=rimShape(a)*1.04,px=Math.cos(a)*POOL_RX*r,pz=-Math.sin(a)*POOL_RZ*r;if(!i)outline.moveTo(px,pz);else outline.lineTo(px,pz);}
+ // Bottom: on the sand where it is higher, else a shallow bed under the water (hidden at the edge by the rocks).
+ const bedGeo=new T.ShapeGeometry(outline,32).rotateX(-Math.PI/2),bp=bedGeo.attributes.position;
+ for(let i=0;i<bp.count;i++)bp.setY(i,bedY(bp.getX(i),bp.getZ(i)));
+ bedGeo.computeVertexNormals();
+ const bed=new T.Mesh(bedGeo,poolMaterial('#b7aa92','sand',center,worldLevel));bed.receiveShadow=true;root.add(bed);
+ const ripples=rippleNormals();ripples.repeat.set(1.6,1.6);
+ const water=new T.Mesh(new T.ShapeGeometry(outline,32).rotateX(-Math.PI/2),new T.MeshStandardMaterial({color:0x74bdb3,roughness:.06,metalness:0,transparent:true,opacity:.34,depthWrite:false,normalMap:ripples,normalScale:new T.Vector2(.35,.35)}));
+ water.position.y=level;water.renderOrder=3;root.add(water);
+ const rockGeo=rockGeometry(),palette=['#aaa398','#b4a490','#9b9d9a','#c2ab8f','#a59f97'].map(c=>poolMaterial(c,'rock',center,worldLevel));
+ function rock(px,pz,sx,sy,sz,sink=.04){const m=new T.Mesh(rockGeo,palette[Math.floor(rand()*palette.length)]);m.position.set(px,ground(px,pz)-sink,pz);m.scale.set(sx,sy,sz);m.rotation.set(rand()*.25,rand()*6,rand()*.22);m.castShadow=m.receiveShadow=true;root.add(m);return m;}
+ // The rim: every rock reaches at least 8 cm over the water.
+ for(let i=0;i<34;i++){const a=i/34*Math.PI*2+rand()*.05,r=rimShape(a),px=Math.cos(a)*POOL_RX*1.06*r,pz=-Math.sin(a)*POOL_RZ*1.06*r;
+  const sy=Math.max(.16+rand()*.12,level-ground(px,pz)+.12+rand()*.08),s=.2+rand()*.14;rock(px,pz,Math.max(s,sy*.8),sy,Math.max(s*.9,sy*.75));}
+ // A few stones under the water, and outcrops and loose stones on the sand around (none on the path in from the land side).
+ for(let i=0;i<5;i++){const a=rand()*Math.PI*2,r=.25+rand()*.5,px=Math.cos(a)*POOL_RX*r,pz=Math.sin(a)*POOL_RZ*r,s=.14+rand()*.12;const m=rock(px,pz,s*1.3,s*.45,s);m.position.y=bedY(px,pz)-.02;}
+ for(let i=0;i<22;i++){const a=rand()*Math.PI*2;if(Math.abs(Math.atan2(Math.sin(a-Math.PI/2),Math.cos(a-Math.PI/2)))<.55)continue;
+  const r=1.45+rand()*1.6,px=Math.cos(a)*POOL_RX*r,pz=Math.sin(a)*POOL_RZ*r,s=.12+rand()**2*.4;rock(px,pz,s*(1+rand()),s*(.35+rand()*.45),s*(.7+rand()),s*.25);}
+ const pebbles=new T.InstancedMesh(new T.IcosahedronGeometry(1,1),poolMaterial('#b0a796','rock',center,worldLevel),300),dummy=new T.Object3D();
+ for(let i=0;i<300;i++){const a=rand()*Math.PI*2,inside=i<70,r=inside?rand()*.9:1.2+rand()*2.4,px=Math.cos(a)*POOL_RX*r,pz=Math.sin(a)*POOL_RZ*r,s=inside?.012+rand()*.025:.015+rand()*.045;
+  dummy.position.set(px,inside?bedY(px,pz)+s*.2:ground(px,pz)+s*.15,pz);dummy.rotation.set(0,rand()*6,0);dummy.scale.set(s,s*.45,s*.75);dummy.updateMatrix();pebbles.setMatrixAt(i,dummy.matrix);}
+ pebbles.castShadow=pebbles.receiveShadow=true;root.add(pebbles);
+ // A starfish on the bottom, seen through the water.
+ const arm=new T.Shape();for(let i=0;i<=10;i++){const a=i/10*Math.PI*2,r=i%2?.07:.2;if(!i)arm.moveTo(Math.cos(a)*r,Math.sin(a)*r);else arm.lineTo(Math.cos(a)*r,Math.sin(a)*r);}
+ const star=new T.Mesh(new T.ExtrudeGeometry(arm,{depth:.025,bevelEnabled:true,bevelSize:.02,bevelThickness:.015,bevelSegments:2}).rotateX(-Math.PI/2),new T.MeshStandardMaterial({color:0xe8693f,roughness:.7}));
+ star.position.set(.55,bedY(.55,-.35)+.012,-.35);star.rotation.y=.4;star.receiveShadow=true;root.add(star);
  // 入口站位：池子靠陸地那側
  const point=new T.Vector3(x,groundHeight(x,z+2.6),z+2.6);
  return {root,point,center:new T.Vector3(x,y,z)};

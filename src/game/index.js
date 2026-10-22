@@ -34,7 +34,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  const anchorList=Object.values(anchors),interaction={kind:'',label:'',position:null,item:null};
  const dock={x:4,z:shore(4)-9},island={x:60,z:-286};
  // Open sea: the animals live around the buoy (north of it, clear of the island mesh); E observes one that is out of the water in view.
- const sea=createSea(scene,{center:new T.Vector3(island.x,0,island.z+6),boat:()=>vessel.visible?vessel.position:null});sea.setGroup(e.group);
+ const sea=createSea(scene,{center:new T.Vector3(island.x,0,island.z+6),boat:()=>vessel.visible?vessel.position:null,water});sea.setGroup(e.group);
  const seaPose={pos:new T.Vector3(),heading:new T.Vector3()},seaView=new T.Vector3(),seaTarget=new T.Vector3();
  // Nearest unobserved animal within 30 m of the boat with part of it above the water on screen.
  function sighting(){let best=null,d=30;for(const c of sea.creatures){if(c.seen)continue;const p=sea.pose(c.i,time());if(!p.showing)continue;const n=p.pos.distanceTo(vessel.position);if(n>=d)continue;seaView.copy(p.pos).project(camera);if(seaView.z>1||Math.abs(seaView.x)>.92||Math.abs(seaView.y)>.92)continue;d=n;best=c;seaTarget.copy(p.pos).setY(Math.max(p.pos.y,0)+.25*c.spec.length);}return best;}

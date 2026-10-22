@@ -4,8 +4,9 @@ import {sampleWater} from '../water.js';
 import {buildSeaCreature} from './sea-a.js';
 import {asset} from '../url.js';
 
-// Open-sea animals that live in the beach scene around the island buoy, there from the start for the rower to watch. The
-// water is opaque, so they show what a rower would see: dorsal fins, backs rolling out to breathe, spouts, leaps.
+// Open-sea animals that live in the beach scene around the island buoy, there from the start for the rower to watch. Out
+// of the water they show what a rower would see: dorsal fins, backs rolling out to breathe, spouts, leaps. Under it the
+// water lets them through by its thickness in front of them (a depth pass of the animals alone feeds the water shader).
 // Everything is a function of the water clock.
 // length: display length in metres, shared by A/B/C (models are normalised to length 1, head +x, back +y).
 // rest: body-axis height between events, as a fraction of length (fin cruisers keep the dorsal fin out).
@@ -34,9 +35,9 @@ if(uSwim.z<1.5)transformed.z+=swimWave*swimTail;
 else if(uSwim.z<2.5)transformed.y+=swimWave*swimTail;
 else if(uSwim.z<3.5)transformed.y+=uSwim.y*sin(uSwim.x-transformed.x*3.)*pow(abs(transformed.z)*2.,2.);
 else transformed.y+=uSwim.y*sin(uSwim.x+sign(transformed.x)*1.6)*max(abs(transformed.z)-.18,0.);`;
-function swimmable(material,uniform){
+function swimmable(material,uniform,key='sea-swim'){
  const m=material.clone();m.onBeforeCompile=shader=>{shader.uniforms.uSwim=uniform;shader.vertexShader='uniform vec4 uSwim;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>'+BEND);};
- m.customProgramCacheKey=()=>'sea-swim';return m;
+ m.customProgramCacheKey=()=>key;return m;
 }
 // GLB (B/C) → one group in the shared frame; transforms baked so the bend sees model-space x.
 async function loadGlb(url){
@@ -48,7 +49,7 @@ async function loadGlb(url){
  return root;
 }
 
-export function createSea(scene,{center,boat}){
+export function createSea(scene,{center,boat,water}){
  const root=new T.Group();root.name='open-sea';scene.add(root);
  const wave={},cache=new Map(),dummy=new T.Object3D();
  const creatures=SEA.map((spec,i)=>{const holder=new T.Group();root.add(holder);
@@ -68,7 +69,7 @@ export function createSea(scene,{center,boat}){
  async function setGroup(g){
   if(g===group)return loading;group=g;
   loading=build(g).then(models=>{if(group!==g)return;creatures.forEach((c,i)=>{c.holder.clear();const m=models[i].model.clone();
-   m.traverse(o=>{if(o.isMesh)o.material=swimmable(o.material,c.uniform);});m.scale.setScalar(c.spec.length);c.top=new T.Box3().setFromObject(m).max.y;c.holder.add(m);c.source=models[i].source;});});
+   m.traverse(o=>{if(o.isMesh){o.userData.depthMaterial=swimmable(new T.MeshDepthMaterial({side:o.material.side}),c.uniform,'sea-swim-depth');o.material=swimmable(o.material,c.uniform);}});m.scale.setScalar(c.spec.length);c.top=new T.Box3().setFromObject(m).max.y;c.holder.add(m);c.source=models[i].source;});});
   return loading;
  }
 
@@ -77,7 +78,7 @@ export function createSea(scene,{center,boat}){
   const R=c.spec.radius,a=c.a0+c.dir*c.spec.speed*t/R;
   const w=R*(1+.1*Math.sin(2*a+c.i));out.set(center.x+Math.cos(a)*w,0,center.z+Math.sin(a)*w);return out;
  }
- // Leap kinematics: a ballistic arc from below the body's half length (so the steep start and end stay under the opaque
+ // Leap kinematics: a ballistic arc from below the body's half length (so the steep start and end stay deep under the
  // water) to apex h; the first and last half second ease height to rest and pitch to level. Axis height is relative to the water.
  function leap(c,h){
   const L=c.spec.length,rest=c.spec.rest*L,D=Math.max(-rest,.5*L+.3),vy=Math.sqrt(2*G*(h+D)),dur=2*vy/G,q=Math.sqrt(vy*vy-2*G*D);
@@ -132,6 +133,28 @@ export function createSea(scene,{center,boat}){
   }
   drops.count=Math.max(d,0);drops.instanceMatrix.needsUpdate=true;if(d===0)drops.count=0;
   for(let i=ring;i<rings.length;i++)rings[i].visible=false;
+ }
+ // Before the water draws: the animals alone into a depth texture from the same camera (wrapping Water.js's own
+ // callback, which renders the reflection), so the water shader can tell how much water lies in front of each one.
+ if(water){
+  const target=new T.WebGLRenderTarget(1,1,{depthTexture:new T.DepthTexture(1,1)}),u=water.material.uniforms,size=new T.Vector2(),meshes=[];
+  u.seeDepth.value=target.depthTexture;
+  const mirror=water.onBeforeRender;
+  water.onBeforeRender=function(renderer,scene,camera,...rest){
+   mirror.call(this,renderer,scene,camera,...rest);
+   const current=renderer.getRenderTarget();
+   if(current)size.set(current.width,current.height);else renderer.getDrawingBufferSize(size);
+   if(target.width!==size.x||target.height!==size.y)target.setSize(size.x,size.y);
+   meshes.length=0;root.traverseVisible(o=>{if(o.isMesh&&o.userData.depthMaterial)meshes.push(o);});
+   u.seeOn.value=meshes.length?1:0;if(!meshes.length)return;
+   const swap=meshes.map(o=>o.material);meshes.forEach(o=>o.material=o.userData.depthMaterial);
+   const effects=[drops.visible,rings.map(r=>r.visible)];drops.visible=false;rings.forEach(r=>r.visible=false);
+   const shadows=renderer.shadowMap.autoUpdate,clear=renderer.getClearColor(new T.Color()),alpha=renderer.getClearAlpha();renderer.shadowMap.autoUpdate=false;
+   renderer.setRenderTarget(target);renderer.clear(true,true,true);renderer.render(root,camera);renderer.setRenderTarget(current);
+   renderer.shadowMap.autoUpdate=shadows;renderer.setClearColor(clear,alpha);
+   meshes.forEach((o,i)=>o.material=swap[i]);drops.visible=effects[0];rings.forEach((r,i)=>r.visible=effects[1][i]);
+   u.seeInv.value.set(1/size.x,1/size.y);u.seeNear.value=camera.near;u.seeFar.value=camera.far;
+  };
  }
  function observe(i){const c=creatures[i];if(c.seen)return false;c.seen=true;return true;}
  function reset(){for(const c of creatures)c.seen=false;}
