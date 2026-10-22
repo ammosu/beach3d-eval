@@ -92,7 +92,7 @@ try{
   }
  }
  await page.keyboard.press('KeyV');await step(.1);assert(await page.evaluate(()=>window.__EXPLORE__.first&&window.__GAME__.character.headHidden));await page.keyboard.press('KeyV');await step(.1);assert.equal(await page.evaluate(()=>window.__GAME__.character.headHidden),false);
- await page.evaluate(()=>{const g=window.__GAME__,p=g.targets().ball;g.teleport(p[0],p[2]+1.3);g.interact();g.step(.12);});assert.equal((await page.evaluate(()=>window.__GAME__.character)).animation,'kick');await step(1);
+ await page.evaluate(()=>{const g=window.__GAME__,p=g.targets().ball;g.teleport(p[0],p[2]+1.3);g.interact();g.step(.12);});assert(await page.evaluate(()=>window.__GAME__.kick));await step(1.6);assert.equal(await page.evaluate(()=>window.__GAME__.kick),null);
  await page.evaluate(()=>{const g=window.__GAME__,p=g.targets().shells[0];g.teleport(p.x,p.z+.8);g.interact();g.step(.35);});assert.equal((await page.evaluate(()=>window.__GAME__.character)).animation,'interact');await step(1);
  // With dt frozen, neither clips nor procedural poses advance.
  const frozen=await page.evaluate(()=>{const g=window.__GAME__,before=g.character;g.step(0);return [before,g.character];});assert.deepEqual(frozen[0],frozen[1]);

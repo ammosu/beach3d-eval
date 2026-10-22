@@ -37,7 +37,8 @@ export function createExplore({ scene, camera, renderer, config, results, group,
   const CELL=.2,RADIUS=.26,blockCache=new WeakMap(),blocked=new Map(),key=(i,j)=>i*65536+j;
   const va=new T.Vector3(),vb=new T.Vector3(),vc=new T.Vector3(),vp=new T.Vector3(),instanceMatrix=new T.Matrix4(),world=new T.Matrix4();
   // keep(matrix): which instances of an InstancedMesh to include (all by default).
-  function rasterise(marker,keep=null){const cells=new Map();marker.updateMatrixWorld(true);
+  // slices (optional): each cell's 0.2 m height bands that hold geometry, as a bit mask (for trunkOnly below).
+  function rasterise(marker,keep=null,slices=null){const cells=new Map();marker.updateMatrixWorld(true);
     marker.traverse(o=>{if(!o.isMesh||!o.visible)return;const pos=o.geometry.attributes.position,index=o.geometry.index,count=index?index.count:pos.count;
       for(let n=0;n<(o.isInstancedMesh?o.count:1);n++){world.copy(o.matrixWorld);if(o.isInstancedMesh){o.getMatrixAt(n,instanceMatrix);if(keep&&!keep(instanceMatrix))continue;world.multiply(instanceMatrix);}
         for(let t=0;t<count;t+=3){const ia=index?index.getX(t):t,ib=index?index.getX(t+1):t+1,ic=index?index.getX(t+2):t+2;
@@ -45,14 +46,42 @@ export function createExplore({ scene, camera, renderer, config, results, group,
           if(Math.max(va.y,vb.y,vc.y)<-.5||Math.min(va.y,vb.y,vc.y)>4)continue;
           const steps=Math.max(1,Math.ceil(Math.max(va.distanceTo(vb),vb.distanceTo(vc),vc.distanceTo(va))/(CELL/2)));
           for(let u=0;u<=steps;u++)for(let v=0;v<=steps-u;v++){vp.copy(va).multiplyScalar(1-(u+v)/steps).addScaledVector(vb,u/steps).addScaledVector(vc,v/steps);
-            const h=vp.y-groundHeight(vp.x,vp.z);if(h<.12||h>1.85)continue;const k=key(Math.floor(vp.x/CELL),Math.floor(vp.z/CELL));cells.set(k,Math.max(cells.get(k)??-Infinity,vp.y));}}}});
+            const h=vp.y-groundHeight(vp.x,vp.z);if(h<.12||h>1.85)continue;const k=key(Math.floor(vp.x/CELL),Math.floor(vp.z/CELL));cells.set(k,Math.max(cells.get(k)??-Infinity,vp.y));if(slices)slices.set(k,(slices.get(k)??0)|1<<Math.min(8,Math.floor((h-.12)/.2)));}}}});
     return cells;}
+  // A palm blocks only with its trunk(s): the leafy plants round its foot (B's tall palm, C's pair) are pushed aside.
+  // Trunks are traced down from the top height band (1.65–1.85 m): each one's centre moves to the middle of the cells
+  // within 0.4 m of it in the next band down (so a leaning trunk is followed), and only cells within 0.3 m of the centre
+  // count. Leaves reaching in from the side barely shift the centre and are not kept.
+  function trunkOnly(marker){const slices=new Map(),cells=rasterise(marker,null,slices),trunk=new Map(),at=k=>{const i=Math.floor(k/65536);return [i,k-i*65536];};
+    const band=n=>[...slices].filter(([,m])=>m&1<<n).map(([k])=>k);
+    // Top band: one centre per cluster of touching cells.
+    let centres=[];for(const k of band(8).length?band(8):band(7)){const [i,j]=at(k),c=centres.find(c=>Math.abs(c.i-i)<=1.5&&Math.abs(c.j-j)<=1.5);if(c){c.n++;c.si+=i;c.sj+=j;c.i=c.si/c.n;c.j=c.sj/c.n;}else centres.push({i,j,si:i,sj:j,n:1});}
+    for(let n=8;n>=0;n--){const here=band(n).map(at);
+      for(const c of centres){const near=here.filter(([i,j])=>Math.hypot(i-c.i,j-c.j)<=2);if(!near.length)continue;
+        c.i=near.reduce((a,p)=>a+p[0],0)/near.length;c.j=near.reduce((a,p)=>a+p[1],0)/near.length;
+        for(const [i,j] of near)if(Math.hypot(i-c.i,j-c.j)<=1.5)trunk.set(key(i,j),cells.get(key(i,j)));}}
+    brushable(marker,trunk);return trunk;}
+  // Leaves within reach of the walker's body bend away from it (vertex shader); trunk cells and the crown stay put.
+  const brushAt={value:new T.Vector3(0,-100,0)};
+  function brushable(marker,trunk){marker.updateMatrixWorld(true);
+    marker.traverse(o=>{if(!o.isMesh||o.userData.brush)return;o.userData.brush=true;const pos=o.geometry.attributes.position,bend=new Float32Array(pos.count);
+      for(let i=0;i<pos.count;i++){vp.fromBufferAttribute(pos,i).applyMatrix4(o.matrixWorld);const h=vp.y-groundHeight(vp.x,vp.z),c=key(Math.floor(vp.x/CELL),Math.floor(vp.z/CELL));
+        let inTrunk=false;for(let a=-1;a<=1&&!inTrunk;a++)for(let b=-1;b<=1&&!inTrunk;b++)inTrunk=trunk.has(c+a*65536+b);
+        bend[i]=inTrunk?0:1-T.MathUtils.smoothstep(h,1.8,2.2);}
+      o.geometry=o.geometry.clone();o.geometry.setAttribute('brush',new T.BufferAttribute(bend,1));
+      const materials=(Array.isArray(o.material)?o.material:[o.material]).map(m=>{const c=m.clone();c.onBeforeCompile=shader=>{shader.uniforms.brushAt=brushAt;
+        shader.vertexShader='uniform vec3 brushAt;attribute float brush;\n'+shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+        {vec4 bw=modelMatrix*vec4(transformed,1.);vec2 d=bw.xz-brushAt.xz;float dist=length(d),reach=.55;
+         float up=bw.y-brushAt.y,k=brush*(1.-smoothstep(1.3,1.8,up))*step(-.3,up)*(1.-smoothstep(reach*.5,reach,dist));
+         if(k>0.&&dist>1e-4){bw.xz+=d/dist*(reach-dist)*k;bw.y-=.12*k*max(up,0.);transformed=(inverse(modelMatrix)*bw).xyz;}}`);};
+        c.customProgramCacheKey=()=>'brush-'+m.type;return c;});
+      o.material=Array.isArray(o.material)?materials:materials[0];});}
   // The headland's plants, rocks and trunks block the same way, by their real shapes: only instances a walker on the
   // beach can reach (inside the walk area, rooted at most 1.5 m above the sand), rasterised once.
   let shoreCells=null;
   function shoreBlocked(){if(shoreCells)return shoreCells;const plants=scene.getObjectByName('island-vegetation');
     shoreCells=plants?rasterise(plants,m=>{const x=m.elements[12],z=m.elements[14];return x>33&&x<102&&z<29&&islandHeight(x,z)<groundHeight(x,z)+1.5;}):new Map();return shoreCells;}
-  function rebuildBlocked(){blocked.clear();for(const [k,top] of shoreBlocked())blocked.set(k,top);for(const marker of propRoot.children){if(!blockCache.has(marker))blockCache.set(marker,rasterise(marker));for(const [k,top] of blockCache.get(marker))blocked.set(k,Math.max(blocked.get(k)??-Infinity,top));}}
+  function rebuildBlocked(){blocked.clear();for(const [k,top] of shoreBlocked())blocked.set(k,top);for(const marker of propRoot.children){if(!blockCache.has(marker))blockCache.set(marker,/^palm/.test(marker.name)?trunkOnly(marker):rasterise(marker));for(const [k,top] of blockCache.get(marker))blocked.set(k,Math.max(blocked.get(k)??-Infinity,top));}}
   // Distance from (x,z) to the nearest blocking cell the player is not standing above.
   function clearance(x,z){let best=Infinity;const r=Math.ceil(RADIUS/CELL)+1,ci=Math.floor(x/CELL),cj=Math.floor(z/CELL);
     for(let i=ci-r;i<=ci+r;i++)for(let j=cj-r;j<=cj+r;j++){const top=blocked.get(key(i,j));if(top===undefined||player.y>top+.05)continue;
@@ -107,7 +136,7 @@ export function createExplore({ scene, camera, renderer, config, results, group,
   // Free space, or a move that gets out of a prop the player is already inside (e.g. after a teleport).
   function allowed(x,z){if(x< -34||x>100||z>27||groundHeight(x,z)<-.65||x>35&&!shoreClear(x,z))return false;const next=clearance(x,z);return next>=RADIUS||next>clearance(player.x,player.z);}
   function cameraBlocked(p){for(const c of colliders){const b=c.box;if(p.x>b.min.x-.2&&p.x<b.max.x+.2&&p.y>b.min.y-.2&&p.y<b.max.y+.2&&p.z>b.min.z-.2&&p.z<b.max.z+.2)return true;}return false;}
-  function update(dt){dt=Math.min(dt,.05);let dx=0,dz=0;
+  function update(dt){dt=Math.min(dt,.05);let dx=0,dz=0;brushAt.value.copy(player);
     if(active&&!photo&&!busy&&!driven){const forward=hold?0:Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'))-joyY,side=hold?0:Number(keys.has('KeyD'))-Number(keys.has('KeyA'))+joyX;yaw+=(Number(keys.has('ArrowLeft'))-Number(keys.has('ArrowRight')))*2.2*dt;const amount=Math.hypot(forward,side),norm=Math.max(1,amount),wet=groundHeight(player.x,player.z)<.02,target=amount>.01?(keys.has('ShiftLeft')||keys.has('ShiftRight')?4.5:1.8)*(wet?.42:1)*Math.min(1,amount):0;
       // Speed changes at a body's pace, not in one frame: about 0.3 s to start walking, 0.8 s from a walk up to a run
       // or back down (a few shortening strides), 0.3 s to stop from a walk and about a second from a run. The
