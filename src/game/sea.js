@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
-import {sampleWater} from '../water.js';
+import {sampleWater,SEA_RINGS} from '../water.js';
 import {buildSeaCreature} from './sea-a.js';
 import {asset} from '../url.js';
 
@@ -23,7 +23,7 @@ export const SEA=[
  {id:'turtle',name:'海龜',length:1.4,speed:.9,radius:5,bend:4,amp:.3,beat:.55,rest:-.8,cycle:12,note:'探出頭來換氣',events:[['surf',1,7,.14,0]]},
  {id:'manta',name:'蝠鱝',length:3.6,speed:1.6,radius:8,bend:3,amp:.12,beat:.35,rest:-.12,cycle:12,note:'翼尖劃過水面',events:[['leap',6,1.6,0,1]]},
 ];
-const G=9.8;
+const G=9.8,DROPS=1600;
 const smooth=(a,b,x)=>{const t=Math.min(1,Math.max(0,(x-a)/(b-a)));return t*t*(3-2*t);};
 const hash=n=>{const s=Math.sin(n*127.1)*43758.5453;return s-Math.floor(s);};
 
@@ -54,10 +54,11 @@ export function createSea(scene,{center,boat,water}){
  const wave={},cache=new Map(),dummy=new T.Object3D();
  const creatures=SEA.map((spec,i)=>{const holder=new T.Group();root.add(holder);
   // Spread round the loop, alternate directions, stagger the surfacing.
-  return {spec,i,holder,uniform:{value:new T.Vector4(0,spec.amp,spec.bend,0)},a0:i*2*Math.PI/SEA.length,dir:i%2?1:-1,offset:i*3.7,top:.1*spec.length,seen:false};});
+  return {spec,i,holder,uniform:{value:new T.Vector4(0,spec.amp,spec.bend,0)},a0:i*2*Math.PI/SEA.length,dir:i%2?1:-1,offset:i*3.7,top:.1*spec.length,seen:false,startledAt:-100};});
  // Splash droplets, spout mist and foam rings: rebuilt every frame from the event times.
- const drops=new T.InstancedMesh(new T.IcosahedronGeometry(1,1),new T.MeshStandardMaterial({color:0xffffff,roughness:.25,transparent:true,opacity:.9}),600);drops.frustumCulled=false;root.add(drops);
- const ringGeo=new T.RingGeometry(.86,1,48).rotateX(-Math.PI/2),rings=Array.from({length:24},()=>{const m=new T.Mesh(ringGeo,new T.MeshBasicMaterial({color:0xffffff,transparent:true,depthWrite:false}));m.visible=false;root.add(m);return m;});
+ const drops=new T.InstancedMesh(new T.IcosahedronGeometry(1,1),new T.MeshStandardMaterial({color:0xffffff,roughness:.25,transparent:true,opacity:.9}),DROPS);drops.frustumCulled=false;root.add(drops);
+ // A big splash also throws up a soft cloud of mist (camera-facing, fading out).
+ const mistMat=new T.SpriteMaterial({color:0xf4fbfb,transparent:true,depthWrite:false,opacity:0}),mists=Array.from({length:6},()=>{const m=new T.Sprite(mistMat.clone());m.visible=false;root.add(m);return m;});
  let group=null,loading=null;
 
  async function build(g){
@@ -103,36 +104,59 @@ export function createSea(scene,{center,boat,water}){
  // 15 cm out of the water, so fin cruisers always, the rest while surfacing or leaping.
  function pose(c,t,out={pos:new T.Vector3(),heading:new T.Vector3(),pitch:0,roll:0}){
   const s=c.spec;clear(c,loop(c,t,out.pos));clear(c,loop(c,t+.05,p1));out.heading.subVectors(p1,out.pos).normalize();
-  const v=vertical(c,t+c.offset);out.pitch=v.pitch??Math.atan2(v.dy,s.speed);out.roll=v.roll;
+  const v=vertical(c,t+c.offset),dive=diveDepth(c,t);v.y-=dive;out.pitch=(v.pitch??Math.atan2(v.dy,s.speed))-dive*.5*Math.max(0,1-(t-c.startledAt)/1.2);out.roll=v.roll;
   sampleWater(out.pos.x,out.pos.z,t,wave);out.pos.y=wave.height+v.y;out.depth=v.y;out.showing=v.y+c.top>.15;return out;
  }
- // Surface events (splash rings and drops, spouts) with their world time, for the effects pass.
- function events(c,t){
-  const list=[],s=c.spec,L=s.length,size=.45*Math.sqrt(L),start=-c.offset,k0=Math.floor((t-start)/s.cycle);
+ // How big an animal's splash is: about a quarter of its length (a humpback 2.75, a dolphin 0.65), the same for A/B/C.
+ const heft=c=>c.spec.length/4;
+ // Startled (rowed at too fast): it slaps the water and dives about a body length deeper, back up after 6 s.
+ function diveDepth(c,t){const age=t-c.startledAt;return age<0||age>7?0:(.8+.15*c.spec.length)*smooth(.15,1,age)*(1-smooth(4.5,7,age));}
+ // Surface events with their world time: splashes (leaping out and back in, a tail slap), a back breaking the surface
+ // as it comes up to breathe, spouts. size scales everything (drops, rings, foam, how far the spray carries).
+ function events(c,t,window=null){
+  const list=[],s=c.spec,L=s.length,size=heft(c),start=-c.offset,k0=Math.floor((t-start)/s.cycle);
   for(let k=k0-1;k<=k0;k++)for(const ev of s.events){const base=start+k*s.cycle+ev[1];
-   if(ev[0]==='leap'){const j=leap(c,ev[2]);for(const x of j.cross)list.push([base+x,'splash',size*(ev[4]?1.4:1)]);}
-   else if(ev[4])list.push([base+Math.max(1.2,.25*L)*.9,'spout',L]);}
-  return list.filter(e=>t-e[0]>=0&&t-e[0]<1.8);
+   if(ev[0]==='leap'){const j=leap(c,ev[2]);j.cross.forEach((x,n)=>list.push([base+x,'splash',size*(ev[4]?1.2:1)*(n?1:.6),c]));}
+   else{const rise=Math.max(1.2,.25*L);list.push([base+rise*.7,'wash',size*.45,c]);if(ev[4])list.push([base+rise*.9,'spout',L,c]);}}
+  if(c.startledAt>-100)list.push([c.startledAt+.15,'slap',size*.8,c]);
+  const life=e=>e[1]==='spout'?1.8:3+3*e[2];
+  return list.filter(e=>t-e[0]>=0&&t-e[0]<(window??life(e)));
  }
+ // Rings spreading on the water from each splash or wash (x, z, time, size), for the water shader and the boat: the
+ // biggest and newest first. Cached per time.
+ let ringTime=null;const ringList=[];
+ function rings(t){if(t===ringTime)return ringList;ringTime=t;ringList.length=0;
+  for(const c of creatures)for(const e of events(c,t))if(e[1]!=='spout'){const p=pose(c,e[0],fx);ringList.push([p.pos.x,p.pos.z,e[0],e[2]]);}
+  ringList.sort((a,b)=>b[3]/(1+t-b[2])-a[3]/(1+t-a[2]));ringList.length=Math.min(ringList.length,SEA_RINGS);return ringList;}
+ // The same rings as a small lift of the water (metres) for the boat to ride: a packet of a few crests behind a front
+ // that runs out faster and longer the bigger the splash. Shading only on the water itself (its mesh is too coarse).
+ function swell(x,z,t){let h=0;for(const [rx,rz,at,size] of rings(t)){const age=t-at,dist=Math.hypot(x-rx,z-rz),lambda=.8+.6*size,front=(1.2+Math.sqrt(size))*age,q=dist-front;
+  if(Math.abs(q)>2.5*lambda)continue;h+=.035*Math.min(size,2.5)*Math.exp(-age/(3+3*size))/(1+.12*dist)*Math.cos(q/lambda*6.2832)*Math.exp(-q*q/(lambda*lambda*1.5));}
+  return h;}
  const out={pos:new T.Vector3(),heading:new T.Vector3()},fx={pos:new T.Vector3(),heading:new T.Vector3()};
  function update(t){
-  let d=0,ring=0;
+  let d=0,mist=0;
   for(const c of creatures){
    const p=pose(c,t,out);
    c.holder.position.copy(p.pos);c.holder.rotation.set(p.roll,Math.atan2(-p.heading.z,p.heading.x),p.pitch,'YZX');
    c.uniform.value.x=t*c.spec.beat*Math.PI*2;
-   for(const [at,kind,size] of events(c,t)){const age=t-at,e=pose(c,at,fx);sampleWater(e.pos.x,e.pos.z,t,wave);const base=wave.height;
-    if(kind==='splash'&&ring<rings.length){const m=rings[ring++];m.visible=true;m.position.set(e.pos.x,base+.04,e.pos.z);m.scale.setScalar(size*(.6+2.6*age));m.material.opacity=.5*(1-age/1.8);}
-    const n=kind==='spout'?40:28;
-    for(let i=0;i<n&&d<drops.count;i++){const a=i*2.39996+at,h=hash(i+at*13.7);
-     let x,y,z,sc;
-     if(kind==='spout'){const sp=.35+.5*h,up=Math.sqrt(size)*(2.6+1.2*hash(i*3.1));x=Math.cos(a)*sp*age;z=Math.sin(a)*sp*age;y=.4*size*.1+up*age-2.2*age*age;sc=(.08+.1*h)*Math.sqrt(size)*.5*(1+age)*(1-age/1.8);}
-     else{const sp=size*(.8+1.4*h),up=size*(2.2+2.5*hash(i*7.3));x=Math.cos(a)*sp*age;z=Math.sin(a)*sp*age;y=up*age-G*age*age/2;sc=(.05+.07*h)*size*(1-age/1.8);}
+   for(const [at,kind,size] of events(c,t,1.8+.6*heft(c))){if(kind==='wash')continue;const age=t-at,e=pose(c,at,fx);sampleWater(e.pos.x,e.pos.z,t,wave);const base=wave.height,life=1.8+.6*size;
+    if(age>life)continue;
+    // Drops: more and higher the bigger the splash; a breach throws a tall column as well as the spray round it.
+    const n=kind==='spout'?40:Math.round(24+40*Math.min(size,3)),root=Math.sqrt(size);
+    for(let i=0;i<n&&d<DROPS;i++){const a=i*2.39996+at,h=hash(i+at*13.7),column=kind!=='spout'&&i%3===0;
+     let x,y,z,sc,g=G;
+     if(kind==='spout'){const sp=.35+.5*h,up=Math.sqrt(size)*(2.6+1.2*hash(i*3.1));x=Math.cos(a)*sp*age;z=Math.sin(a)*sp*age;y=.04*size+up*age-2.2*age*age;g=4.4;sc=(.08+.1*h)*Math.sqrt(size)*.5*(1+age)*(1-age/1.8);}
+     else{const sp=(column?.25:.8+1.4*h)*root,up=(column?4.5+2*h:2.2+2.5*hash(i*7.3))*root*(kind==='slap'?.6:1);x=Math.cos(a)*sp*age;z=Math.sin(a)*sp*age;y=up*age-G*age*age/2;sc=(.05+.07*h)*(.5+root*.6)*(1-age/life);}
      if(y<-.1||sc<=0)continue;dummy.position.set(e.pos.x+x,base+y,e.pos.z+z);dummy.scale.setScalar(sc);dummy.updateMatrix();drops.setMatrixAt(d++,dummy.matrix);}
+    if(kind!=='spout'&&size>.9&&mist<mists.length){const m=mists[mist++],u=Math.min(1,age/life);m.visible=true;m.position.set(e.pos.x,base+root*(.8+1.6*u),e.pos.z);m.scale.setScalar(root*(2+4*u));m.material.opacity=.45*Math.min(1,age/.15)*(1-u)**1.5;}
    }
   }
-  drops.count=Math.max(d,0);drops.instanceMatrix.needsUpdate=true;if(d===0)drops.count=0;
-  for(let i=ring;i<rings.length;i++)rings[i].visible=false;
+  // count is how many to draw this frame; the cap is DROPS (it used to be the cap too, so a frame without drops
+  // left it at 0 and no splash showed drops again).
+  drops.count=d;drops.instanceMatrix.needsUpdate=true;
+  for(let i=mist;i<mists.length;i++)mists[i].visible=false;
+  if(water){const u=water.material.uniforms.seaRings.value,list=rings(t);u.forEach((v,i)=>{const r=list[i];if(r)v.set(r[0],r[1],r[2],r[3]);else v.w=0;});}
  }
  // Before the water draws: the animals alone into a depth texture from the same camera (wrapping Water.js's own
  // callback, which renders the reflection), so the water shader can tell how much water lies in front of each one.
@@ -148,15 +172,16 @@ export function createSea(scene,{center,boat,water}){
    meshes.length=0;root.traverseVisible(o=>{if(o.isMesh&&o.userData.depthMaterial)meshes.push(o);});
    u.seeOn.value=meshes.length?1:0;if(!meshes.length)return;
    const swap=meshes.map(o=>o.material);meshes.forEach(o=>o.material=o.userData.depthMaterial);
-   const effects=[drops.visible,rings.map(r=>r.visible)];drops.visible=false;rings.forEach(r=>r.visible=false);
+   const effects=[drops.visible,mists.map(m=>m.visible)];drops.visible=false;mists.forEach(m=>m.visible=false);
    const shadows=renderer.shadowMap.autoUpdate,clear=renderer.getClearColor(new T.Color()),alpha=renderer.getClearAlpha();renderer.shadowMap.autoUpdate=false;
    renderer.setRenderTarget(target);renderer.clear(true,true,true);renderer.render(root,camera);renderer.setRenderTarget(current);
    renderer.shadowMap.autoUpdate=shadows;renderer.setClearColor(clear,alpha);
-   meshes.forEach((o,i)=>o.material=swap[i]);drops.visible=effects[0];rings.forEach((r,i)=>r.visible=effects[1][i]);
+   meshes.forEach((o,i)=>o.material=swap[i]);drops.visible=effects[0];mists.forEach((m,i)=>m.visible=effects[1][i]);
    u.seeInv.value.set(1/size.x,1/size.y);u.seeNear.value=camera.near;u.seeFar.value=camera.far;
   };
  }
  function observe(i){const c=creatures[i];if(c.seen)return false;c.seen=true;return true;}
- function reset(){for(const c of creatures)c.seen=false;}
- return {root,setGroup,update,observe,reset,pose:(i,t)=>pose(creatures[i],t),get creatures(){return creatures;},get seen(){return creatures.filter(c=>c.seen).map(c=>c.i);},get ready(){return loading;}};
+ function reset(){for(const c of creatures){c.seen=false;c.startledAt=-100;}ringTime=null;}
+ function startle(i,t){const c=creatures[i];if(t-c.startledAt<10)return false;c.startledAt=t;ringTime=null;return true;}
+ return {root,setGroup,update,observe,reset,startle,swell,heft,events:(i,t,w)=>events(creatures[i],t,w).map(e=>e.slice(0,3)),pose:(i,t)=>pose(creatures[i],t),get creatures(){return creatures;},get seen(){return creatures.filter(c=>c.seen).map(c=>c.i);},get ready(){return loading;}};
 }

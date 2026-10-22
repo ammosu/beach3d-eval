@@ -98,7 +98,7 @@ vec2 swellState(vec2 p,float t){
 }
 `;
 
-export const WAKE_RINGS=24,WADE_RINGS=10;
+export const WAKE_RINGS=24,WADE_RINGS=10,SEA_RINGS=10;
 const grid={xs:null,ds:null};
 function waterGeometry() {
  // Preserve the terrain entirely. Only the water mesh follows the coast, with
@@ -135,6 +135,10 @@ export function createWater(sun) {
  // Animals under the water (set by src/game/sea.js): a depth texture of the sea animals alone, drawn from the same
  // camera just before the water. Where one lies behind the water closer than the seabed, the water lets it through
  // by the water's thickness in front of it: a tinted shape within a metre or so, gone by about 3 m. 0 switches it off.
+ // Rings from the sea animals' splashes and surfacing (set by src/game/sea.js): x, z, time, size (about a quarter of the
+ // animal's length; 0 switches it off). Bigger: longer waves running out faster and for longer, a wider patch of white
+ // water where it went in. Shading only.
+ water.material.uniforms.seaRings={value:Array.from({length:SEA_RINGS},()=>new THREE.Vector4())};
  water.material.uniforms.seeDepth={value:null};water.material.uniforms.seeOn={value:0};
  water.material.uniforms.seeInv={value:new THREE.Vector2(1,1)};water.material.uniforms.seeNear={value:.1};water.material.uniforms.seeFar={value:1000};
  // Shallow water is see-through: the real sand and whatever stands in it (legs, the ball, a hull) show under it,
@@ -168,7 +172,7 @@ export function createWater(sun) {
  }`;
  water.material.fragmentShader=`
  uniform mat4 textureMatrix;uniform sampler2D mirrorSampler;uniform float time;uniform vec3 eye;uniform vec3 sunDirection;uniform vec3 sunColor;
- uniform vec4 wakeRings[${WAKE_RINGS}];uniform vec4 wadeRings[${WADE_RINGS}];
+ uniform vec4 wakeRings[${WAKE_RINGS}];uniform vec4 wadeRings[${WADE_RINGS}];uniform vec4 seaRings[${SEA_RINGS}];
  uniform sampler2D seeDepth;uniform float seeOn;uniform vec2 seeInv;uniform float seeNear;uniform float seeFar;
  varying vec4 mirrorCoord;varying vec4 worldPosition;varying vec3 vWaveNormal;varying vec2 vWaterRest;
  #include <common>
@@ -214,6 +218,16 @@ export function createWater(sun) {
    float env=r.w*exp(-x*x*16.)*exp(-age*1.1)/(1.+1.5*dist);rip+=q/dist*sin(x*18.)*.6*env;
    // A broken ring of foam pushed out by the leg, gone within a second.
    wadeFoam=max(wadeFoam,r.w*exp(-x*x*110.)*exp(-age*2.6)*smoothstep(.25,.55,waterNoise(worldPosition.xz*9.+r.z*7.)));}
+  float seaFoam=0.;
+  for(int i=0;i<${SEA_RINGS};i++){vec4 r=seaRings[i];if(r.w<=0.)continue;vec2 q=worldPosition.xz-r.xy;float dist=length(q),age=time-r.z;
+   float lambda=.8+.6*r.w,life=3.+3.*r.w,x=dist-(1.2+sqrt(r.w))*age;if(age<0.||age>life||dist<.01)continue;
+   float fade=exp(-age/life*2.5),env=min(r.w,2.5)*fade*exp(-x*x/(lambda*lambda*1.5))/(1.+.12*dist);
+   if(abs(x)<2.5*lambda)rip+=q/dist*sin(x/lambda*6.2832)*.5*env;
+   // White water: a ring of foam on the leading crest early on, and a patch where it went in that breaks up and thins.
+   float lace=smoothstep(.3,.7,waterNoise(worldPosition.xz*2.3+r.z*3.1));
+   seaFoam=max(seaFoam,exp(-x*x/(.08*lambda*lambda))*exp(-age*1.2)*min(1.,r.w*1.5)*lace);
+   float entry=1.-smoothstep(.15*r.w+.25,.6*r.w+.6,dist);
+   seaFoam=max(seaFoam,entry*smoothstep(life,.15*life,age)*min(1.,.4+r.w*.6)*smoothstep(.25+.5*age/life,.75,waterNoise(worldPosition.xz*1.7+r.z)));}
   small+=rip;
   vec3 N=normalize(vWaveNormal+vec3(-small.x,0.,-small.y));
   N=mix(N,normalize(vec3(-small.x,1.,-small.y)),smoothstep(-.1,1.,d));
@@ -288,7 +302,7 @@ export function createWater(sun) {
   float capLace=foamLace(p*.8+vec2(0.,time*.15)),far=smoothstep(60.,220.,distanceToEye);
   float detail=mix(capLace,.5,far);
   float whitecap=patches*(smoothstep(.15,.5,squeeze*detail)+earlier*smoothstep(.35,.75,detail)*.4)*smoothstep(6.,20.,coast);
-  foam=max(foam,whitecap*.85);foam=max(foam,wadeFoam*.9);
+  foam=max(foam,whitecap*.85);foam=max(foam,wadeFoam*.9);foam=max(foam,seaFoam*.9);
   vec3 foamColor=vec3(.88,.96,.94)*(.80+.24*max(dot(N,sunDirection),0.));
   float fm=clamp(foam,0.,.94);color=mix(color,foamColor,fm);colorClear=mix(colorClear,foamColor,fm);
   float clear=1.-smoothstep(.3,1.6,depth),through=.85*clear*dot(transmission,vec3(.2,.4,.4))*(1.-Fc)*(1.-fm);

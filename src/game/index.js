@@ -633,7 +633,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   // levelled at its centre had the water up to 15 cm over its inside at bow or stern. Height and tilt come from the
   // water as drawn (surfaceHeight: offshore the mesh is coarse and its surface strays from the exact field) at bow,
   // stern and both sides.
-  const c=Math.cos(boatYaw),sine=Math.sin(boatYaw),hh=boat.hull??{x:0,z:0,len:3,beam:1.2},at=(lx,lz)=>{lx+=hh.x;lz+=hh.z;return surfaceHeight(vessel.position.x+c*lx+sine*lz,vessel.position.z-sine*lx+c*lz,t);};
+  const c=Math.cos(boatYaw),sine=Math.sin(boatYaw),hh=boat.hull??{x:0,z:0,len:3,beam:1.2},at=(lx,lz)=>{lx+=hh.x;lz+=hh.z;const x=vessel.position.x+c*lx+sine*lz,z=vessel.position.z-sine*lx+c*lz;return surfaceHeight(x,z,t)+sea.swell(x,z,t);};
   const bow=at(0,-hh.len/2),stern=at(0,hh.len/2),port=at(-hh.beam/2,0),starboard=at(hh.beam/2,0),tilt=.3;
   vessel.position.y=(bow+stern+port+starboard)/4;vessel.rotation.set(T.MathUtils.clamp(Math.atan2(bow-stern,hh.len),-tilt,tilt),boatYaw,T.MathUtils.clamp(Math.atan2(starboard-port,hh.beam),-tilt,tilt),'YXZ');
   vessel.updateMatrixWorld(true);e.player.copy(boatSeat.point).applyMatrix4(vessel.matrixWorld);e.avatar.position.copy(e.player);e.avatar.rotation.set(vessel.rotation.x,boatYaw+Math.PI,vessel.rotation.z,'YXZ');
@@ -650,7 +650,25 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   if(boatSpeed>1.2&&(row.spray-=dt)<=0){row.spray=.1;const hh=boat.hull??{x:0,z:0,len:3,beam:1.2},size=Math.min(.25,.03+.04*boatSpeed);
    for(const k of [-1,1]){blade.set(hh.x+k*hh.beam*.3,0,hh.z-hh.len*.42).applyMatrix4(vessel.matrixWorld);const out=new T.Vector3(k,0,-.6).normalize().transformDirection(vessel.matrixWorld);splash.emit(t,blade.x,surfaceHeight(blade.x,blade.z,t),blade.z,size,out.x,out.z,.5);}}
   const dist=Math.hypot(vessel.position.x-island.x,vessel.position.z-island.z);if(!state.island&&dist<11){state.island=true;objects.burst(vessel.position.x,vessel.position.y+1,vessel.position.z,t);e.sfx('pickup');toast('抵達浮標！等海洋生物浮出水面，按 E 觀察。');}
+  if(dt>0)seaContact(dt,t);
   camGoal.set(vessel.position.x+Math.sin(boatYaw)*9,vessel.position.y+4.8,vessel.position.z+Math.cos(boatYaw)*9);camLook.set(vessel.position.x-Math.sin(boatYaw)*7,1,vessel.position.z-Math.cos(boatYaw)*7);
+ }
+ // The animals and the rower: a big splash close by showers the boat (the rings from it rock the hull, via
+ // sea.swell above), and rowing at one hard (over 3 m/s; letting the boat glide in is fine; within 4 m plus a third of its length, while it is near
+ // the surface) startles it: it slaps the water and dives, back up after about 6 s. Coming up slowly does not.
+ let seaToastAt=-100;
+ function seaContact(dt,t){
+  const hull=vessel.position;
+  sea.creatures.forEach((c,i)=>{
+   for(const [at,kind,size] of sea.events(i,t,dt+1e-6)){if(kind!=='splash'&&kind!=='slap')continue;
+    const p=sea.pose(i,at),dist=Math.hypot(p.pos.x-hull.x,p.pos.z-hull.z),reach=1.5+3*size;if(dist>reach)continue;
+    const near=1-dist/reach,dx=(hull.x-p.pos.x)/(dist||1),dz=(hull.z-p.pos.z)/(dist||1);
+    for(let k=0;k<3;k++)splash.emit(t+.25+.08*k,hull.x+(k-1)*.5*dz,hull.y+.3,hull.z-(k-1)*.5*dx,.25+.35*size*near,dx,dz,1.2);
+    if(size>.9&&t-seaToastAt>8){seaToastAt=t;e.sfx('splash');toast(`${c.spec.name}${kind==='slap'?'拍水':'跳出水面'}，水花潑到船上了！`);}}
+   if(Math.abs(boatSpeed)<3)return;
+   const p=sea.pose(i,t),dist=Math.hypot(p.pos.x-hull.x,p.pos.z-hull.z);
+   if(dist<4+c.spec.length/3&&p.depth+c.top>-.4*c.spec.length&&sea.startle(i,t)&&t-seaToastAt>4){seaToastAt=t;e.sfx('splash');toast(`划太快，${c.spec.name}被嚇得潛下去了。慢慢靠近吧。`);}
+  });
  }
  function update(dt,t){
   if(lagoon.isOpen){document.body.classList.remove('game-paused');return;}
