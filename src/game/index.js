@@ -370,9 +370,12 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
    // 45 cm clear of the hull's side (a blade dipped beside the hull read as spray thrown up by the boat).
    {const drop=boatSeat.point.y+.46+.16,out=boat.hull.beam/2+.45;row.reach=T.MathUtils.clamp(Math.hypot(drop,out),1.22,1.9);row.dip=Math.asin(T.MathUtils.clamp(drop/row.reach,.3,.95));
     oar.children[0].scale.y=(2*row.reach+.16)/2.6;oar.children[1].position.x=-row.reach;oar.children[2].position.x=row.reach;}}vessel.position.copy(oldPosition);vessel.quaternion.copy(oldRotation);vessel.updateMatrixWorld(true);
-  if(mode==='boat'&&source){source.visible=false;hiddenBoat=source;}
+  hideBeached();
  }
  syncAnchors();
+ // Boarding only hides the beached prop: the probes above depend on the props and the character, not on play, and
+ // re-running them all (every prop's surface, the tower's ladder, the hull) stalled the frame 0.5–2.7 s.
+ function hideBeached(){const source=propRoot.children.find(c=>c.name==='boat');if(mode==='boat'&&source){source.visible=false;hiddenBoat=source;}}
  const ball=createBall(objects.ball,()=>e.colliders,()=>{if(!state.ball){state.ball=true;toast('球進海裡了！讓它跟著浪花漂吧。');}},()=>e.sfx('splash'));
  function toast(message){$('#game-toast').textContent=message;toastUntil=time()+3.5;}
  // A count that went up or a quest just ticked pops (grows past its size and settles), so the change is seen.
@@ -386,9 +389,9 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  function seated(){/* Poses are blended on the active skeleton in updateCharacter. */}
  // Where the body rests under the umbrella: on a lounger, the lying point found from its profile.
  const restPoint=()=>anchors.umbrella.surface.lie?.point??anchors.umbrella.surface.point;
- function enter(next){e.setFirstPerson(false);returnPoint.copy(e.player);mode=next;modeAge=0;e.setDriven(true);e.clearInput();fade();if(next==='rest'){e.player.copy(restPoint());e.avatar.rotation.set(0,anchors.umbrella.surface.yaw,0);toast('聽一會兒海浪。按 E 或「互動」起身。');}if(next==='tower'){climbStart.copy(anchors.lifeguard.climb);e.player.copy(climbStart);towerT=0;towerDir=1;e.avatar.rotation.set(0,anchors.lifeguard.ladder?Math.atan2(-anchors.lifeguard.ladder.normal.x,-anchors.lifeguard.ladder.normal.z):Math.PI,0);toast('從高處看看整座海灣。按 E 下塔。');}if(next==='tidepool'){camGoal.copy(pool.center).add(new T.Vector3(0,9,7));camLook.copy(pool.center);document.exitPointerLock?.();lagoon.open(e.group,{muted:e.muted,auto});}if(next==='boat'){vessel.visible=true;boatSpeed=0;seated(true);if(pushBoat){const src=propRoot.children.find(c=>c.name==='boat');vessel.position.set(src?src.position.x:4,0,src?src.position.z:8);boatYaw=boat.restYaw;Object.assign(launch,{active:true,board:-1,speed:0,steer:0});syncAnchors();boatYaw=boat.restYaw;$('.game-controls').innerHTML='按住 W 把小船推下水　A / D 調整方向<br>E 跳過，直接上船';toast('按住 W 把小船推下水！');}else afloat();}}
+ function enter(next){e.setFirstPerson(false);returnPoint.copy(e.player);mode=next;modeAge=0;e.setDriven(true);e.clearInput();fade();if(next==='rest'){e.player.copy(restPoint());e.avatar.rotation.set(0,anchors.umbrella.surface.yaw,0);toast('聽一會兒海浪。按 E 或「互動」起身。');}if(next==='tower'){climbStart.copy(anchors.lifeguard.climb);e.player.copy(climbStart);towerT=0;towerDir=1;e.avatar.rotation.set(0,anchors.lifeguard.ladder?Math.atan2(-anchors.lifeguard.ladder.normal.x,-anchors.lifeguard.ladder.normal.z):Math.PI,0);toast('從高處看看整座海灣。按 E 下塔。');}if(next==='tidepool'){camGoal.copy(pool.center).add(new T.Vector3(0,9,7));camLook.copy(pool.center);document.exitPointerLock?.();lagoon.open(e.group,{muted:e.muted,auto});}if(next==='boat'){vessel.visible=true;boatSpeed=0;seated(true);if(pushBoat){const src=propRoot.children.find(c=>c.name==='boat');vessel.position.set(src?src.position.x:4,0,src?src.position.z:8);boatYaw=boat.restYaw;Object.assign(launch,{active:true,board:-1,speed:0,steer:0});hideBeached();$('.game-controls').innerHTML='按住 W 把小船推下水　A / D 調整方向<br>E 跳過，直接上船';toast('按住 W 把小船推下水！');}else afloat();}}
  // Straight to the dock, seated (also when E skips the push, which hides the paddle until the climb in is done).
- function afloat(){launch.active=false;oar.visible=true;vessel.position.set(dock.x,0,dock.z);boatSpeed=0;boatYaw=0;syncAnchors();boatReady();}
+ function afloat(){launch.active=false;oar.visible=true;vessel.position.set(dock.x,0,dock.z);boatSpeed=0;boatYaw=0;hideBeached();boatReady();}
  function boatReady(){$('.game-controls').innerHTML='W / S 划行　A / D 轉向　E 靠岸下船<br>在浮標附近等牠們浮出水面，按 E 觀察，再划回岸邊';toast('W / S 划行，A / D 轉向。向金色浮標出發！');}
  function leave(done=false){if(mode==='tidepool'&&lagoon.isOpen){lagoon.close();return;}
   // Off the tower by the ladder: play the climb backward, then step off at its foot.
