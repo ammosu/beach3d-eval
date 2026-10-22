@@ -2,6 +2,7 @@ import * as T from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {sampleWater,SEA_RINGS} from '../water.js';
 import {buildSeaCreature} from './sea-a.js';
+import {dropMaterial} from './splash.js';
 import {asset} from '../url.js';
 
 // Open-sea animals that live in the beach scene around the island buoy, there from the start for the rower to watch. Out
@@ -51,14 +52,18 @@ async function loadGlb(url){
 
 export function createSea(scene,{center,boat,water}){
  const root=new T.Group();root.name='open-sea';scene.add(root);
- const wave={},cache=new Map(),dummy=new T.Object3D();
+ const wave={},cache=new Map();
  const creatures=SEA.map((spec,i)=>{const holder=new T.Group();root.add(holder);
   // Spread round the loop, alternate directions, stagger the surfacing.
   return {spec,i,holder,uniform:{value:new T.Vector4(0,spec.amp,spec.bend,0)},a0:i*2*Math.PI/SEA.length,dir:i%2?1:-1,offset:i*3.7,top:.1*spec.length,seen:false,startledAt:-100};});
  // Splash droplets, spout mist and foam rings: rebuilt every frame from the event times.
- const drops=new T.InstancedMesh(new T.IcosahedronGeometry(1,1),new T.MeshStandardMaterial({color:0xffffff,roughness:.25,transparent:true,opacity:.9}),DROPS);drops.frustumCulled=false;root.add(drops);
- // A big splash also throws up a soft cloud of mist (camera-facing, fading out).
- const mistMat=new T.SpriteMaterial({color:0xf4fbfb,transparent:true,depthWrite:false,opacity:0}),mists=Array.from({length:6},()=>{const m=new T.Sprite(mistMat.clone());m.visible=false;root.add(m);return m;});
+ // Drops and mist share the rowboat splashes' look (src/game/splash.js): camera-facing quads stretched along their
+ // velocity, so a drop in flight reads as a short streak, and quads 0.1 m or wider drawn as a dim soft puff of mist.
+ const geo=new T.InstancedBufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute([-1,-1,0,1,-1,0,1,1,0,-1,1,0],3));geo.setIndex([0,1,2,0,2,3]);
+ const iPos=new T.InstancedBufferAttribute(new Float32Array(DROPS*3),3),iVel=new T.InstancedBufferAttribute(new Float32Array(DROPS*3),3),iSize=new T.InstancedBufferAttribute(new Float32Array(DROPS*2),2);
+ for(const a of [iPos,iVel,iSize])a.setUsage(T.DynamicDrawUsage);geo.setAttribute('iPos',iPos);geo.setAttribute('iVel',iVel);geo.setAttribute('iSize',iSize);geo.instanceCount=0;
+ const drops=new T.Mesh(geo,dropMaterial());drops.frustumCulled=false;drops.renderOrder=4;root.add(drops);
+ let d=0;const put=(x,y,z,vx,vy,vz,size,alpha)=>{if(d>=DROPS||alpha<=0)return;iPos.setXYZ(d,x,y,z);iVel.setXYZ(d,vx,vy,vz);iSize.setXY(d,size,alpha);d++;};
  let group=null,loading=null;
 
  async function build(g){
@@ -135,27 +140,35 @@ export function createSea(scene,{center,boat,water}){
   return h;}
  const out={pos:new T.Vector3(),heading:new T.Vector3()},fx={pos:new T.Vector3(),heading:new T.Vector3()};
  function update(t){
-  let d=0,mist=0;
+  d=0;
   for(const c of creatures){
    const p=pose(c,t,out);
    c.holder.position.copy(p.pos);c.holder.rotation.set(p.roll,Math.atan2(-p.heading.z,p.heading.x),p.pitch,'YZX');
    c.uniform.value.x=t*c.spec.beat*Math.PI*2;
-   for(const [at,kind,size] of events(c,t,1.8+.6*heft(c))){if(kind==='wash')continue;const age=t-at,e=pose(c,at,fx);sampleWater(e.pos.x,e.pos.z,t,wave);const base=wave.height,life=1.8+.6*size;
-    if(age>life)continue;
-    // Drops: more and higher the bigger the splash; a breach throws a tall column as well as the spray round it.
-    const n=kind==='spout'?40:Math.round(24+40*Math.min(size,3)),root=Math.sqrt(size);
-    for(let i=0;i<n&&d<DROPS;i++){const a=i*2.39996+at,h=hash(i+at*13.7),column=kind!=='spout'&&i%3===0;
-     let x,y,z,sc,g=G;
-     if(kind==='spout'){const sp=.35+.5*h,up=Math.sqrt(size)*(2.6+1.2*hash(i*3.1));x=Math.cos(a)*sp*age;z=Math.sin(a)*sp*age;y=.04*size+up*age-2.2*age*age;g=4.4;sc=(.08+.1*h)*Math.sqrt(size)*.5*(1+age)*(1-age/1.8);}
-     else{const sp=(column?.25:.8+1.4*h)*root,up=(column?4.5+2*h:2.2+2.5*hash(i*7.3))*root*(kind==='slap'?.6:1);x=Math.cos(a)*sp*age;z=Math.sin(a)*sp*age;y=up*age-G*age*age/2;sc=(.05+.07*h)*(.5+root*.6)*(1-age/life);}
-     if(y<-.1||sc<=0)continue;dummy.position.set(e.pos.x+x,base+y,e.pos.z+z);dummy.scale.setScalar(sc);dummy.updateMatrix();drops.setMatrixAt(d++,dummy.matrix);}
-    if(kind!=='spout'&&size>.9&&mist<mists.length){const m=mists[mist++],u=Math.min(1,age/life);m.visible=true;m.position.set(e.pos.x,base+root*(.8+1.6*u),e.pos.z);m.scale.setScalar(root*(2+4*u));m.material.opacity=.45*Math.min(1,age/.15)*(1-u)**1.5;}
+   for(const [at,kind,size] of events(c,t,1.8+.6*heft(c))){if(kind==='wash')continue;const age=t-at,e=pose(c,at,fx);sampleWater(e.pos.x,e.pos.z,t,wave);const base=wave.height;
+    if(kind==='spout'){
+     // A blow: a column of mist rising fast and slowing, spreading and drifting as it thins, with fine drops falling out.
+     // From the blowhole, about a third of the body ahead of the middle; about 3 m tall for a humpback.
+     const life=2.6,u=age/life,lift=Math.sqrt(size)*.9,bx=e.pos.x+e.heading.x*.33*size,bz=e.pos.z+e.heading.z*.33*size;if(u>1)continue;
+     for(let i=0;i<22;i++){const h=hash(i+at*7.1),k=i/22,y=lift*(1-Math.exp(-age*(2.2+1.4*k)))*(.08+1.02*k),spread=(.15+.5*age)*Math.sqrt(size)*.35;
+      put(bx+Math.cos(i*2.4)*spread*h+.3*age,base+.2+y,bz+Math.sin(i*2.4)*spread*h,0,0,0,(.3+.6*age)*Math.sqrt(size)*.42*(.7+.6*h),.75*Math.min(1,age/.12)*(1-u)**1.6);}
+     for(let i=0;i<30;i++){const h=hash(i+at*3.3),a=i*2.39996,up=lift*(1.6+1.2*h),sp=.4+.6*hash(i*5.1),vy=up-G*.45*age,y=up*age-G*.45*age*age/2;if(y<0)continue;
+      put(bx+Math.cos(a)*sp*age,base+.2+y,bz+Math.sin(a)*sp*age,Math.cos(a)*sp,vy,Math.sin(a)*sp,.012+.012*h,.55*(1-u));}
+     continue;}
+    const life=1.8+.6*size,u=age/life;if(u>1)continue;
+    // Spray: more and higher the bigger the splash; a breach throws a tall column as well as the spray round it.
+    const n=Math.round(40+90*Math.min(size,3)),root=Math.sqrt(size);
+    for(let i=0;i<n;i++){const a=i*2.39996+at,h=hash(i+at*13.7),column=i%3===0;
+     const sp=(column?.25:.8+1.4*h)*root,up=(column?4.5+2*h:2.2+2.5*hash(i*7.3))*root*(kind==='slap'?.6:1),y=up*age-G*age*age/2;if(y<-.05)continue;
+     put(e.pos.x+Math.cos(a)*sp*age,base+y,e.pos.z+Math.sin(a)*sp*age,Math.cos(a)*sp,up-G*age,Math.sin(a)*sp,(.025+.035*h)*(1-.5*u),.8*(1-u*u));}
+    // Mist over a big splash: soft puffs that rise a little, swell and fade.
+    if(size>.8)for(let i=0;i<7;i++){const h=hash(i+at*2.7),a=i*2.39996+at,r=root*(.3+.6*h)*(1+u);
+     put(e.pos.x+Math.cos(a)*r,base+root*(.4+.5*h)+root*1.2*u,e.pos.z+Math.sin(a)*r,0,0,0,root*(.8+1.6*u)*(.7+.5*h),.22*Math.min(1,age/.15)*(1-u)**1.5);}
    }
   }
-  // count is how many to draw this frame; the cap is DROPS (it used to be the cap too, so a frame without drops
-  // left it at 0 and no splash showed drops again).
-  drops.count=d;drops.instanceMatrix.needsUpdate=true;
-  for(let i=mist;i<mists.length;i++)mists[i].visible=false;
+  // How many to draw this frame (the cap is DROPS; the old InstancedMesh used its count as the cap too, so after a
+  // frame without drops no splash showed drops again).
+  geo.instanceCount=d;for(const a of [iPos,iVel,iSize])a.needsUpdate=true;
   if(water){const u=water.material.uniforms.seaRings.value,list=rings(t);u.forEach((v,i)=>{const r=list[i];if(r)v.set(r[0],r[1],r[2],r[3]);else v.w=0;});}
  }
  // Before the water draws: the animals alone into a depth texture from the same camera (wrapping Water.js's own
@@ -172,11 +185,11 @@ export function createSea(scene,{center,boat,water}){
    meshes.length=0;root.traverseVisible(o=>{if(o.isMesh&&o.userData.depthMaterial)meshes.push(o);});
    u.seeOn.value=meshes.length?1:0;if(!meshes.length)return;
    const swap=meshes.map(o=>o.material);meshes.forEach(o=>o.material=o.userData.depthMaterial);
-   const effects=[drops.visible,mists.map(m=>m.visible)];drops.visible=false;mists.forEach(m=>m.visible=false);
+   const effects=drops.visible;drops.visible=false;
    const shadows=renderer.shadowMap.autoUpdate,clear=renderer.getClearColor(new T.Color()),alpha=renderer.getClearAlpha();renderer.shadowMap.autoUpdate=false;
    renderer.setRenderTarget(target);renderer.clear(true,true,true);renderer.render(root,camera);renderer.setRenderTarget(current);
    renderer.shadowMap.autoUpdate=shadows;renderer.setClearColor(clear,alpha);
-   meshes.forEach((o,i)=>o.material=swap[i]);drops.visible=effects[0];mists.forEach((m,i)=>m.visible=effects[1][i]);
+   meshes.forEach((o,i)=>o.material=swap[i]);drops.visible=effects;
    u.seeInv.value.set(1/size.x,1/size.y);u.seeNear.value=camera.near;u.seeFar.value=camera.far;
   };
  }

@@ -8,7 +8,7 @@ const G=9.8,MAX=60,DROPS=2000;
 const hash=n=>{const s=Math.sin(n*127.1)*43758.5453;return s-Math.floor(s);};
 // Drops are camera-facing quads stretched along their velocity (a drop in flight reads as a short streak, not a
 // bead), with a soft edge and a brighter core; mist puffs are the same quads, large, slow and faint.
-function dropMaterial(){
+export function dropMaterial(){
  return new T.ShaderMaterial({transparent:true,depthWrite:false,side:T.DoubleSide,
   vertexShader:`attribute vec3 iPos;attribute vec3 iVel;attribute vec2 iSize;varying vec2 vUv;varying float vAlpha;varying float vMist;
    void main(){vUv=position.xy;vAlpha=iSize.y;vMist=step(.1,iSize.x);

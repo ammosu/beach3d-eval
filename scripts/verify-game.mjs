@@ -43,8 +43,12 @@ try{
   console.log('pull back',JSON.stringify({a,b}));assert(Math.hypot(b.x-a.x,b.z-a.z)>.5&&b.z>a.z,'S must pull the boat back up the beach');}
  {let worst=0;await page.keyboard.down('KeyW');for(let i=0;i<60&&await page.evaluate(()=>window.__GAME__.launch.active);i++){await step(.5);const l=await page.evaluate(()=>({...window.__GAME__.launch,ik:window.__GAME__.character.ik.hands}));if(l.active&&l.board<0)worst=Math.max(worst,...l.ik);if(i===8)await shot('push');}
   await page.keyboard.up('KeyW');const v=await page.evaluate(()=>window.__GAME__.vessel),launch=await page.evaluate(()=>window.__GAME__.launch);console.log('launch',JSON.stringify({v,worst}));
-  assert(!launch.active,'boat must be launched within 30 s');assert(worst<.5,`pusher hands off the stern by ${worst}`);assert(v.z<-15,'launched into the water');}
+  assert(!launch.active,'boat must be launched within 30 s');assert(launch.oar,'paddle shown once aboard');assert(worst<.5,`pusher hands off the stern by ${worst}`);assert(v.z<-15,'launched into the water');}
  await page.evaluate(()=>window.__GAME__.pushBoat=false);   // the per-group checks below board directly
+ // E during the push skips to the dock, seated, paddle in hand (it used to stay hidden, as during the push).
+ {const skip=await browser.newPage({viewport:{width:800,height:500}});monitor(skip);await skip.goto(`http://localhost:${process.env.PORT||5191}/game.html?auto=1&time=4`);await skip.waitForFunction(()=>window.__READY__);await skip.click('#begin');
+  const r=await skip.evaluate(()=>{const G=window.__GAME__;G.pushBoat=true;const t=G.targets().boat;G.teleport(t[0],t[2]);G.step(.2);G.interact();G.step(.5);const pushing=G.launch;G.interact();G.step(1.5);return {pushing,after:G.launch,mode:G.mode};});
+  assert(r.pushing.active&&!r.pushing.oar&&r.mode==='boat'&&!r.after.active&&r.after.oar,'skipping the push must leave the paddle shown: '+JSON.stringify(r));await skip.close();}
  // An attempted early disembark at sea must be rejected. All travel uses W
  // physics, including acceleration, depth restrictions, and wave pose.
  async function paddleTo(goal){for(let i=0;i<100;i++){const v=await page.evaluate(()=>window.__GAME__.vessel),dx=goal.x-v.x,dz=goal.z-v.z,d=Math.hypot(dx,dz);if(d<7)return;await page.evaluate(a=>window.__GAME__.steer(a),Math.atan2(-dx,-dz));await page.keyboard.down('KeyW');await step(Math.min(1.5,(d-5)/9));await page.keyboard.up('KeyW');}throw Error('Boat failed to reach target');}
