@@ -147,6 +147,7 @@ There is no lint or unit-test setup. Verification means running the Playwright s
   - Touch-only devices (`touchOnly` from `src/lite.js`, body class `touch-only`): no keycaps or world prompt; wording says what to tap (`say(keys,touch)` in `index.js`); a pause button (`explore.pause()`, same card as Esc) and, on foot, a jump button.
   - Phones (≤700px): the quest book is one row (`#quest-now`, current quest, tap for the list); the group panel is the A/B/C row (stats hidden); route and toasts sit at the top, clear of the character.
   - `#interact` names the action (`near.label` up to the first「，」) and is hidden when there is nothing to do. On desktop it is also hidden (class `echo`) while the E prompt by the target is on screen; pointer lock leaves no cursor to click it. The route shows destination and distance, what to do there on a second line.
+  - Controls text appears once: on the start card (desktop), then the corner HUD while playing; not on the pause card, never on touch.
   - The pause card (the start card after `begin()`) shows progress instead of the invitation: done / 7, time played, and the seven quests with counts (`renderProgress()`).
   - Touch, first game only (`localStorage` `beach3d-touch-hint`): two bubbles, by the joystick and over the look pad, each gone once its pad is touched, all gone after 15 s (`touchHint()`).
   - The tide-pool bar keeps title, count and the way back; the species list is the pool page's own collection.

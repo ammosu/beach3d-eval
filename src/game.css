@@ -91,3 +91,6 @@ body:not(.touch-only) #game #interact.echo{display:none}
 @media(prefers-reduced-motion:reduce){#touch-hint span{animation:none}}
 .game-paused #touch-hint,.game-complete #touch-hint,body:not([data-mode=walk]) #touch-hint{display:none}
 @media(min-width:701px){#touch-hint [data-for=stick]{left:24px;bottom:228px}}
+/* Controls are spelled out once: the start card on desktop, then the HUD's corner while playing (not again on the
+   pause card). Touch has no keys; the first-game hint shows where to drag. */
+.game-playing .welcome .start-controls,.touch-only .welcome .start-controls{display:none}
