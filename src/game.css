@@ -67,3 +67,27 @@
 #game-pause{display:none}
 .touch-only.game-playing:not(.game-complete) #game #game-pause{display:block;position:absolute;top:96px;right:64px;width:44px;height:44px;padding:0;border-radius:8px;background:#123d56c9;border:1px solid #ffffff44;color:#fff;font-size:12px;letter-spacing:-1px}
 .touch-only.game-mode.game-playing[data-mode=walk]:not(.game-complete):not(.game-paused) #explore #jump{display:block;bottom:166px;right:20px;width:56px;height:56px;padding:0;border-radius:50%;background:#123d56b8;border:1px solid #ffffff66;color:#fff;font-size:14px;font-weight:700}
+/* Desktop: the prompt by the target already says what E does (and pointer lock leaves no cursor for a button),
+   so the action button only stands in while that prompt is off screen. */
+body:not(.touch-only) #game #interact.echo{display:none}
+/* Pause card: progress instead of the invitation. */
+.pause-progress{display:none}
+.game-playing .welcome>p:not(.invitation):not(.start-controls){display:none}
+.game-playing .welcome .pause-progress{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;list-style:none;padding:0;margin:16px 0 4px;font-size:14px;color:var(--ink)}
+.pause-progress li{display:flex;align-items:center;gap:8px;min-height:28px}
+.pause-progress i{display:inline-grid;place-items:center;width:20px;height:20px;border:1.5px solid #9dbccb;border-radius:50%;font-style:normal;font-size:12px;color:#fff;flex:none}
+.pause-progress li.done{color:#58717c}.pause-progress li.done i{background:var(--sea);border-color:var(--sea)}
+.pause-progress b{color:var(--sea);font-weight:700}
+.game-playing .welcome .trip-details{margin-top:18px;padding-top:14px;font-weight:700;color:var(--ink)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+/* Touch, first time: where to drag. */
+#touch-hint span{position:absolute;padding:9px 13px;border-radius:14px;background:#fffdf6f0;color:var(--ink);font-size:13px;font-weight:700;box-shadow:0 4px 16px #123d5640;transition:opacity .3s;animation:hint-bob 1.6s ease-in-out infinite}
+#touch-hint span.used{opacity:0}
+#touch-hint [data-for=stick]{left:22px;bottom:218px}
+#touch-hint [data-for=stick]::after{content:'';position:absolute;left:46px;bottom:-7px;border:7px solid transparent;border-bottom:0;border-top-color:#fffdf6f0}
+#touch-hint [data-for=look]{right:16px;top:calc(50% + 20px)}
+#touch-hint [data-for=look]::before{content:'⇆';display:block;text-align:center;font-size:22px;line-height:1;color:var(--sea);margin-bottom:2px}
+@keyframes hint-bob{50%{transform:translateY(-4px)}}
+@media(prefers-reduced-motion:reduce){#touch-hint span{animation:none}}
+.game-paused #touch-hint,.game-complete #touch-hint,body:not([data-mode=walk]) #touch-hint{display:none}
+@media(min-width:701px){#touch-hint [data-for=stick]{left:24px;bottom:228px}}
