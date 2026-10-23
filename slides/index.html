@@ -64,7 +64,34 @@
   .box.play { animation-name: pop; }
   @keyframes pop { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) { .play { animation: none; } .bar, .val { transition: none; } }
-  @media (max-width: 700px) { .row, .boxes { flex-direction: column; align-items: stretch; } .slide { overflow-y: auto; justify-content: flex-start; } .src { position: static; } }
+  /* 手機（窄螢幕或橫放的矮螢幕）：改成上下捲動閱讀，所有頁依序排開；影片捲到才播放，圖並排成兩欄或三欄 */
+  body.scroll { height: auto; overflow: auto; }
+  .scroll .slide { position: static; display: flex; justify-content: flex-start; padding: 40px 18px 34px; gap: 16px;
+                   border-top: 1px solid #1f252d; }
+  .scroll .slide:first-of-type { min-height: 88svh; justify-content: center; border-top: 0; }
+  .scroll .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: none !important; margin: 0 !important; }
+  .scroll .row.trio { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .scroll .row > figure:only-child, .scroll .row > figure.wide { grid-column: 1 / -1; }
+  .scroll figure { max-width: none !important; }
+  .scroll figcaption { font-size: 14px; margin: .4em 0; }
+  .scroll .trio figcaption { font-size: 12.5px; }
+  .scroll .lead { font-size: 15px; line-height: 1.7; text-align: left !important; }
+  .scroll .lead br, .scroll .src br { display: none; }
+  .scroll .src { position: static; font-size: 12.5px; line-height: 1.6; }
+  .scroll .chart { grid-template-columns: 1fr; gap: 4px; }
+  .scroll .chart .name { text-align: left; font-size: 14px; margin-top: 8px; }
+  .scroll .track { flex-wrap: wrap; gap: .3em .6em; }
+  .scroll .bar { height: 18px; max-width: 60%; }
+  .scroll .val { font-size: 15px; } .scroll .note { display: block; margin: 0; font-size: 12.5px; white-space: normal; }
+  .scroll .boxes { flex-direction: column; align-items: stretch; gap: 12px; }
+  .scroll .box { max-width: none; padding: 16px; } .scroll .box b { font-size: 24px; } .scroll .box span { font-size: 15px; }
+  .scroll .credits { flex-direction: column; gap: 22px; font-size: 13px; } .scroll .credits b { font-size: 17px; }
+  .scroll .chips button { font-size: 14px; padding: .45em 1em; }
+  .scroll .cards { gap: 12px; }
+  .scroll .card small { word-break: break-all; }
+  .scroll .nav, .scroll .pager { display: none; }
+  .scroll h1, .scroll h2 { text-wrap: balance; } .scroll h1 { font-size: 30px; } .scroll h1 br { display: none; }
+  .scroll .slide:first-of-type::after { content: '往下捲動閱讀　·　點影片可全螢幕'; text-align: center; color: #7d838b; font-size: 13px; margin-top: 3vh; }
 </style>
 </head>
 <body>
@@ -79,8 +106,8 @@
 
 <section class="slide">
   <h2>同一個海灘場景，只換 8 件物件的來源</h2>
-  <div class="row">
-    <figure style="flex:1.6"><img src="assets/wide_B.jpg" alt="共用的海灘場景"></figure>
+  <div class="row trio">
+    <figure class="wide" style="flex:1.6"><img src="assets/wide_B.jpg" alt="共用的海灘場景"></figure>
     <figure><img src="assets/boat_A.jpg" alt="AI 寫程式的小船"><figcaption class="c-codex">AI 寫程式</figcaption></figure>
     <figure><img src="assets/boat_B.jpg" alt="Tripo 生成的小船"><figcaption class="c-tripo">Tripo 生成</figcaption></figure>
     <figure><img src="assets/boat_C.jpg" alt="素材庫的小船"><figcaption class="c-library">免費素材庫</figcaption></figure>
@@ -109,20 +136,20 @@
 
 <section class="slide">
   <h2>各物件由遠拉近：5 種來源同一鏡頭</h2>
-  <div class="row"><figure style="max-width:84vw"><video id="zoom" src="assets/zoom_props.mp4" muted loop playsinline preload="auto"></video></figure></div>
+  <div class="row"><figure style="max-width:84vw"><video id="zoom" src="assets/zoom_props.mp4" muted loop playsinline preload="metadata"></video></figure></div>
   <div class="chips" id="zoom-chips"></div>
   <div class="src">每件 4 秒、同一條鏡頭路徑；codex／Opus 版本來自各自的場景（地形與水不同）</div>
 </section>
 
 <section class="slide">
   <h2>場景中的物件：同一路徑飛越（A／B／C）</h2>
-  <div class="row"><figure style="max-width:80vw"><video src="assets/props_flythrough.mp4" data-start="4" muted loop playsinline preload="auto"></video></figure></div>
+  <div class="row"><figure style="max-width:80vw"><video src="assets/props_flythrough.mp4" data-start="4" muted loop playsinline preload="metadata"></video></figure></div>
   <div class="src">共用底座只換物件；右下為各物件盲評（codex 評審）</div>
 </section>
 
 <section class="slide">
   <h2>真正拉開差距的，是寫整個場景的 AI</h2>
-  <div class="row">
+  <div class="row trio">
     <figure><figcaption class="c-codex">codex（低推理）</figcaption><img src="assets/model_M1.jpg" alt="codex 低推理版本"></figure>
     <figure><figcaption class="c-codex">codex（高推理）</figcaption><img src="assets/model_M2.jpg" alt="codex 高推理版本"></figure>
     <figure><figcaption class="c-opus">Opus 5.5</figcaption><img src="assets/model_M3.jpg" alt="Opus 版本"></figure>
@@ -133,14 +160,14 @@
 
 <section class="slide">
   <h2>水面對照：三種 AI 寫的場景</h2>
-  <div class="row"><figure style="max-width:80vw"><video src="assets/water_models.mp4" muted loop playsinline preload="auto"></video></figure></div>
+  <div class="row"><figure style="max-width:80vw"><video src="assets/water_models.mp4" muted loop playsinline preload="metadata"></video></figure></div>
   <div class="src">同一條鏡頭路徑逐格算繪、時間同步；右下為場景盲評（codex 評審）</div>
 </section>
 
 <section class="slide">
   <h2>角色是 Tripo 的強項：3 分鐘生成＋自動綁骨架</h2>
   <div class="row"><figure style="max-width:70vw"><img src="assets/chars_crop.jpg" alt="三組角色並排"></figure></div>
-  <div class="row" style="max-width:70vw;margin:0 auto">
+  <div class="row trio" style="max-width:70vw;margin:0 auto">
     <figure><figcaption class="c-codex">codex 寫程式</figcaption></figure>
     <figure><figcaption class="c-tripo">Tripo（95 點）</figcaption></figure>
     <figure><figcaption class="c-library">素材庫（CC0）</figcaption></figure>
@@ -149,7 +176,7 @@
 
 <section class="slide">
   <h2>角色在場景中移動：同一段走位</h2>
-  <div class="row"><figure style="max-width:92vw"><video src="assets/walk_abc.mp4" muted loop playsinline preload="auto"></video></figure></div>
+  <div class="row"><figure style="max-width:92vw"><video src="assets/walk_abc.mp4" muted loop playsinline preload="metadata"></video></figure></div>
   <p class="lead" style="text-align:center">走到陽傘 → 躺上躺椅（素材庫沒有躺椅，改坐沙灘）→ 起身走向救生塔</p>
 </section>
 
@@ -168,7 +195,7 @@
 
 <section class="slide">
   <h2>Reef Lagoon：同一時間、同一組按鍵</h2>
-  <div class="row"><figure style="max-width:84vw"><video src="assets/reef_compare.mp4" muted loop playsinline preload="auto"></video></figure></div>
+  <div class="row"><figure style="max-width:84vw"><video src="assets/reef_compare.mp4" muted loop playsinline preload="metadata"></video></figure></div>
   <div class="src">虛擬時鐘逐格推進：兩邊的時間、亂數種子、按鍵時間表完全相同（開場 → 1–7 丟入生物 → 下雨 → 漩渦）</div>
 </section>
 
@@ -184,35 +211,35 @@
 
 <section class="slide">
   <h2>同一個潟湖，生物換成 Tripo 模型</h2>
-  <div class="row"><figure style="max-width:84vw"><video src="assets/reef_tripo.mp4" muted loop playsinline preload="auto"></video></figure></div>
+  <div class="row"><figure style="max-width:84vw"><video src="assets/reef_tripo.mp4" muted loop playsinline preload="metadata"></video></figure></div>
   <p class="lead" style="text-align:center">7 件 140 點，槌頭鯊重做 3 次才有槌狀頭，共 200 點（約 $2）；魚類不能自動綁骨，沿用 shader 的身體波動。</p>
   <div class="src">左：Opus 程序化生物；右：Opus 場景＋Tripo v3.1 模型（Blender 減到 1.6 萬面、轉正、正規化）；水、行為、入水方式完全相同</div>
 </section>
 
 <section class="slide">
   <h2>遊戲中的潮池：翻石頭找生物、記入圖鑑</h2>
-  <div class="row"><figure style="max-width:64vw"><video src="assets/game_tidepool.mp4" muted loop playsinline preload="auto"></video></figure></div>
+  <div class="row"><figure style="max-width:64vw"><video src="assets/game_tidepool.mp4" muted loop playsinline preload="metadata"></video></figure></div>
   <p class="lead" style="text-align:center">走到潮池按 E 蹲下看；點生物記入圖鑑，翻開石頭找躲起來的寄居蟹、小章魚、海蛞蝓。6 種都找到，任務完成。</p>
   <div class="src">原本潮池放的是鯊魚、鯨魚等大型生物，生態上不合理；改成真正的潮間帶生物，大型生物移到「外海觀察」任務（划船到浮標）。畫面為 B 組（Tripo 模型）</div>
 </section>
 
 <section class="slide">
   <h2>潮池：同一個小遊戲，6 種生物換三種來源</h2>
-  <div class="row"><figure style="max-width:64vw"><video src="assets/tidepool_abc.mp4" muted loop playsinline preload="auto"></video></figure></div>
+  <div class="row"><figure style="max-width:64vw"><video src="assets/tidepool_abc.mp4" muted loop playsinline preload="metadata"></video></figure></div>
   <p class="lead" style="text-align:center">Tripo 6 件 120 點（約 $1.2），並行約 3 分鐘，風格最一致；素材庫免費但要標註作者，<br>海星原檔三隻一組要拆、章魚是站立姿勢，和池底的趴姿不合。</p>
   <div class="src">三組時間與操作表相同。潮池由 codex 依 brief 寫成，視覺修飾因 codex 額度用完改由 Claude 完成；大型海洋生物移到「外海」（划船到浮標，牠們浮出水面時按 E 觀察）</div>
 </section>
 
 <section class="slide">
   <h2>遊戲中的外海：坐在船上看鯨豚</h2>
-  <div class="row"><figure style="max-width:64vw"><video src="assets/game_opensea.mp4" muted loop playsinline preload="auto"></video></figure></div>
+  <div class="row"><figure style="max-width:64vw"><video src="assets/game_opensea.mp4" muted loop playsinline preload="metadata"></video></figure></div>
   <p class="lead" style="text-align:center">划到外海浮標，7 種大型海洋生物就在附近繞游；牠們浮出水面、出現在畫面上時按 E 觀察。<br>水面不透明，只做看得到的部分：鯊魚背鰭劃水、鯨換氣噴氣、躍身擊浪、海豚連跳、海龜探頭。</p>
   <div class="src">原本是全螢幕的 Reef Lagoon 俯視頁、按 E「放生」；改成直接放在海灘場景裡、只做觀察。畫面為 B 組（Tripo 模型）</div>
 </section>
 
 <section class="slide">
   <h2>外海：同一個任務，7 種生物換三種來源</h2>
-  <div class="row"><figure style="max-width:64vw"><video src="assets/opensea_abc.mp4" muted loop playsinline preload="auto"></video></figure></div>
+  <div class="row"><figure style="max-width:64vw"><video src="assets/opensea_abc.mp4" muted loop playsinline preload="metadata"></video></figure></div>
   <p class="lead" style="text-align:center">B 沿用 Reef Lagoon 的 Tripo 模型（200 點，約 $2），風格最一致；素材庫 7 件 CC BY 免費但要標註，<br>有骨架的模型要先烘成靜態網格再轉正；蝠鱝單色、長度含細長尾巴。</p>
   <div class="src">三組同一時間、同一條船與鏡頭路線。是否「浮出水面」依各組模型的實際高度判斷，所以按 E 的時間可能不同。A 組移植自 Opus 版 Reef Lagoon 的程序化造型</div>
 </section>
@@ -291,7 +318,7 @@ function render(d) {
   chart(document.getElementById('models-chart'), d.models, r => r.score, r => MODEL_NAMES[r.key], ['opus', 'codex2'],
         r => `${r.minutes} 分鐘${r.key === 'opus' ? '' : '（fast）'}・API 換算 $${r.api_usd.toFixed(2)}`);
 }
-fetch('data.json').then(r => r.json()).then(render).catch(() => render(FALLBACK)).then(() => animate(slides[i]));
+fetch('data.json').then(r => r.json()).then(render).catch(() => render(FALLBACK)).then(() => { if (!narrow.matches) animate(slides[i]); else seen.forEach(animate); });
 
 const ZOOM = [['palm_tall', '高椰子樹'], ['palm_pair', '雙椰子樹'], ['rocks', '火山岩'], ['boat', '小船'], ['hut', '茅草屋'],
               ['umbrella', '陽傘＋躺椅'], ['driftwood', '漂流木'], ['lifeguard', '救生塔']];
@@ -322,6 +349,11 @@ if (location.protocol === 'file:') document.getElementById('live-note').innerHTM
   '<span class="warn">目前是直接開啟檔案，試玩頁連不到。請開線上版 https://ammosu.github.io/beach3d-eval/ ，或在 slides 資料夾執行 <code>python3 start.py</code> 改開 http://localhost:8730</span>';
 const slides = [...document.querySelectorAll('.slide')];
 let i = Math.max(0, Math.min(slides.length - 1, (parseInt(location.hash.slice(1)) || 1) - 1));
+// 手機：上下捲動閱讀（不分頁）；換方向時跟著切換
+const narrow = matchMedia('(max-width: 700px), (max-height: 500px)');
+const touch = matchMedia('(pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches;
+if (touch && location.protocol !== 'file:') document.getElementById('live-note').textContent =
+  '點卡片會開新分頁；手機上左下搖桿移動、右側拖曳看方向，按右下按鈕互動。遊戲模式最適合手機，三欄比較建議用電腦看。';
 function animate(slide) {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
     slide.querySelectorAll('.bar').forEach(b => b.style.width = b.dataset.w + '%');
@@ -348,12 +380,41 @@ function show() {
   document.getElementById('pager').textContent = `${i + 1} / ${slides.length}`;
   history.replaceState(null, '', '#' + (i + 1));
 }
-function go(n) { i = Math.max(0, Math.min(slides.length - 1, i + n)); show(); }
+function go(n) { if (narrow.matches) return; i = Math.max(0, Math.min(slides.length - 1, i + n)); show(); }
+// 捲動模式：頁面進入畫面時播放進場動畫一次；影片接近時才載入，看得到一半以上才播放
+const seen = new Set();
+const pageIO = new IntersectionObserver(es => es.forEach(e => {
+  if (!e.isIntersecting || !narrow.matches) return;
+  const k = slides.indexOf(e.target); i = k; history.replaceState(null, '', '#' + (k + 1));
+  if (!seen.has(e.target)) { seen.add(e.target); animate(e.target); }
+}), {threshold: 0.25});
+const videoIO = new IntersectionObserver(es => es.forEach(e => {
+  if (!narrow.matches) return;
+  const v = e.target;
+  if (e.intersectionRatio >= 0.5) { v.preload = 'auto'; v.play().catch(() => {}); } else v.pause();
+}), {threshold: [0, 0.5]});
+function layout() {
+  document.body.classList.toggle('scroll', narrow.matches);
+  if (narrow.matches) {
+    document.querySelectorAll('video').forEach(v => { v.pause(); if (v.readyState < 2) v.preload = 'metadata'; videoIO.observe(v); });
+    slides.forEach(s => pageIO.observe(s));
+    slides[i].scrollIntoView();
+  } else {
+    document.querySelectorAll('video').forEach(v => v.preload = 'auto');
+    pageIO.disconnect(); videoIO.disconnect(); scrollTo(0, 0); show();
+  }
+}
+narrow.addEventListener('change', layout);
+// 手機上影片很小：點一下全螢幕（橫放看更清楚）
+document.querySelectorAll('video').forEach(v => v.addEventListener('click', () => {
+  if (!narrow.matches) return;
+  if (v.requestFullscreen) v.requestFullscreen().catch(() => {}); else v.webkitEnterFullscreen?.();
+}));
 addEventListener('keydown', e => {
   if (['ArrowRight', 'PageDown', ' ', 'Enter'].includes(e.key)) go(1);
   if (['ArrowLeft', 'PageUp', 'Backspace'].includes(e.key)) go(-1);
 });
-show();
+layout();
 </script>
 </body>
 </html>
