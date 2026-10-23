@@ -175,6 +175,17 @@
 </section>
 
 <section class="slide">
+  <h2>綁骨也一起做好：骨架與動作，一套 API 就到位</h2>
+  <div class="boxes">
+    <div class="box" style="border-color:var(--tripo)"><b class="c-tripo">Tripo</b><span>模型送去自動綁骨<br>25 點、19 秒<br>每個動作 10 點、5–10 秒<br>67 個關節，手指各三節<br><span style="color:var(--muted)">5 個動作共用同一套骨架<br>標準命名，IK 直接接得上</span></span></div>
+    <div class="box" style="border-color:var(--codex)"><b class="c-codex">codex 寫程式</b><span>17 根骨頭由程式寫出<br>沒有手指<br>動作全部自己寫<br><span style="color:var(--muted)">要握東西時，載入後<br>再補指節與拇指骨</span></span></div>
+    <div class="box" style="border-color:var(--library)"><b class="c-library">素材庫</b><span>62 個關節、有手指<br>內建 24 個動作（含踢球）<br><span style="color:var(--muted)">低多邊形卡通風<br>小腿末端骨不跟動畫<br>要另外補追蹤點</span></span></div>
+  </div>
+  <p class="lead" style="text-align:center">限制：Tripo 只有預設動作（待機、走、跑、跳、爬），坐、躺、划船、撿貝殼、踢球都靠程式 IK 疊上去；<br>第一次綁的 41 關節骨架沒有手指、手握不起來，改用 v3.0 重綁（含 5 個動作再 75 點）。</p>
+  <div class="src">點數與時間取自 Tripo 呼叫紀錄（assets/tripo/log.csv）。同一套 IK（手腳接觸、蹲低、看向、手指彎曲）跑在三種骨架上；Tripo 的爬梯是貼牆攀爬，要固定臀部才能用在斜梯</div>
+</section>
+
+<section class="slide">
   <h2>角色在場景中移動：同一段走位</h2>
   <div class="row"><figure style="max-width:92vw"><video src="assets/walk_abc.mp4" muted loop playsinline preload="metadata"></video></figure></div>
   <p class="lead" style="text-align:center">走到陽傘 → 躺上躺椅（素材庫沒有躺椅，改坐沙灘）→ 起身走向救生塔</p>
