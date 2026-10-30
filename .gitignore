@@ -8,3 +8,9 @@ video/frames/
 video/*.mp4
 __pycache__/
 reef/tripo/raw/
+shots/clip/
+shots/ik/
+shots/sea/
+shots/*-before-after.png
+video/opensea_*.json
+video/*_before_after.jpg
