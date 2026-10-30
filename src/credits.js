@@ -1,5 +1,5 @@
 // Group C uses third-party models (mostly CC BY): a small "素材出處" button next to the group label shows title, author, source and licence on hover / focus / tap.
-// Same data as assets/{library,character_C,sea/C,tidepool/C,extras/C}/CREDITS.md; keep both in step.
+// Same data as assets/{library,character_C,sea/C,tidepool/C,extras/C,seabed/C}/CREDITS.md; keep both in step.
 const sketchfab=id=>`https://sketchfab.com/3d-models/${id}`,haven=id=>`https://polyhaven.com/a/${id}`,pizza=id=>`https://poly.pizza/m/${id}`;
 const BY4=['CC BY 4.0','https://creativecommons.org/licenses/by/4.0/'],BY3=['CC BY 3.0','https://creativecommons.org/licenses/by/3.0/'],CC0=['CC0','https://creativecommons.org/publicdomain/zero/1.0/'];
 export const CREDITS=[
@@ -32,7 +32,18 @@ export const CREDITS=[
   ['沙堡','Sand castle - Day 19','patrakeevasveta',sketchfab('0379b3c84e7944dab7537a0799375ee4'),BY4],
   ['風箏','Kite','phac',sketchfab('881a6736d0eb4f53b38d75c5b03dc7fe'),BY4],
   ['沙蟹','CC0 ツノメガニ Horn-eyed Ghost Crab','ffishAsia-and-floraZia',sketchfab('bf68a281970e461584f1352d67316197'),CC0],
-  ['海鷗','seagull v1','FreddyFoxFreddy',sketchfab('f3fa166ff6bd4ffe8133f6f6eed74d64'),BY4]]]];
+  ['海鷗','seagull v1','FreddyFoxFreddy',sketchfab('f3fa166ff6bd4ffe8133f6f6eed74d64'),BY4]]],
+ ['潛水：海底',[
+  ['礁石','Rock Large','Quaternius',pizza('d2VWOdthtR'),CC0],
+  ['分枝珊瑚','Coral Reef Set','MiniPoly',pizza('74GL45Fvdh'),CC0],
+  ['腦珊瑚','Brain Coral','wattinstitution',sketchfab('ec4b103c02c541998246dc30d4e45139'),BY4],
+  ['扇珊瑚','Fan Coral Cluster Low','Valery.Li',sketchfab('ee315b6063f8472ea4788a75098a2cb5'),BY4],
+  ['海草','Seaweed','Laney XR Labs',pizza('461xlaa6SZW'),BY3],
+  ['黃高鰭刺尾鯛','Yellow Tang','Quaternius',pizza('CrDlkPLon0'),CC0],
+  ['藍倒吊','Blue Tang','Quaternius',pizza('TQaMo8GTJl'),CC0],
+  ['小丑魚','Clownfish','Quaternius',pizza('769fHo3eEB'),CC0],
+  ['蝴蝶魚','Butterfly Fish','Quaternius',pizza('s2MkBeSzGy'),CC0],
+  ['神仙魚','Regal angelfish','rubykamen',sketchfab('9d803acdd8dd4e4ca00d3f2dfff1e318'),BY4]]]];
 
 const CSS=`.credits-btn{font:inherit;font-size:12px;line-height:1;margin-left:.5em;padding:3px 7px;border-radius:999px;border:1px solid currentColor;background:transparent;color:inherit;opacity:.8;cursor:help;vertical-align:middle;pointer-events:auto}
 .credits-btn:hover,.credits-btn:focus-visible,.credits-btn[aria-expanded=true]{opacity:1}

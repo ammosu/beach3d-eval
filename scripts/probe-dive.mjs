@@ -1,6 +1,6 @@
 // Diving close-ups: row out from the dock, stop, dive (Q), swim down, look up at the surface (Snell's window), rise
 // beside the boat and climb back in. node scripts/probe-dive.mjs [groups] [gpu] → shots/dive/<g>_{entry,deep,window,
-// rise,back}.png and the diver's state per step (camera under the surface, diver between seabed and surface).
+// rise,reef,fish,buoy,back}.png and the diver's state per step (camera under the surface, diver between seabed and surface).
 import { chromium } from 'playwright-core';
 import { mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -43,6 +43,11 @@ try {
     await page.keyboard.down('Space'); await page.keyboard.down('KeyW'); await step(3); await page.keyboard.up('KeyW'); await page.keyboard.up('Space'); await step(1.5);
     const rise = await shot('rise');
     if (rise.pos[1] > rise.surface - .25) { console.log(`${group}: diver above the surface`); failed = true; }
+    // The reef patch on the way out and the one round the buoy (with the animals swimming deeper near a diver).
+    for (const [name, x, z, yaw] of [['reef', -4, -84, 0], ['fish', -4, -88.5, 0], ['buoy', 60, -270, 0]]) {
+      await g(([x, z, yaw]) => { window.__GAME__.diveTo(x, z, 2.2); window.__EXPLORE__.setView(yaw, x === -4 && z > -89 && z < -88 ? .05 : .35); }, [x, z, yaw]); await step(name === 'buoy' ? 4 : 1.2); await shot(name);
+    }
+    console.log(group, 'seabed', JSON.stringify(await g(() => window.__GAME__.seabed)));
     const mode = await g(() => window.__GAME__.surface()); await step(1.5); await shot('back');
     if (mode !== 'boat') { console.log(`${group}: did not climb back (${mode})`); failed = true; }
     if (errors.length) { console.log(errors.join('\n')); failed = true; }

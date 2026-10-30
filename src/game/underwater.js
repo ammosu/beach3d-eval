@@ -1,5 +1,6 @@
 import * as T from 'three';
-import { surfaceHeight } from '../water.js';
+import { surfaceHeight, swashReach } from '../water.js';
+import { shore } from '../terrain.js';
 import { landHeight } from '../coast.js';
 
 // What a diver sees around them (the surface from below is the water shader's Snell's window): the water's own haze
@@ -12,7 +13,7 @@ export function createUnderwater({scene,camera,sun}){
  // has no fog, and would show through where the far surface meets the far seabed).
  const lights=[];scene.traverse(o=>{if(o.isDirectionalLight||o.isHemisphereLight)lights.push(o);});
  const sky=scene.children.find(o=>o.isMesh&&o.geometry?.type==='SphereGeometry'&&o.material?.side===T.BackSide);
- const filter=new T.Color(),tint=new T.Color(.55,.95,.9);
+ const filter=new T.Color(),tint=new T.Color(.72,.97,.92);
  // The direction sunlight travels under the water (refracted at a flat surface).
  const down=new T.Vector3().copy(sun).negate();{const n=new T.Vector3(0,1,0),eta=1/1.333,c=-n.dot(down),k=1-eta*eta*(1-c*c);down.multiplyScalar(eta).addScaledVector(n,eta*c-Math.sqrt(k)).normalize();}
 
@@ -55,9 +56,12 @@ export function createUnderwater({scene,camera,sun}){
   fragmentShader:'varying float vFade;void main(){vec2 c=gl_PointCoord-.5;gl_FragColor=vec4(vec3(.5,.62,.6)*vFade*smoothstep(.25,.1,length(c)),1.);}'});
  const snow=new T.Points(snowGeo,snowMat);snow.frustumCulled=false;snow.visible=false;snow.renderOrder=3;scene.add(snow);
 
- function update(t,height){
-  const level=surfaceHeight(camera.position.x,camera.position.z,t);
-  const now=camera.position.y<level-.02;
+ // Under only while diving, and only where there is water: the water mesh (and surfaceHeight) runs on up the dry
+ // beach, and beyond its last row the height is extrapolated, so a camera low on the sand looking up at the sky was
+ // taken for under water (the whole scene went dark).
+ function update(t,height,diving=true){
+  const {x,z}=camera.position,level=surfaceHeight(x,z,t);
+  const now=diving&&z-shore(x)<swashReach(x,t)&&camera.position.y<level-.02&&level>landHeight(x,z)+.05;
   const fog=scene.fog;
   if(now!==under){under=now;
    if(under){saved.color.copy(fog.color);saved.density=fog.density;saved.lights=lights.map(l=>({color:l.color.clone(),intensity:l.intensity,ground:l.groundColor?.clone()}));saved.background=scene.background;}
@@ -65,10 +69,10 @@ export function createUnderwater({scene,camera,sun}){
    shafts.visible=snow.visible=under;if(sky)sky.visible=!under;}
   if(!under)return false;
   // Darker and greener the deeper the eye; the haze thickens a little with depth too.
-  const depth=Math.max(0,level-camera.position.y);fog.color.copy(shallow).lerp(deep,Math.min(1,depth/16));fog.density=.085+.004*depth;
+  const depth=Math.max(0,level-camera.position.y);fog.color.copy(shallow).lerp(deep,Math.min(1,depth/24));fog.density=.07+.0015*depth;
   if(!(scene.background instanceof T.Color)||scene.background===saved.background)scene.background=new T.Color();scene.background.copy(fog.color);
-  filter.copy(tint).lerp(new T.Color(.25,.7,.75),Math.min(1,depth/18));
-  lights.forEach((l,i)=>{const v=saved.lights[i];l.color.copy(v.color).multiply(filter);l.intensity=v.intensity*(l.isDirectionalLight?Math.exp(-depth*.07)*.85:.8);if(v.ground)l.groundColor.copy(v.ground).multiply(filter).multiplyScalar(.6);});
+  filter.copy(tint).lerp(new T.Color(.4,.8,.8),Math.min(1,depth/24));
+  lights.forEach((l,i)=>{const v=saved.lights[i];l.color.copy(v.color).multiply(filter);l.intensity=v.intensity*(l.isDirectionalLight?Math.exp(-depth*.045)*.85:.9);if(v.ground)l.groundColor.copy(v.ground).multiply(filter).multiplyScalar(.6);});
   placeShafts(t);snowMat.uniforms.time.value=t;snowMat.uniforms.scale.value=height;
   return true;
  }

@@ -109,7 +109,7 @@ export function createSea(scene,{center,boat,water}){
  // 15 cm out of the water, so fin cruisers always, the rest while surfacing or leaping.
  function pose(c,t,out={pos:new T.Vector3(),heading:new T.Vector3(),pitch:0,roll:0}){
   const s=c.spec;clear(c,loop(c,t,out.pos));clear(c,loop(c,t+.05,p1));out.heading.subVectors(p1,out.pos).normalize();
-  const v=vertical(c,t+c.offset),dive=diveDepth(c,t);v.y-=dive;out.pitch=(v.pitch??Math.atan2(v.dy,s.speed))-dive*.5*Math.max(0,1-(t-c.startledAt)/1.2);out.roll=v.roll;
+  const v=vertical(c,t+c.offset),dive=diveDepth(c,t);v.y-=dive+(c.under||0)*(1+.25*s.length);out.pitch=(v.pitch??Math.atan2(v.dy,s.speed))-dive*.5*Math.max(0,1-(t-c.startledAt)/1.2);out.roll=v.roll;
   sampleWater(out.pos.x,out.pos.z,t,wave);out.pos.y=wave.height+v.y;out.depth=v.y;out.showing=v.y+c.top>.15;return out;
  }
  // How big an animal's splash is: about a quarter of its length (a humpback 2.75, a dolphin 0.65), the same for A/B/C.
@@ -140,9 +140,14 @@ export function createSea(scene,{center,boat,water}){
   h+=.035*Math.min(size,2.5)*Math.exp(-age/(3+3*size))/(1+.12*dist)*Math.cos((q/lambda-.225*b*b)*6.2832)*Math.exp(-q*q/(lambda*lambda*(q>0?1:4)));}
   return h;}
  const out={pos:new T.Vector3(),heading:new T.Vector3()},fx={pos:new T.Vector3(),heading:new T.Vector3()};
+ // A diver in the water: animals within 45 m of them sink to swim deeper (about 1 m plus a quarter of their length),
+ // easing in and out over a second or two, so they pass by in view under the water. Off when nobody is diving.
+ let diver=null,lastT=null;
+ function setDiver(p){diver=p;}
  function update(t){
-  d=0;
+  d=0;const dt=lastT==null?0:Math.min(.1,Math.max(0,t-lastT));lastT=t;
   for(const c of creatures){
+   const near=diver&&Math.hypot(c.holder.position.x-diver.x,c.holder.position.z-diver.z)<45?1:0;c.under=(c.under||0)+(near-(c.under||0))*(1-Math.exp(-dt/1.5));
    const p=pose(c,t,out);
    c.holder.position.copy(p.pos);c.holder.rotation.set(p.roll,Math.atan2(-p.heading.z,p.heading.x),p.pitch,'YZX');
    c.uniform.value.x=t*c.spec.beat*Math.PI*2;
@@ -195,7 +200,7 @@ export function createSea(scene,{center,boat,water}){
   };
  }
  function observe(i){const c=creatures[i];if(c.seen)return false;c.seen=true;return true;}
- function reset(){for(const c of creatures){c.seen=false;c.startledAt=-100;}ringTime=null;}
+ function reset(){for(const c of creatures){c.seen=false;c.startledAt=-100;c.under=0;}diver=null;ringTime=null;}
  function startle(i,t){const c=creatures[i];if(t-c.startledAt<10)return false;c.startledAt=t;ringTime=null;return true;}
- return {root,setGroup,update,observe,reset,startle,swell,heft,events:(i,t,w)=>events(creatures[i],t,w).map(e=>e.slice(0,3)),pose:(i,t)=>pose(creatures[i],t),get creatures(){return creatures;},get seen(){return creatures.filter(c=>c.seen).map(c=>c.i);},get ready(){return loading;}};
+ return {root,setGroup,update,observe,reset,startle,setDiver,swell,heft,events:(i,t,w)=>events(creatures[i],t,w).map(e=>e.slice(0,3)),pose:(i,t)=>pose(creatures[i],t),get creatures(){return creatures;},get seen(){return creatures.filter(c=>c.seen).map(c=>c.i);},get ready(){return loading;}};
 }
