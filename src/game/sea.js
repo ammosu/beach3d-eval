@@ -134,9 +134,10 @@ export function createSea(scene,{center,boat,water}){
   for(const c of creatures)for(const e of events(c,t))if(e[1]!=='spout'){const p=pose(c,e[0],fx);ringList.push([p.pos.x,p.pos.z,e[0],e[2]]);}
   ringList.sort((a,b)=>b[3]/(1+t-b[2])-a[3]/(1+t-a[2]));ringList.length=Math.min(ringList.length,SEA_RINGS);return ringList;}
  // The same rings as a small lift of the water (metres) for the boat to ride: a packet of a few crests behind a front
- // that runs out faster and longer the bigger the splash. Shading only on the water itself (its mesh is too coarse).
+ // that runs out faster and longer the bigger the splash, the crests shorter towards its tail as in the water shader. Shading only on the water itself (its mesh is too coarse).
  function swell(x,z,t){let h=0;for(const [rx,rz,at,size] of rings(t)){const age=t-at,dist=Math.hypot(x-rx,z-rz),lambda=.8+.6*size,front=(1.2+Math.sqrt(size))*age,q=dist-front;
-  if(Math.abs(q)>2.5*lambda)continue;h+=.035*Math.min(size,2.5)*Math.exp(-age/(3+3*size))/(1+.12*dist)*Math.cos(q/lambda*6.2832)*Math.exp(-q*q/(lambda*lambda*1.5));}
+  if(q>2.5*lambda||q<-4*lambda)continue;const b=Math.max(-q,0)/lambda;
+  h+=.035*Math.min(size,2.5)*Math.exp(-age/(3+3*size))/(1+.12*dist)*Math.cos((q/lambda-.225*b*b)*6.2832)*Math.exp(-q*q/(lambda*lambda*(q>0?1:4)));}
   return h;}
  const out={pos:new T.Vector3(),heading:new T.Vector3()},fx={pos:new T.Vector3(),heading:new T.Vector3()};
  function update(t){

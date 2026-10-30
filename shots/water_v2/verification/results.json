@@ -5,14 +5,14 @@
   "waterTriangles": 220160,
   "waterVertices": 110767,
   "frame": {
-    "frame": 728,
-    "calls": 48,
-    "triangles": 2482051,
+    "frame": 696,
+    "calls": 82,
+    "triangles": 6339562,
     "points": 0,
     "lines": 0
   },
   "memory": {
-    "geometries": 19,
+    "geometries": 32,
     "textures": 41
   }
 }

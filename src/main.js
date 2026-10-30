@@ -57,7 +57,7 @@ const pos=geo.attributes.position;for(let i=0;i<pos.count;i++){const x=Math.sign
 const sandMat=new THREE.MeshStandardMaterial({color:0xf4d7ab,roughness:.92});
 const water=createWater(sun);scene.add(water);
 // Share the uniform object itself: captures, live mode and compare panes cannot drift.
-shadeSand(sandMat,water.material.uniforms.time);
+shadeSand(sandMat,water.material.uniforms.time,water.material.uniforms.sunDirection);
 const sand=new THREE.Mesh(geo,sandMat);sand.receiveShadow=true;scene.add(sand);
 addCoastDetails(scene);
 // Lite: the islands' trees stay out of the shadow map (most of their shadows fall outside its ±65 m anyway).
@@ -78,7 +78,19 @@ const explore=exploreEnabled?(await import('./explore.js')).createExplore({scene
 const game=gaming?await (await import('./game/index.js')).createGame({scene,camera,renderer,water,config,explore,auto:params.get('auto')==='1'}):null;
 let lastFrame=performance.now(),lastWaterTime=water.material.uniforms.time.value;
 comparison?.connect(explore);
+// Lite only, live play only: when more than 4% of frames over 2 s miss the display's rate, render at 0.1 lower pixel
+// ratio (down to 0.6), and step back up after 6 s without misses. Stills, recordings and automation never see it.
+let ratio=1,missed=0,frames=0,windowStart=0,clean=0;
+function adapt(dt){
+ if(!lite||params.has('time')||params.get('auto')==='1'||window.__TIME__!=null||document.hidden)return;
+ frames++;if(dt>1000/50)missed++;
+ const now=performance.now();if(now-windowStart<2000)return;if(frames<30){missed=frames=0;windowStart=now;return;}
+ const rate=missed/frames,next=rate>.04?Math.max(.6,ratio-.1):(clean+=now-windowStart)>6000?Math.min(1,ratio+.1):ratio;
+ if(rate>.04)clean=0;
+ if(next!==ratio){ratio=next;clean=0;renderer.setPixelRatio(ratio);renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);}
+ missed=frames=0;windowStart=now;
+}
 const clock=new THREE.Clock();const fixed=params.has('time')?Number(params.get('time')):null;
-function frame(){requestAnimationFrame(frame);water.material.uniforms.time.value=window.__TIME__??fixed??clock.getElapsedTime();controls?.update();const now=performance.now();const gameDt=Math.max(0,Math.min(.1,water.material.uniforms.time.value-Math.max(lastWaterTime,water.userData.simTime??-Infinity)));explore?.update(gaming?gameDt:(now-lastFrame)/1000);game?.update(gameDt,water.material.uniforms.time.value);lastWaterTime=water.material.uniforms.time.value;lastFrame=now;if(comparison)comparison.render();else if(!game?.suspended)composer.render();}frame();  // 潮池 iframe 開著時暫停沙灘繪製
+function frame(){requestAnimationFrame(frame);water.material.uniforms.time.value=window.__TIME__??fixed??clock.getElapsedTime();controls?.update();const now=performance.now();const gameDt=Math.max(0,Math.min(.1,water.material.uniforms.time.value-Math.max(lastWaterTime,water.userData.simTime??-Infinity)));explore?.update(gaming?gameDt:(now-lastFrame)/1000);game?.update(gameDt,water.material.uniforms.time.value);lastWaterTime=water.material.uniforms.time.value;adapt(now-lastFrame);lastFrame=now;if(comparison)comparison.render();else if(!game?.suspended)composer.render();}frame();  // 潮池 iframe 開著時暫停沙灘繪製
 window.__SCENE__={scene,camera,water,propRoot,results,renderer};window.__READY__=true;
 addEventListener('resize',()=>{if(comparison){comparison.resize();return;}camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);});
