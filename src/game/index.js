@@ -42,9 +42,9 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  const lastPlayer=e.player.clone(),returnPoint=e.player.clone(),target=new T.Vector3(),camGoal=new T.Vector3(),camLook=new T.Vector3(),screen=new T.Vector3(),input={},wave={};
  const anchors={};for(const id of ['umbrella','lifeguard','boat']){const slot=config.slots.find(s=>s.id===id);anchors[id]={id,x:slot.pos[0],z:slot.pos[2],y:groundHeight(slot.pos[0],slot.pos[2]),box:null,point:new T.Vector3()};}
  const anchorList=Object.values(anchors),interaction={kind:'',label:'',position:null,item:null};
- const dock={x:4,z:shore(4)-9},island={x:60,z:-286};
- // Open sea: the animals live around the buoy (north of it, clear of the island mesh); E observes one that is out of the water in view.
- const sea=createSea(scene,{center:new T.Vector3(island.x,0,island.z+6),boat:()=>vessel.visible?vessel.position:null,water});sea.setGroup(e.group);
+ const dock={x:4,z:shore(4)-9},island={x:45,z:-216};
+ // Open sea: the animals live around the buoy, each on its own loop spread over about 60 m; E observes one that is out of the water in view.
+ const sea=createSea(scene,{center:new T.Vector3(island.x,0,island.z),boat:()=>vessel.visible?vessel.position:null,water});sea.setGroup(e.group);
  const seaPose={pos:new T.Vector3(),heading:new T.Vector3()},seaView=new T.Vector3(),seaTarget=new T.Vector3();
  // Nearest unobserved animal within 30 m of the boat with part of it above the water on screen.
  function sighting(){let best=null,d=30;for(const c of sea.creatures){if(c.seen)continue;const p=sea.pose(c.i,time());if(!p.showing)continue;const n=p.pos.distanceTo(vessel.position);if(n>=d)continue;seaView.copy(p.pos).project(camera);if(seaView.z>1||Math.abs(seaView.x)>.92||Math.abs(seaView.y)>.92)continue;d=n;best=c;seaTarget.copy(p.pos).setY(Math.max(p.pos.y,0)+.25*c.spec.length);}return best;}

@@ -23,7 +23,7 @@ export const FISH={
 };
 export const SEABED_IDS=['rock','coral_branch','coral_brain','coral_fan','seaweed',...Object.keys(FISH)];
 // [x, z, radius]: one patch every so often on the way from the dock to the buoy, and a big one round the buoy.
-const PATCHES=[[10,-52,9],[-4,-92,10],[24,-140,11],[34,-200,12],[60,-286,22]];
+const PATCHES=[[10,-52,9],[-4,-92,10],[24,-140,11],[30,-172,12],[45,-216,22]];
 // Per patch: how many of each (scaled by the patch radius) and their size range in metres (height; fish: length).
 // Corals vary in colour per instance (multiplying the model's own colours): warm, pink, purple, yellow, blue-green.
 const CORAL_TINTS=[[1,1,1],[1,.75,.6],[1,.6,.85],[.8,.6,1],[1,.95,.55],[.6,.95,1]];

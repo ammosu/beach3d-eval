@@ -50,12 +50,15 @@ async function loadGlb(url){
  return root;
 }
 
+const SPREAD=15;
 export function createSea(scene,{center,boat,water}){
  const root=new T.Group();root.name='open-sea';scene.add(root);
  const wave={},cache=new Map();
  const creatures=SEA.map((spec,i)=>{const holder=new T.Group();root.add(holder);
-  // Spread round the loop, alternate directions, stagger the surfacing.
-  return {spec,i,holder,uniform:{value:new T.Vector4(0,spec.amp,spec.bend,0)},a0:i*2*Math.PI/SEA.length,dir:i%2?1:-1,offset:i*3.7,top:.1*spec.length,seen:false,startledAt:-100};});
+  // Each loops round its own spot 15 m from the buoy (spread round it, so they are not all in one crowd), alternate
+  // directions, stagger the surfacing.
+  const k=i*2*Math.PI/SEA.length;
+  return {spec,i,holder,cx:center.x+Math.cos(k+.4)*SPREAD,cz:center.z+Math.sin(k+.4)*SPREAD,uniform:{value:new T.Vector4(0,spec.amp,spec.bend,0)},a0:i*2*Math.PI/SEA.length,dir:i%2?1:-1,offset:i*3.7,top:.1*spec.length,seen:false,startledAt:-100};});
  // Splash droplets, spout mist and foam rings: rebuilt every frame from the event times.
  // Drops and mist share the rowboat splashes' look (src/game/splash.js): camera-facing quads stretched along their
  // velocity, so a drop in flight reads as a short streak, and quads 0.1 m or wider drawn as a dim soft puff of mist.
@@ -79,10 +82,10 @@ export function createSea(scene,{center,boat,water}){
   return loading;
  }
 
- // Path: a loop around the buoy.
+ // Path: a loop around the animal's own spot near the buoy.
  function loop(c,t,out){
   const R=c.spec.radius,a=c.a0+c.dir*c.spec.speed*t/R;
-  const w=R*(1+.1*Math.sin(2*a+c.i));out.set(center.x+Math.cos(a)*w,0,center.z+Math.sin(a)*w);return out;
+  const w=R*(1+.1*Math.sin(2*a+c.i));out.set(c.cx+Math.cos(a)*w,0,c.cz+Math.sin(a)*w);return out;
  }
  // Leap kinematics: a ballistic arc from below the body's half length (so the steep start and end stay deep under the
  // water) to apex h; the first and last half second ease height to rest and pitch to level. Axis height is relative to the water.
