@@ -137,8 +137,12 @@ export function createExplore({ scene, camera, renderer, config, results, group,
   // Free space, or a move that gets out of a prop the player is already inside (e.g. after a teleport).
   function allowed(x,z){if(x< -34||x>100||z>27||groundHeight(x,z)<-.65||x>35&&!shoreClear(x,z))return false;const next=clearance(x,z);return next>=RADIUS||next>clearance(player.x,player.z);}
   function cameraBlocked(p){for(const c of colliders){const b=c.box;if(p.x>b.min.x-.2&&p.x<b.max.x+.2&&p.y>b.min.y-.2&&p.y<b.max.y+.2&&p.z>b.min.z-.2&&p.z<b.max.z+.2)return true;}return false;}
+  // Wading slows the body by depth (0 at the waterline, 1 at 0.52 m down): a walk from 90% to 55% of its pace, a run
+  // from 92% to 78%, so ankle-deep is nearly a full run (about 4.1 m/s) and knee-deep a heavy run (about 3.5 m/s) whose gait
+  // still blends some of the run cycle in (2.9-4.3 m/s).
+  function wadeSlow(running,depth){return running?T.MathUtils.lerp(.92,.78,depth):T.MathUtils.lerp(.9,.55,depth);}
   function update(dt){dt=Math.min(dt,.05);let dx=0,dz=0;brushAt.value.copy(player);if(gameMode){waterMesh??=scene.getObjectByName('lagoon-water');palmClock.value=waterMesh?.material.uniforms.time.value??0;}
-    if(active&&!photo&&!busy&&!driven){const forward=hold?0:Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'))-joyY,side=hold?0:Number(keys.has('KeyD'))-Number(keys.has('KeyA'))+joyX;yaw+=(Number(keys.has('ArrowLeft'))-Number(keys.has('ArrowRight')))*2.2*dt;const amount=Math.hypot(forward,side),norm=Math.max(1,amount),wet=groundHeight(player.x,player.z)<.02,target=amount>.01?(keys.has('ShiftLeft')||keys.has('ShiftRight')?4.5:1.8)*(wet?.42:1)*Math.min(1,amount):0;
+    if(active&&!photo&&!busy&&!driven){const forward=hold?0:Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'))-joyY,side=hold?0:Number(keys.has('KeyD'))-Number(keys.has('KeyA'))+joyX;yaw+=(Number(keys.has('ArrowLeft'))-Number(keys.has('ArrowRight')))*2.2*dt;const amount=Math.hypot(forward,side),norm=Math.max(1,amount),running=keys.has('ShiftLeft')||keys.has('ShiftRight'),wade=T.MathUtils.clamp((.02-groundHeight(player.x,player.z))/.5,0,1),wet=groundHeight(player.x,player.z)<.02,target=amount>.01?(running?4.5:1.8)*(wet?wadeSlow(running,wade):1)*Math.min(1,amount):0;
       // Speed changes at a body's pace, not in one frame: about 0.3 s to start walking, 0.8 s from a walk up to a run
       // or back down (a few shortening strides), 0.3 s to stop from a walk and about a second from a run. The
       // direction follows the input at once; with no input the last one carries the body to a stop.

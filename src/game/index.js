@@ -775,16 +775,19 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   if(pickup&&mode==='walk')pickupSpeed=runPickup(simDt,t);
   if(kick&&mode==='walk')pickupSpeed=runKick(simDt,t);
   updateCharacter(simDt);
-  // Footprints where a foot really comes down: it has stopped moving across the sand (0.08 s under 0.3 m/s) near
+  // Footprints where a foot really comes down: it has stopped moving across the sand (walking 0.08 s under 0.3 m/s) near
   // the rig's lowest foot height; it must lift (8 cm higher or moving fast) before it can print again. So the steps
   // of a stop, a turn on the spot or a change of pace print where the feet are. (Clip contact times drifted from the
   // feet as the pace changed, and the old fallback printed every 0.55 m beside the body's centre.)
-  if(active&&mode==='walk'&&simDt){const yaw=e.avatar.rotation.y;
+  if(active&&mode==='walk'&&simDt){const yaw=e.avatar.rotation.y,pace=e.speed;
+   // A running foot is on the ground for about 0.1 s and still creeps a little (clip and IK), so the thresholds
+   // scale with the body's speed: slower than about 30% of it counts as planted, for a frame or so.
+   const slow=Math.max(.3,.3*pace),lift=Math.max(.8,.6*pace),need=pace>2.5?.015:.08;
    if(plantRig!==character.root){plantRig=character.root;footBase=Infinity;for(const s of plant){s.down=true;s.px=NaN;s.still=0;}}
    for(let i=0;i<2;i++){const f=character.footWorld(i,screen);if(!f)break;const s=plant[i],h=f.y-groundHeight(f.x,f.z),v=s.px===s.px?Math.hypot(f.x-s.px,f.z-s.pz)/simDt:0;s.px=f.x;s.pz=f.z;
-    footBase=Math.min(footBase,h);s.still=v<.3?s.still+simDt:0;
-    if(s.down){if(v>.8||h>footBase+.08)s.down=false;}
-    else if(s.still>=.08&&h<footBase+.06){s.down=true;f.x+=Math.sin(yaw)*.06;f.z+=Math.cos(yaw)*.06;
+    footBase=Math.min(footBase,h);s.still=v<slow?s.still+simDt:0;
+    if(s.down){if(v>lift||h>footBase+.08)s.down=false;}
+    else if(s.still>=need&&h<footBase+.06){s.down=true;f.x+=Math.sin(yaw)*.06;f.z+=Math.cos(yaw)*.06;
      // A foot that shuffles a few centimetres (settling into the stance) does not print again.
      if(Math.hypot(f.x-s.lx,f.z-s.lz)>.15&&groundHeight(f.x,f.z)>.015){s.lx=f.x;s.lz=f.z;objects.footprint(f.x,f.z,yaw,t,true);state.footprints++;}}}}if(e.first&&mode==='walk'){camera.getWorldDirection(screen);camera.position.copy(character.head());camera.lookAt(screen.add(camera.position));}if(!completed&&!e.first)followCamera.enforce(character.head());
   seabed.update(t,underwater.update(t,innerHeight,mode==='dive'),mode==='dive'?diver.pos:null);lastPlayer.copy(e.player);objects.update(t);
