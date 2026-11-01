@@ -97,3 +97,5 @@ body:not(.touch-only) #game #interact.echo{display:none}
 /* Diving (touch only; desktop uses Q and Space): 潛水 in the boat, 上浮 under water, beside the action button. */
 #dive-button,#rise-button{display:none}
 .touch-only.game-playing[data-mode=boat]:not(.game-complete):not(.game-paused) #game #dive-button,.touch-only.game-playing[data-mode=dive]:not(.game-complete):not(.game-paused) #game #rise-button{display:block;position:absolute;bottom:166px;right:20px;width:56px;height:56px;padding:0;border-radius:50%;background:#123d56b8;border:1px solid #ffffff66;color:#fff;font-size:14px;font-weight:700;touch-action:none}
+
+#kick-charge{position:absolute;transform:translate(-50%,-100%);width:78px;height:9px;border-radius:5px;background:#123d56b0;border:1px solid #ffffffaa;overflow:hidden}#kick-charge i{display:block;height:100%;width:0;background:linear-gradient(90deg,#ffe6a0,var(--sun))}#kick-charge.full i{background:#ff8a4a}

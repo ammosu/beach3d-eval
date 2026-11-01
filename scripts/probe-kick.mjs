@@ -1,13 +1,14 @@
 // Kick close-ups: side view of the ball kick at fixed ages → shots/kick/<g>_<age>.png, plus a contact sheet per
 // group (shots/kick/<g>.png, needs python3 + PIL) and the IK reach errors at each age.
-// node scripts/probe-kick.mjs [groups] [outdir]   (VIEW=front: from ahead, on the kicking side)
+// node scripts/probe-kick.mjs [groups] [outdir]   (VIEW=front: from ahead, on the kicking side; POWER=<s held> charges
+// through the real press/release path, else a full-power hook kick)
 import {chromium} from 'playwright-core';import {homedir} from 'node:os';import {mkdir} from 'node:fs/promises';import {execFileSync} from 'node:child_process';
 const groups=(process.argv[2]||'ABC').split(''),out=process.argv[3]||'shots/kick';await mkdir(out,{recursive:true});
-const VIEW=process.env.VIEW||'side';const AGES=[0,.15,.28,.36,.42,.5,.62,.8];
+const VIEW=process.env.VIEW||'side',POWER=process.env.POWER?+process.env.POWER:null;const AGES=[0,.15,.28,.36,.42,.5,.62,.8];
 const browser=await chromium.launch({executablePath:`${homedir()}/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome`,headless:true,args:['--use-gl=angle','--use-angle=gl-egl']});
 for(const g of groups){const page=await browser.newPage({viewport:{width:960,height:720}});
  await page.goto(`http://localhost:${process.env.PORT||5191}/game.html?auto=1&time=4&group=${g}`);await page.waitForFunction(()=>window.__READY__);await page.evaluate(()=>window.__TIME__=4);await page.click('#begin');
- await page.evaluate(()=>{const g=window.__GAME__,p=g.targets().ball;g.teleport(p[0],p[2]+1.3);g.step(.3);g.interact();for(let i=0;i<300&&!(g.kick&&g.kick.age>=0);i++)g.step(1/60);});
+ await page.evaluate(power=>{const g=window.__GAME__,p=g.targets().ball;g.teleport(p[0],p[2]+1.3);g.view(0);g.step(.3);if(power===null)g.interact();else{g.press();for(let t=0;t<power-1e-6;t+=1/60)g.step(1/60);g.release();}for(let i=0;i<300&&!(g.kick&&g.kick.age>=0);i++)g.step(1/60);},POWER);
  const files=[];let last=0;
  for(const age of AGES){
   const info=await page.evaluate(([age,last,view])=>{const g=window.__GAME__,{camera}=window.__SCENE__;g.step(Math.max(0,age-last));

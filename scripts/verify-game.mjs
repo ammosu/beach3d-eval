@@ -59,7 +59,7 @@ try{
  await at(targets.shells[0].x,targets.shells[0].z+1);await shot('shells');
  for(const shell of targets.shells){await at(shell.x,shell.z+.8);await e();await step(1.3);}
  assert.equal((await page.evaluate(()=>window.__GAME__.state)).shells,8);
- await at(targets.ball[0],targets.ball[2]+3);await page.keyboard.down('KeyW');await step(.6);await page.keyboard.up('KeyW');await shot('B_walking-ball');await at(targets.ball[0],targets.ball[2]+1.3);await e();await step(4);assert((await page.evaluate(()=>window.__GAME__.state)).ball,'ball must reach deep water');await at(-4,-12);await shot('ball');
+ await at(targets.ball[0],targets.ball[2]+3);await page.keyboard.down('KeyW');await step(.6);await page.keyboard.up('KeyW');await shot('B_walking-ball');await at(targets.ball[0],targets.ball[2]+1.3);await page.evaluate(()=>window.__GAME__.view(0));await page.keyboard.down('KeyE');await step(1);await page.keyboard.up('KeyE');await step(4);assert((await page.evaluate(()=>window.__GAME__.state)).ball,'ball must reach deep water (a full charge towards the sea)');await at(-4,-12);await shot('ball');
  await at(targets.umbrella[0],targets.umbrella[2]);await e();await step(2);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'rest');assert((await page.evaluate(()=>window.__GAME__.state)).lounger);await shot('lounger');await e();
  await at(targets.lifeguard[0],targets.lifeguard[2]);await e();await step(5.5);assert.equal(await page.evaluate(()=>window.__GAME__.mode),'tower');assert((await page.evaluate(()=>window.__GAME__.state)).tower);await shot('tower');await e();await step(5.5);
  // The rock pool records six small intertidal species, with progress surviving iframe unload.
@@ -133,6 +133,11 @@ try{
  for(const group of ['A','C']){await page.evaluate(g=>window.__EXPLORE__.switchGroup(g),group);await checkExtras(group);}
  await page.keyboard.press('KeyV');await step(.1);assert(await page.evaluate(()=>window.__EXPLORE__.first&&window.__GAME__.character.headHidden));await page.keyboard.press('KeyV');await step(.1);assert.equal(await page.evaluate(()=>window.__GAME__.character.headHidden),false);
  await page.evaluate(()=>{const g=window.__GAME__,p=g.targets().ball;g.teleport(p[0],p[2]+1.3);g.interact();g.step(.12);});assert(await page.evaluate(()=>window.__GAME__.kick));await step(1.6);assert.equal(await page.evaluate(()=>window.__GAME__.kick),null);
+ // Charged kick through the real key path: E held 0.5 s charges about half, the walk round the ball does not shove it.
+ {const r=await page.evaluate(async()=>{const g=window.__GAME__;g.placeBall(-4,-8);const p=g.targets().ball;g.teleport(p[0]+1.4,p[2]);g.view(0);g.step(.3);return g.targets().ball;});
+  await page.keyboard.down('KeyE');await step(.5);await page.keyboard.up('KeyE');
+  const k=await page.evaluate(()=>{const g=window.__GAME__;let before=null;for(let i=0;i<300&&!(g.kick&&g.kick.age>=0);i++){g.step(1/60);}before=g.targets().ball;return {k:g.kick,before};});
+  assert(Math.abs(k.k.power-.5)<.05,JSON.stringify(k.k));assert(Math.hypot(k.before[0]-r[0],k.before[2]-r[2])<.01,'approach left the ball alone');await step(1.6);assert.equal(await page.evaluate(()=>window.__GAME__.kick),null);}
  await page.evaluate(()=>{const g=window.__GAME__,p=g.targets().shells[0];g.teleport(p.x,p.z+.8);g.interact();g.step(.35);});assert.equal((await page.evaluate(()=>window.__GAME__.character)).animation,'interact');await step(1);
  // With dt frozen, neither clips nor procedural poses advance.
  const frozen=await page.evaluate(()=>{const g=window.__GAME__,before=g.character;g.step(0);return [before,g.character];});assert.deepEqual(frozen[0],frozen[1]);
