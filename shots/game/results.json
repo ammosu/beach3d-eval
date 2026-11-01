@@ -10,7 +10,7 @@
     "spotted": 7,
     "boat": true,
     "island": true,
-    "footprints": 85
+    "footprints": 84
   },
   "elapsed": 185.54830071213564,
   "errors": [],
@@ -608,22 +608,22 @@
     {
       "x": -20,
       "z": 10,
-      "msPerUpdate": 0.3350000023841858
+      "msPerUpdate": 0.3216666658719381
     },
     {
       "x": -4,
       "z": -8,
-      "msPerUpdate": 0.3200000007947286
+      "msPerUpdate": 0.3099999984105428
     },
     {
       "x": -4,
       "z": -3,
-      "msPerUpdate": 0.34666666587193806
+      "msPerUpdate": 0.2966666658719381
     },
     {
       "x": 6,
       "z": 3,
-      "msPerUpdate": 0.4583333333333333
+      "msPerUpdate": 0.27666666905085247
     }
   ],
   "extrasChecks": [

@@ -448,50 +448,91 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   if(a>=.85){if(item.held){objects.burst(item.held.x,item.held.y,item.held.z,t);item.held=null;item.born=-100;}pickup=null;e.setHold(false);}
   return 0;
  }
- // Kicking the ball like a shot: step up behind it (the kicking foot in line with it), draw the leg back with the knee
- // bent and the upper body leaning forward, swing through (the ball leaves at contact, KICK_HIT) and follow through
- // forward and up, the arms swinging against the leg. A function of the time since the wind-up began.
- const KICK_HIT=.42,KICK_END=.95;let kick=null;
+ // Kicking the ball like a shot (reworked 2026-11-01 after soccer-kick mocap, e.g. CMU subject 10): E walks the player
+ // to 1.3 m behind the ball, the kicking foot's hip in line with it. Then, as a function of the time since that:
+ // a last long stride lands the plant foot beside the ball (KICK_PLANT) while the kicking foot leaves the sand and
+ // folds back; the leg swings from the hip on an arc (angle about the hip and hip-to-ankle distance, eased between
+ // keys, so it whips through instead of sliding along straight lines), the knee straightening into the ball's lower
+ // back at KICK_HIT, and follows through forward and up; the foot comes down a step ahead and the body walks on over
+ // it. The torso leans away from the kicking leg and a little back at contact, the plant-side arm swings out for
+ // balance. The hips travel forward the whole time (e.player moves), so the kick has momentum.
+ const KICK_PLANT=.28,KICK_HIT=.42,KICK_END=1.05,KICK_BACK=1.3;let kick=null;
  function startKick(){
   const b=objects.ball.position,dx=b.x-e.player.x,dz=b.z-e.player.z,d=Math.hypot(dx,dz)||1,f=[dx/d,dz/d];
-  // The kicking foot is the right one (avatar -x); r points to its side. Standing it in line with the ball puts the
-  // body 10 cm to the other side.
-  const foot=Math.max(0,character.side.findIndex(s=>s<0)),sk=character.side[foot],r=[sk*f[1],-sk*f[0]];
-  kick={age:-1,foot,f,r,spot:new T.Vector3(b.x-f[0]*.78-r[0]*.12,0,b.z-f[1]*.78-r[1]*.12),keys:null,plant:null};e.setHold(true);
+  // The kicking foot is the right one (avatar -x); r points to its side; hw is the hip's offset from the body's centre.
+  const foot=Math.max(0,character.side.findIndex(s=>s<0)),sk=character.side[foot],r=[sk*f[1],-sk*f[0]],hw=.11*character.hipHeight;
+  kick={age:-1,foot,f,r,hw,spot:new T.Vector3(b.x-f[0]*KICK_BACK-r[0]*hw,0,b.z-f[1]*KICK_BACK-r[1]*hw),ball:b.clone(),keys:null};e.setHold(true);
  }
+ // How far behind the ball the body's centre is at age a: the long last stride, slower through the swing (the plant
+ // leg braces), then on over the landed foot.
+ function kickBack(a){const s=T.MathUtils.smoothstep;return KICK_BACK-.42*s(a,0,KICK_PLANT)-.08*s(a,KICK_PLANT,.5)-.55*s(a,.55,KICK_END);}
+ function kickRoot(a,out){const k=kick,back=kickBack(a);out.set(k.ball.x-k.f[0]*back-k.r[0]*k.hw,0,k.ball.z-k.f[1]*back-k.r[1]*k.hw);out.y=groundHeight(out.x,out.z);return out;}
  function runKick(dt,t){
-  const k=kick,b=objects.ball.position,toSpot=Math.hypot(k.spot.x-e.player.x,k.spot.z-e.player.z);
+  const k=kick,toSpot=Math.hypot(k.spot.x-e.player.x,k.spot.z-e.player.z);
   if(k.age<0){
    const step=Math.min(toSpot,1.4*dt);let speed=0;
    if(toSpot>.01){e.player.x+=(k.spot.x-e.player.x)/toSpot*step;e.player.z+=(k.spot.z-e.player.z)/toSpot*step;e.player.y=groundHeight(e.player.x,e.player.z);speed=step/Math.max(dt,1e-6);e.avatar.rotation.y=Math.atan2(k.spot.x-e.avatar.position.x,k.spot.z-e.avatar.position.z);}
    else{const want=Math.atan2(k.f[0],k.f[1]),turn=Math.atan2(Math.sin(want-e.avatar.rotation.y),Math.cos(want-e.avatar.rotation.y));e.avatar.rotation.y+=turn*(1-Math.exp(-14*dt));
     if(Math.abs(turn)<.1){k.age=0;e.avatar.rotation.y=want;
-     // Key positions of the kicking foot (world): where it stands, drawn back, at the ball, followed through.
-     const H=character.hipHeight,P=e.player,A=character.ankleHeight,at=(fw,rt,up)=>new T.Vector3(P.x+k.f[0]*fw+k.r[0]*rt,groundHeight(P.x+k.f[0]*fw,P.z+k.f[1]*fw)+A+up,P.z+k.f[1]*fw+k.r[1]*rt);
-     const start=character.footWorld(k.foot,new T.Vector3());
-     k.plant=character.footWorld(1-k.foot,new T.Vector3());k.plant.y=groundHeight(k.plant.x,k.plant.z)+A;
-     k.keys=[start,at(-.42*H,.12,.42*H),at(-.15*H,.1,.12*H),new T.Vector3(b.x-k.f[0]*.46,groundHeight(b.x,b.z)+A+.14,b.z-k.f[1]*.46),at(.55*H,.02,.8*H),start.clone()];}}
+     const A=character.ankleHeight,H=character.hipHeight,b=k.ball,at=(fw,rt)=>{const x=b.x-k.f[0]*fw+k.r[0]*rt,z=b.z-k.f[1]*fw+k.r[1]*rt;return new T.Vector3(x,groundHeight(x,z)+A,z);};
+     // Where each foot starts, where the plant foot lands (beside and a little behind the contact point; the ball is
+     // oversized, 0.48 m), the contact (ankle behind the ball's lower back), and where the kicking foot comes down.
+     k.start=[0,1].map(i=>character.footWorld(i,new T.Vector3()));
+     k.plant=at(.56,-(.1+2*k.hw));k.contact=at(.48+.04*H,0);k.contact.y+=.1;
+     k.land=at(.1+.05*H,-.04);}}
    e.avatar.position.copy(e.player);return speed;
   }
-  k.age+=dt;
-  if(k.age>=KICK_HIT&&!k.hit){k.hit=true;ball.kick(e.player);e.sfx('kick');kickedAt=t;const fx=e.player.x+k.f[0]*.45,fz=e.player.z+k.f[1]*.45;if(groundHeight(fx,fz)>.015)objects.puff(fx,fz,t,.7,k.f[0],k.f[1]);}
+  k.age+=dt;kickRoot(Math.min(k.age,KICK_END),e.player);e.avatar.position.copy(e.player);
+  if(k.age>=KICK_HIT&&!k.hit){k.hit=true;ball.kick(e.player,k.f);e.sfx('kick');kickedAt=t;const fx=k.contact.x+k.f[0]*.2,fz=k.contact.z+k.f[1]*.2;if(groundHeight(fx,fz)>.015)objects.puff(fx,fz,t,.7,k.f[0],k.f[1]);}
   if(k.age>=KICK_END){kick=null;e.setHold(false);}
   return 0;
  }
- const kickFoot=new T.Vector3(),kickHands=[new T.Vector3(),new T.Vector3()];
+ // Arm directions (forward, outward on its own side, up) at the wind-up and the follow-through.
+ const KICK_ARM={plantWind:new T.Vector3(.45,.85,-.15),plantThrough:new T.Vector3(-.4,.8,-.35),kickWind:new T.Vector3(-.55,.35,-.75),kickThrough:new T.Vector3(.6,-.25,-.6)},kickArm=[new T.Vector3(),new T.Vector3()];
+ const kickFoot=new T.Vector3(),kickPlant=new T.Vector3(),kickHands=[new T.Vector3(),new T.Vector3()],kickHip=new T.Vector3(),kickTmp=new T.Vector3();
+ // The kicking leg in its swing plane: angle forward of straight down (rad) and hip-to-ankle distance as a share of
+ // the standing leg; contact is measured from the real hip and ankle targets.
+ function kickSwing(a,hip){
+  const k=kick,L=character.hipHeight-character.ankleHeight,d=kickTmp.subVectors(k.contact,hip),fw=d.x*k.f[0]+d.z*k.f[1];
+  const hit=[Math.atan2(fw,-d.y),Math.min(1,Math.hypot(fw,d.y)/L)];
+  // Keys (age, angle, length): folded back (heel up behind), wound up, contact, follow-through high in front, easing.
+  const keys=[[.18,-.35,.82],[.33,-.62,.62],[KICK_HIT,...hit],[.56,1.05,.97],[.68,.8,.95]];
+  let i=0;while(i<keys.length-2&&a>keys[i+1][0])i++;
+  const u=T.MathUtils.clamp((a-keys[i][0])/(keys[i+1][0]-keys[i][0]),0,1),w=i===1?u*u*(1.6-.6*u):T.MathUtils.smootherstep(u,0,1);
+  return [T.MathUtils.lerp(keys[i][2],keys[i+1][2],w)*L,T.MathUtils.lerp(keys[i][1],keys[i+1][1],w)];
+ }
  function kickIK(){
-  const k=kick,a=k.age,s=T.MathUtils.smoothstep;
-  // Foot path through the keys: wind-up, swing (fastest just before the ball), follow-through, back down.
-  const times=[0,.3,.38,KICK_HIT,.6,KICK_END];let i=0;while(i<times.length-2&&a>times[i+1])i++;
-  const u=T.MathUtils.clamp((a-times[i])/(times[i+1]-times[i]),0,1),w=i===0||i===4?s(u,0,1):u;
-  kickFoot.lerpVectors(k.keys[i],k.keys[i+1],w);
-  const feet=[null,null];feet[k.foot]=kickFoot;feet[1-k.foot]=k.plant;
-  const lean=.42*s(a,0,.3)+.1*Math.exp(-(((a-KICK_HIT)/.08)**2))-.4*s(a,.55,KICK_END),dip=s(a,.1,.3)*(1-s(a,.6,KICK_END));
-  // Arms against the leg: the kicking side's arm back, the other forward and out (the most at contact).
-  const H=character.hipHeight,P=e.player,arm=s(a,.05,.3)*(1-s(a,.65,KICK_END)),swing=s(a,.3,.5);
-  const side=i=>i===k.foot?1:-1;
-  for(let j=0;j<2;j++){const fw=j===k.foot?T.MathUtils.lerp(.15,-.3,swing):T.MathUtils.lerp(-.1,.35,swing),rt=side(j)*.38;kickHands[j].set(P.x+k.f[0]*fw*H+k.r[0]*rt*H,P.y+1.05*H,P.z+k.f[1]*fw*H+k.r[1]*rt*H);}
-  return {feet,footWeight:[1,1],hands:kickHands,handWeight:[.6*arm,.6*arm],pelvis:-.06*dip,ground:groundHeight,spine:{lean},look:objects.ball.position,lookWeight:.7*(1-s(a,.5,.8))};
+  const k=kick,a=k.age,s=T.MathUtils.smoothstep,H=character.hipHeight,A=character.ankleHeight,P=e.player;
+  const pelvis=-.05*Math.exp(-(((a-KICK_PLANT)/.08)**2))-.04*Math.exp(-(((a-KICK_HIT)/.07)**2));
+  kickHip.set(P.x+k.r[0]*k.hw,P.y+H+pelvis,P.z+k.r[1]*k.hw);
+  // Plant foot: lifts off at once, a low arc (11 cm) landing at KICK_PLANT, then stays.
+  const pu=s(a,.02,KICK_PLANT);kickPlant.lerpVectors(k.start[1-k.foot],k.plant,pu);kickPlant.y+=Math.sin(Math.PI*pu)*.11;
+  // Kicking foot: on the sand until the plant foot lands, peeling off (heel first) into the swing; after the
+  // follow-through it comes down a step ahead (a low arc to the landing spot).
+  if(a<.18){const u=s(a,.08,.18),[len,ang]=kickSwing(.18,kickHip);kickFoot.copy(k.start[k.foot]);
+   kickTmp.set(kickHip.x+k.f[0]*Math.sin(ang)*len,kickHip.y-Math.cos(ang)*len,kickHip.z+k.f[1]*Math.sin(ang)*len);kickFoot.lerp(kickTmp,u);}
+  else if(a<.68){const [len,ang]=kickSwing(a,kickHip),across=-.06*s(a,KICK_HIT,.6);
+   kickFoot.set(kickHip.x+k.f[0]*Math.sin(ang)*len+k.r[0]*across,kickHip.y-Math.cos(ang)*len,kickHip.z+k.f[1]*Math.sin(ang)*len+k.r[1]*across);
+   kickFoot.y=Math.max(kickFoot.y,groundHeight(kickFoot.x,kickFoot.z)+A);}
+  else{const [len,ang]=kickSwing(.68,kickHip),u=s(a,.68,.86);
+   kickTmp.set(kickHip.x+k.f[0]*Math.sin(ang)*len,kickHip.y-Math.cos(ang)*len,kickHip.z+k.f[1]*Math.sin(ang)*len);
+   kickFoot.lerpVectors(kickTmp,k.land,u);}
+  const feet=[null,null];feet[k.foot]=kickFoot;feet[1-k.foot]=kickPlant;
+  // Out of the kick: hand the feet back to the idle pose over the last 0.15 s.
+  const out=1-s(a,KICK_END-.15,KICK_END);
+  // Torso: forward into the stride, away from the kicking leg (roll) and a little back at contact, upright by the end.
+  const lean=.18*s(a,0,.2)*(1-s(a,.3,.45))-.12*s(a,.3,.45)*(1-s(a,.6,KICK_END)),roll=.14*s(a,.15,.36)*(1-s(a,.6,KICK_END))*character.side[k.foot];
+  const twist=(-.25*s(a,.1,.33)+.4*s(a,.33,.55))*(1-s(a,.6,KICK_END))*character.side[k.foot];
+  // Arms against the leg, from the shoulders an arm's length out (directions in forward / kicking-side / up): the
+  // plant side's arm rises out and a little forward to shoulder height for balance in the wind-up and sweeps back as
+  // the leg comes through; the kicking side's arm goes back in the wind-up and swings forward across the body.
+  const wind=s(a,.05,.33),through=s(a,.36,.6),rest=s(a,.75,KICK_END),reach=.95*character.armLength;
+  for(let j=0;j<2;j++){const kickSide=j===k.foot,o=kickSide?1:-1,d=kickArm[j];
+   d.set(0,.2,-1).lerp(kickSide?KICK_ARM.kickWind:KICK_ARM.plantWind,wind).lerp(kickSide?KICK_ARM.kickThrough:KICK_ARM.plantThrough,through).lerp(kickTmp.set(0,.2,-1),rest).normalize();
+   const sx=P.x+k.r[0]*o*.2,sz=P.z+k.r[1]*o*.2,sy=P.y+1.6*H+pelvis;
+   kickHands[j].set(sx+(k.f[0]*d.x+k.r[0]*o*d.y)*reach,sy+d.z*reach,sz+(k.f[1]*d.x+k.r[1]*o*d.y)*reach);}
+  const arm=s(a,.03,.2)*(1-rest);
+  return {feet,footWeight:[out,out],hands:kickHands,handWeight:[.9*arm,.9*arm],pelvis:pelvis*out,ground:groundHeight,spine:{lean,roll,twist},look:a<KICK_HIT+.05?k.ball:objects.ball.position,lookWeight:.7*(1-s(a,.55,.9))};
  }
  // Pose for the pickup: squat (pelvis down, feet planted), bend over, reach and close the hand, look at the shell.
  function pickupIK(){

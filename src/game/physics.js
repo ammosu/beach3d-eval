@@ -4,7 +4,7 @@ import {sampleWater} from '../water.js';
 export function createBall(mesh,colliders,onSea,onSplash){
  const velocity={x:0,y:0,z:0},wave={},radius=.48;let wasWet=false;
  function reset(){mesh.position.set(-4,groundHeight(-4,-8)+radius,-8);velocity.x=velocity.y=velocity.z=0;wasWet=false;mesh.rotation.set(0,0,0);}
- function kick(player){let x=mesh.position.x-player.x,z=mesh.position.z-player.z,n=Math.hypot(x,z);if(n<.1){x=0;z=-1;n=1;}velocity.x=x/n*11;velocity.z=z/n*11;velocity.y=3.1;}
+ function kick(player,dir){let x=dir?dir[0]:mesh.position.x-player.x,z=dir?dir[1]:mesh.position.z-player.z,n=Math.hypot(x,z);if(n<.1){x=0;z=-1;n=1;}velocity.x=x/n*11;velocity.z=z/n*11;velocity.y=3.1;}
  function step(dt,t,player,moving){
   const p=mesh.position;sampleWater(p.x,p.z,t,wave);const wet=groundHeight(p.x,p.z)<-.32;
   if(wet){const target=wave.height+radius*.65;velocity.y+=(target-p.y)*18*dt;velocity.y*=Math.exp(-5*dt);velocity.x*=Math.exp(-1.1*dt);velocity.z*=Math.exp(-1.1*dt);if(!wasWet)onSplash();if(groundHeight(p.x,p.z)<-.65)onSea();}else velocity.y-=9.8*dt;
