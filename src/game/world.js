@@ -48,7 +48,8 @@ export function createWorld(R,{propRoot,pool}){
  rebuildProps();
 
  const walker=world.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(0,-50,0));
- const walkerCollider=world.createCollider(R.ColliderDesc.capsule(.55,.3).setFriction(.4),walker);
+ // Collision groups: the walker is member 0x0001 only, so a just-thrown item (filter without that bit) passes it.
+ const walkerCollider=world.createCollider(R.ColliderDesc.capsule(.55,.3).setFriction(.4).setCollisionGroups(0x0001ffff),walker);
 
  const bodies=[];let acc=0;
  // Each dynamic thing registers a callback run before every fixed step (buoyancy, clamps).
@@ -69,5 +70,7 @@ export function createWorld(R,{propRoot,pool}){
  // Settle the walker at once (a teleport) so the next step does not sweep it through everything in between.
  function placeWalker(player){walker.setTranslation({x:player.x,y:player.y+.85,z:player.z},true);}
  function reset(){acc=0;}
- return {R,world,ground,add,remove,update,rebuildProps,placeWalker,reset,walkerCollider,get props(){return props.length;}};
+ // Run n fixed steps at once (settling loose things at load or reset; the walker is off).
+ function settle(n,t=0){walkerCollider.setEnabled(false);for(let i=0;i<n;i++){for(const b of bodies)b.before?.(STEP,t);world.step();}}
+ return {R,world,ground,add,remove,update,rebuildProps,placeWalker,reset,settle,walkerCollider,get props(){return props.length;}};
 }

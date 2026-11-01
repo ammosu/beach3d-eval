@@ -138,6 +138,12 @@ try{
   await page.keyboard.down('KeyE');await step(.5);await page.keyboard.up('KeyE');
   const k=await page.evaluate(()=>{const g=window.__GAME__;let before=null;for(let i=0;i<300&&!(g.kick&&g.kick.age>=0);i++){g.step(1/60);}before=g.targets().ball;return {k:g.kick,before};});
   assert(Math.abs(k.k.power-.5)<.05,JSON.stringify(k.k));assert(Math.hypot(k.before[0]-r[0],k.before[2]-r[2])<.08,'approach left the ball alone (it settles a few cm on the heightfield; a shove was 0.9 m)');await step(1.6);assert.equal(await page.evaluate(()=>window.__GAME__.kick),null);}
+ // Coconuts: pick one up, throw it with a 0.8 s charge along the camera, set another down with a tap.
+ {const r=await page.evaluate(()=>{const G=window.__GAME__,c=G.coconuts.items[0].pos;G.teleport(c[0]+1.2,c[2]+.4);G.step(.2);G.interact();G.step(1.5);const carried=G.coconuts.carry;
+   G.teleport(-8,4);G.view(0);G.step(.3);G.press();G.step(.8);G.release();G.step(3);const c0=G.coconuts.items[0].pos;
+   const d=G.coconuts.items[1].pos;G.teleport(d[0]+1.2,d[2]+.4);G.step(.2);G.interact();G.step(1.5);const p=window.__EXPLORE__.player.toArray();G.press();G.step(1/60);G.release();G.step(1.5);
+   return {carried,thrown:Math.hypot(c0[0]+8,c0[2]-4),placed:Math.hypot(G.coconuts.items[1].pos[0]-p[0],G.coconuts.items[1].pos[2]-p[2]),after:G.coconuts.carry};});
+  assert.equal(r.carried,0,'coconut in hand');assert(r.thrown>12,`coconut thrown ${r.thrown}`);assert(r.placed<1.2,`coconut set down ${r.placed}`);assert.equal(r.after,null);}
  await page.evaluate(()=>{const g=window.__GAME__,p=g.targets().shells[0];g.teleport(p.x,p.z+.8);g.interact();g.step(.35);});assert.equal((await page.evaluate(()=>window.__GAME__.character)).animation,'interact');await step(1);
  // With dt frozen, neither clips nor procedural poses advance.
  const frozen=await page.evaluate(()=>{const g=window.__GAME__,before=g.character;g.step(0);return [before,g.character];});assert.deepEqual(frozen[0],frozen[1]);

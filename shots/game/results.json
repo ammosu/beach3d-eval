@@ -608,22 +608,22 @@
     {
       "x": -20,
       "z": 10,
-      "msPerUpdate": 0.3049999992052714
+      "msPerUpdate": 0.3299999992052714
     },
     {
       "x": -4,
       "z": -8,
-      "msPerUpdate": 0.2549999992052714
+      "msPerUpdate": 0.31666666666666665
     },
     {
       "x": -4,
       "z": -3,
-      "msPerUpdate": 0.275
+      "msPerUpdate": 0.31333333253860474
     },
     {
       "x": 6,
       "z": 3,
-      "msPerUpdate": 0.30833333333333335
+      "msPerUpdate": 0.32666666905085245
     }
   ],
   "extrasChecks": [
