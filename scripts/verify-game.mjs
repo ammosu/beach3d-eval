@@ -137,7 +137,7 @@ try{
  {const r=await page.evaluate(async()=>{const g=window.__GAME__;g.placeBall(-4,-8);const p=g.targets().ball;g.teleport(p[0]+1.4,p[2]);g.view(0);g.step(.3);return g.targets().ball;});
   await page.keyboard.down('KeyE');await step(.5);await page.keyboard.up('KeyE');
   const k=await page.evaluate(()=>{const g=window.__GAME__;let before=null;for(let i=0;i<300&&!(g.kick&&g.kick.age>=0);i++){g.step(1/60);}before=g.targets().ball;return {k:g.kick,before};});
-  assert(Math.abs(k.k.power-.5)<.05,JSON.stringify(k.k));assert(Math.hypot(k.before[0]-r[0],k.before[2]-r[2])<.01,'approach left the ball alone');await step(1.6);assert.equal(await page.evaluate(()=>window.__GAME__.kick),null);}
+  assert(Math.abs(k.k.power-.5)<.05,JSON.stringify(k.k));assert(Math.hypot(k.before[0]-r[0],k.before[2]-r[2])<.08,'approach left the ball alone (it settles a few cm on the heightfield; a shove was 0.9 m)');await step(1.6);assert.equal(await page.evaluate(()=>window.__GAME__.kick),null);}
  await page.evaluate(()=>{const g=window.__GAME__,p=g.targets().shells[0];g.teleport(p.x,p.z+.8);g.interact();g.step(.35);});assert.equal((await page.evaluate(()=>window.__GAME__.character)).animation,'interact');await step(1);
  // With dt frozen, neither clips nor procedural poses advance.
  const frozen=await page.evaluate(()=>{const g=window.__GAME__,before=g.character;g.step(0);return [before,g.character];});assert.deepEqual(frozen[0],frozen[1]);
