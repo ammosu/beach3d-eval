@@ -148,7 +148,7 @@ export async function createCharacter(group='A'){
  const axes=new Map(),q=new T.Quaternion(),parentQ=new T.Quaternion(),turn=new T.Quaternion(),dir=V(),from=V(),to=V();
  function axis(b,end){if(!b)return;const a=end?end.getWorldPosition(V()).sub(b.getWorldPosition(V())):V(0,1,0);axes.set(b,a.normalize().applyQuaternion(b.getWorldQuaternion(new T.Quaternion()).invert()));}
  for(let i=0;i<2;i++){axis(rig.thigh[i],rig.calf[i]);axis(rig.calf[i],source==='C'?rig.calf[i]?.children[0]:rig.foot[i]);axis(rig.arm[i],rig.fore[i]);axis(rig.fore[i],rig.hand[i]);}axis(rig.spine,rig.head);
- const hipY=rig.hip?.getWorldPosition(V()).y??.91,legLength=rig.thigh?.[0]&&rig.foot?.[0]?rig.thigh[0].getWorldPosition(V()).distanceTo(rig.foot[0].getWorldPosition(V())):hipY*.9;
+ const hipY=rig.hip?.getWorldPosition(V()).y??.91,hipHalf=rig.thigh?.[0]&&rig.thigh?.[1]?rig.thigh[0].getWorldPosition(V()).distanceTo(rig.thigh[1].getWorldPosition(V()))/2:.1,legLength=rig.thigh?.[0]&&rig.foot?.[0]?rig.thigh[0].getWorldPosition(V()).distanceTo(rig.foot[0].getWorldPosition(V())):hipY*.9;
  let settle=null,stance=null,pace=0,locoPhase=0,locoSync=false,posed=false,active='idle',age=0,actionAge=0,oneShot='',oneAge=0,opacity=1,lastPhase=null,stride=0;const steps=[];
  const previousPose=new Map(allBones.map(b=>[b,{q:b.quaternion.clone(),p:b.position.clone()}]));
  const poseRotation=new T.Quaternion(),posePosition=V(),bodyRotation=new T.Quaternion(),bodyPosition=V(),headWorld=V();
@@ -158,7 +158,9 @@ export async function createCharacter(group='A'){
   // Walk and run already blend in step (below): trading which one leads must not restart either clip.
   if(locoSync&&loco(name)&&loco(active)){active=name;return;}
   if(loco(active))for(const n of ['walk','run'])if(n!==active&&n!==name)actions.get(n)?.fadeOut(.25);
-  locoSync=false;const previous=actions.get(active),next=actions.get(name);if(next){next.reset().setEffectiveTimeScale(1).setEffectiveWeight(1).play();if(previous)next.crossFadeFrom(previous,.25,false);else next.fadeIn(.25);}else previous?.fadeOut(.25);active=name;actionAge=0;}
+  locoSync=false;const previous=actions.get(active),next=actions.get(name);if(next){next.reset().setEffectiveTimeScale(1).setEffectiveWeight(1).play();if(previous)next.crossFadeFrom(previous,.25,false);}else previous?.fadeOut(.25);active=name;actionAge=0;}
+ // From a procedural pose (lie, sit, paddle: no clip) the clip starts at full weight: fading it in would mix it with
+ // the bind pose (B and C spread their arms in a T for a moment); the bone smoothing below eases the switch instead.
  function trigger(name){oneShot=name;oneAge=0;}
  function restore(){for(const [b,r] of rest){b.quaternion.copy(r.q);b.position.copy(r.p);b.scale.copy(r.s);}}
  // IK layer, shared by all three rigs and applied after the clip/procedural pose. Targets are world points; each
@@ -174,7 +176,7 @@ export async function createCharacter(group='A'){
  // Ankle height above the sole in the rest pose, for feet planted on a floor.
  const ankle=[0,1].map(i=>{const e=endOf(i,true);return e?root.worldToLocal(e.getWorldPosition(V())).y:.08;});
  const headForward=rig.head?V(0,0,1).applyQuaternion(rig.head.getWorldQuaternion(new T.Quaternion()).invert().multiply(root.getWorldQuaternion(new T.Quaternion()))):null;
- const mw=new T.Matrix4(),ml=new T.Matrix4(),cross=V(),A1=V(),B1=V(),C1=V(),goal=V(),knee=V(),bendDir=V(),worldUp=V(0,1,0),local=V(),rootQ=new T.Quaternion();
+ const mw=new T.Matrix4(),ml=new T.Matrix4(),cross=V(),A1=V(),B1=V(),C1=V(),goal=V(),knee=V(),bendDir=V(),worldUp=V(0,1,0),local=V(),rootQ=new T.Quaternion(),Q1=new T.Quaternion();
  const armLength=rig.arm[0]&&rig.fore[0]&&rig.hand[0]?rig.arm[0].getWorldPosition(V()).distanceTo(rig.fore[0].getWorldPosition(B1))+B1.distanceTo(rig.hand[0].getWorldPosition(C1)):.55;
  // Rotate bone b about its origin so the direction toward `tip` points at `point`.
  function swing(b,tip,point,weight=1){b.getWorldPosition(A1);from.copy(tip.getWorldPosition(B1)).sub(A1);dir.copy(point).sub(A1);if(from.lengthSq()<1e-10||dir.lengthSq()<1e-10)return;turn.setFromUnitVectors(from.normalize(),dir.normalize());b.getWorldQuaternion(q);q.premultiply(turn);b.parent.getWorldQuaternion(parentQ).invert();q.premultiply(parentQ);b.quaternion.slerp(q,weight);b.updateWorldMatrix(false,true);}
@@ -198,16 +200,23 @@ export async function createCharacter(group='A'){
   // lower foot so the legs only ever shorten.
   let feetTargets=feet;
   if(!feet&&ground){const rootY=root.getWorldPosition(A1).y,out=[];let drop=0;
-   for(let i=0;i<2;i++){const e=endOf(i,true);if(!e){out.push(null);continue;}const p=e.getWorldPosition(V()),g=ground(p.x,p.z)-rootY;out.push(p.setY(p.y+g));drop=Math.min(drop,g);}
+   // Stance width: B's clips bring the feet within 10 cm of each other (knees touching, crossing when walking), so each
+   // foot stays at least a hip's half-width out from the body's centre line standing, 70% of it moving.
+   const centre=root.getWorldPosition(B1),right=toWorldDir(1,0,0),wide=hipHalf*(active==='idle'?1:.7);
+   for(let i=0;i<2;i++){const e=endOf(i,true);if(!e){out.push(null);continue;}const p=e.getWorldPosition(V()),off=(p.x-centre.x)*right.x+(p.z-centre.z)*right.z,short=wide-side[i]*off;
+    if(short>0){p.x+=right.x*side[i]*short;p.z+=right.z*side[i]*short;}
+    const g=ground(p.x,p.z)-rootY;out.push(p.setY(p.y+g));drop=Math.min(drop,g);}
    if(settle){if(settle.first==null)settle.first=out[0]&&out[1]&&settle.plant[1].distanceTo(out[1])>settle.plant[0].distanceTo(out[0])?1:0;
     for(let i=0;i<2;i++){if(!out[i])continue;const start=i===settle.first?.05:.3,t=T.MathUtils.clamp((settle.age-start)/.26,0,1),k=T.MathUtils.smoothstep(t,0,1),far=settle.plant[i].distanceTo(out[i])>.05;
      out[i].lerpVectors(settle.plant[i],out[i],far?k:1);if(far)out[i].y+=Math.sin(Math.PI*t)*.06;}
     if(settle.age>.65)settle=null;}
    // Standing still: the feet stay where they landed. The Tripo idle clip slides them about while the hips stay put,
-   // so pin them (any weight shift stays in the upper body). Moving off the spot, or a teleport, releases them.
-   if(active==='idle'&&!settle&&out[0]&&out[1]){const at=root.getWorldPosition(C1);
+   // so pin them (any weight shift stays in the upper body). Moving off the spot, turning on it, or a teleport
+   // releases them (getting up from the lounger lands on the spot it was entered from, turned: pinned there, the
+   // feet stayed where the old heading put them and the legs crossed until the first step).
+   if(active==='idle'&&!settle&&out[0]&&out[1]){const at=root.getWorldPosition(C1),facing=root.getWorldQuaternion(Q1);
     // Both soles on the sand: each ankle at its standing (rest pose) height above the ground under it.
-    if(!stance||stance.at.distanceTo(at)>.01)stance={at:at.clone(),feet:out.map((p,i)=>p.clone().setY(ground(p.x,p.z)+ankle[i]))};
+    if(!stance||stance.at.distanceTo(at)>.01||stance.facing.angleTo(facing)>.05)stance={at:at.clone(),facing:facing.clone(),feet:out.map((p,i)=>p.clone().setY(ground(p.x,p.z)+ankle[i]))};
     for(let i=0;i<2;i++)out[i].copy(stance.feet[i]);}
    else stance=null;
    pelvis+=drop;feetTargets=out;}
@@ -225,7 +234,7 @@ export async function createCharacter(group='A'){
    const s=side[i],target=hands?.[i];
    if(target){const elbow=rig.fore[i]?.getWorldPosition(V())??toWorld(s*.3,1.1,0);const pole=elbow.add(toWorldDir(s*.6,-.5,-.35));const w=Array.isArray(handWeight)?handWeight[i]:handWeight;error.hands[i]=reach(rig.arm[i],rig.fore[i],endOf(i,false),target,pole,w);}else error.hands[i]=null;
    const foot=feetTargets?.[i];
-   if(foot){const kneeAt=rig.calf[i]?.getWorldPosition(V())??toWorld(s*.1,.5,0);const pole=kneeAt.addScaledVector(fwd,1).addScaledVector(up,.1);const w=Array.isArray(footWeight)?footWeight[i]:footWeight;error.feet[i]=reach(rig.thigh[i],rig.calf[i],endOf(i,true),foot,pole,w);
+   if(foot){const kneeAt=rig.calf[i]?.getWorldPosition(V())??toWorld(s*.1,.5,0);const pole=kneeAt.addScaledVector(fwd,1).addScaledVector(up,.1).addScaledVector(toWorldDir(1,0,0),s*.15);const w=Array.isArray(footWeight)?footWeight[i]:footWeight;error.feet[i]=reach(rig.thigh[i],rig.calf[i],endOf(i,true),foot,pole,w);
     if(source==='C'&&rig.foot[i]){endOf(i,true).getWorldPosition(to);rig.foot[i].parent.worldToLocal(to);rig.foot[i].position.copy(to);}
     if(keepSole?.[i]){const f=rig.foot[i];f.parent.getWorldQuaternion(parentQ).invert();f.quaternion.copy(parentQ.multiply(keepSole[i]));f.updateWorldMatrix(false,true);}}else error.feet[i]=null;
   }
@@ -244,7 +253,7 @@ export async function createCharacter(group='A'){
   // Head turns toward a point of interest, within a comfortable neck range.
   if(look&&rig.head&&headForward){const h=rig.head.getWorldPosition(A1);rig.head.getWorldQuaternion(q);from.copy(headForward).applyQuaternion(q);dir.copy(look).sub(h).normalize();const angle=from.angleTo(dir);if(angle>1e-4){const limit=Math.min(angle,1.05)/angle;turn.setFromUnitVectors(from,dir);const partial=new T.Quaternion().slerp(turn,limit*lookWeight);q.premultiply(partial);rig.head.parent.getWorldQuaternion(parentQ).invert();q.premultiply(parentQ);rig.head.quaternion.copy(q);rig.head.updateWorldMatrix(false,true);}}
  }
- function update(dt,{speed=0,airborne=false,pose='stand',first=false,fade=1,animation=null,ik=null,recline=0,snapPose=false}={}){
+ function update(dt,{speed=0,airborne=false,pose='stand',first=false,fade=1,animation=null,ik=null,recline=0,snapPose=false,cut=false}={}){
   // A dt=0 call (a render between offline steps) keeps the current pose. Re-running restore() there would leave
   // the rest pose on screen: three.js PropertyMixer skips writing values that did not change since its last apply.
   if(!dt&&posed&&!animation)return;posed=true;
@@ -302,14 +311,15 @@ export async function createCharacter(group='A'){
    aim(rig.spine,0,1,lying?.45*(1-Math.min(1,recline/.4)):selected==='interact'?.35:seated?.08:Math.sin(age*1.7)*.018);
   }
   // Smooth bones only right after a clip/pose switch; smoothing every frame flattens the gait cycle itself.
-  const blend=1-Math.exp(-12*dt),boneBlend=actionAge<.3?blend:1;
+  // cut: a teleport between modes (getting up from the lounger, off the boat): no easing from the old pose at all.
+  const blend=1-Math.exp(-12*dt),boneBlend=actionAge<.3&&!cut?blend:1;
   for(const [b,previous] of previousPose){q.copy(b.quaternion);b.quaternion.copy(previous.q).slerp(q,dt?boneBlend:1);b.position.lerpVectors(previous.p,b.position,dt?boneBlend:1);previous.q.copy(b.quaternion);previous.p.copy(b.position);}
   posePosition.set(0,0,0);poseRotation.identity();
   // Lying: the body tips back about the hips (which rest .135 above the avatar origin) to the recline.
   if(lying){const tip=recline-Math.PI/2;posePosition.set(0,.135-hipY*Math.cos(tip),-hipY*Math.sin(tip));poseRotation.setFromAxisAngle(V(1,0,0),tip);}
   else if(seated)posePosition.set(0,-hipY+.10,0);
   // snapPose: the caller has already brought the body to the new pose's height (climbing into the boat ends seated).
-  bodyRotation.slerp(poseRotation,dt&&!snapPose?blend:1);bodyPosition.lerp(posePosition,dt&&!snapPose?blend:1);
+  bodyRotation.slerp(poseRotation,dt&&!snapPose&&!cut?blend:1);bodyPosition.lerp(posePosition,dt&&!snapPose&&!cut?blend:1);
   pivot.quaternion.copy(bodyRotation);pivot.position.copy(bodyPosition);
   if(ik)solve(ik);else{error.hands.fill(null);error.feet.fill(null);}
   for(let i=0;i<2;i++)endOf(i,true)?.getWorldPosition(lastFeet[i]);
