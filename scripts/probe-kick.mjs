@@ -11,7 +11,7 @@ for(const g of groups){const page=await browser.newPage({viewport:{width:960,hei
  await page.evaluate(power=>{const g=window.__GAME__,p=g.targets().ball;g.teleport(p[0],p[2]+1.3);g.view(0);g.step(.3);if(power===null)g.interact();else{g.press();for(let t=0;t<power-1e-6;t+=1/60)g.step(1/60);g.release();}for(let i=0;i<300&&!(g.kick&&g.kick.age>=0);i++)g.step(1/60);},POWER);
  const files=[];let last=0;
  for(const age of AGES){
-  const info=await page.evaluate(([age,last,view])=>{const g=window.__GAME__,{camera}=window.__SCENE__;g.step(Math.max(0,age-last));
+  const info=await page.evaluate(([age,last,view])=>{const g=window.__GAME__,{camera}=window.__SCENE__;g.step(Math.max(0,age-last));for(let i=0;i<30&&g.kick&&g.kick.age<age-.002;i++)g.step(1/60); // the hit-stop holds the age back
    // Side view from the kicking-foot side, a little behind the ball: the whole body and the ball in frame.
    const p=window.__EXPLORE__.player,b=g.targets().ball;window.__KICKCAM__??=(()=>{const dx=b[0]-p.x,dz=b[2]-p.z,n=Math.hypot(dx,dz);const f=[dx/n,dz/n],k=g.footWorld(g.kick.foot);let side=[-f[1],f[0]];if((k.x-p.x)*side[0]+(k.z-p.z)*side[1]<0)side=[-side[0],-side[1]];return view==='front'?{x:p.x+f[0]*4.2+side[0]*2.6,z:p.z+f[1]*4.2+side[1]*2.6,tx:p.x+f[0]*.5,tz:p.z+f[1]*.5,y:p.y}:{x:p.x+f[0]*.1+side[0]*4.2,z:p.z+f[1]*.1+side[1]*4.2,tx:p.x+f[0]*.7,tz:p.z+f[1]*.7,y:p.y};})();
    const c=window.__KICKCAM__;window.__GAME__.cameraOverride=true;camera.position.set(c.x,c.y+1.1,c.z);camera.lookAt(c.tx,c.y+.8,c.tz);

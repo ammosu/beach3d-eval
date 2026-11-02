@@ -63,6 +63,11 @@ export async function createCharacter(group='A'){
  model.traverse(o=>{if(o.isBone)allBones.push(o);if(o.isMesh){meshes.push(o);o.castShadow=o.receiveShadow=true;o.frustumCulled=false;triangles+=(o.geometry.index?.count??o.geometry.attributes.position.count)/3;o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();for(const m of Array.isArray(o.material)?o.material:[o.material])materials.push({mat:m,opacity:m.opacity,transparent:m.transparent,depthWrite:m.depthWrite});}});
  const names=source==='A'?{hip:'hips',spine:'spine',head:'head',thigh:['thighL','thighR'],calf:['calfL','calfR'],foot:['footL','footR'],arm:['armL','armR'],fore:['foreL','foreR'],hand:['handL','handR']}:source==='B'?{hip:'Hips',spine:'Spine',head:'Head',thigh:['Left_UpperLeg','Right_UpperLeg'],calf:['Left_LowerLeg','Right_LowerLeg'],foot:['Left_Foot','Right_Foot'],arm:['Left_UpperArm','Right_UpperArm'],fore:['Left_LowerArm','Right_LowerArm'],hand:['Left_Hand','Right_Hand']}:{hip:'Body',spine:'Hips',head:'Head',thigh:['UpperLeg.L','UpperLeg.R'],calf:['LowerLeg.L','LowerLeg.R'],foot:['Foot.L','Foot.R'],arm:['UpperArm.L','UpperArm.R'],fore:['LowerArm.L','LowerArm.R'],hand:['Wrist.L','Wrist.R']};
  const get=n=>allBones.find(b=>b.name===n||b.name===n.replaceAll('.','')),rig={};for(const [k,n] of Object.entries(names))rig[k]=Array.isArray(n)?n.map(get):get(n);
+ // Each Tripo clip keeps the hips somewhere else on the ground plane (walk 18 cm to the side of idle, run 16 cm to the
+ // side and 91 cm ahead), so the body sat off the player's centre line and jumped when the clip changed. Keep each
+ // clip's own movement round the idle clip's spot.
+ {const hipTrack=c=>c.tracks.find(t=>t.name===`${rig.hip?.name}.position`),mean=(t,k)=>{let m=0;for(let i=k;i<t.values.length;i+=3)m+=t.values[i];return m/(t.values.length/3);},home=clips.find(c=>c.name==='idle'),ht=home&&hipTrack(home);
+  if(ht)for(const clip of clips){if(clip===home||clip.name==='climb')continue;const t=hipTrack(clip);if(!t)continue;for(const k of [0,2]){const d=mean(ht,k)-mean(t,k);for(let i=k;i<t.values.length;i+=3)t.values[i]+=d;}}}
  // The Tripo climb clip carries root motion (the hips rise about a metre per loop, in steps). The game moves the body
  // itself, and with only the linear drift taken out the steps left the hips bobbing 0.2–0.6 m above the feet: a crouch
  // with the head in the rungs. Pin the hips at their bind (standing) position; leg IK puts the feet on the rungs.
@@ -149,7 +154,7 @@ export async function createCharacter(group='A'){
  function axis(b,end){if(!b)return;const a=end?end.getWorldPosition(V()).sub(b.getWorldPosition(V())):V(0,1,0);axes.set(b,a.normalize().applyQuaternion(b.getWorldQuaternion(new T.Quaternion()).invert()));}
  for(let i=0;i<2;i++){axis(rig.thigh[i],rig.calf[i]);axis(rig.calf[i],source==='C'?rig.calf[i]?.children[0]:rig.foot[i]);axis(rig.arm[i],rig.fore[i]);axis(rig.fore[i],rig.hand[i]);}axis(rig.spine,rig.head);
  const hipY=rig.hip?.getWorldPosition(V()).y??.91,hipHalf=rig.thigh?.[0]&&rig.thigh?.[1]?rig.thigh[0].getWorldPosition(V()).distanceTo(rig.thigh[1].getWorldPosition(V()))/2:.1,legLength=rig.thigh?.[0]&&rig.foot?.[0]?rig.thigh[0].getWorldPosition(V()).distanceTo(rig.foot[0].getWorldPosition(V())):hipY*.9;
- let settle=null,stance=null,pace=0,locoPhase=0,locoSync=false,posed=false,active='idle',age=0,actionAge=0,oneShot='',oneAge=0,opacity=1,lastPhase=null,stride=0;const steps=[];
+ const soleTurn=new T.Quaternion(),idleFeet=[null,null];let settle=null,stance=null,pace=0,locoPhase=0,locoSync=false,posed=false,active='idle',age=0,actionAge=0,oneShot='',oneAge=0,opacity=1,lastPhase=null,stride=0;const steps=[];
  const previousPose=new Map(allBones.map(b=>[b,{q:b.quaternion.clone(),p:b.position.clone()}]));
  const poseRotation=new T.Quaternion(),posePosition=V(),bodyRotation=new T.Quaternion(),bodyPosition=V(),headWorld=V();
  function aim(b,x,y,z,weight=1){if(!b||!axes.has(b))return;b.updateWorldMatrix(true,false);b.getWorldQuaternion(q);from.copy(axes.get(b)).applyQuaternion(q);dir.set(x,y,z).normalize().applyQuaternion(root.getWorldQuaternion(parentQ));turn.setFromUnitVectors(from,dir);q.premultiply(turn);b.parent.getWorldQuaternion(parentQ).invert();q.premultiply(parentQ);b.quaternion.slerp(q,weight);b.updateWorldMatrix(false,true);}
@@ -194,17 +199,18 @@ export async function createCharacter(group='A'){
  const toWorld=(x,y,z)=>local.set(x,y,z).applyMatrix4(root.matrixWorld);
  const toWorldDir=(x,y,z)=>V(x,y,z).applyQuaternion(root.getWorldQuaternion(rootQ));
  const error={hands:[null,null],feet:[null,null]},lastFeet=[V(),V()];
- function solve({hands,feet,handWeight=1,footWeight=1,pelvis=0,ground,floor,spine,look,lookWeight=1,handAim,curl}){
+ function solve({hands,feet,handWeight=1,footWeight=1,pelvis=0,ground,floor,spine,look,lookWeight=1,handAim,curl,sole,kneeOut}){
   root.updateWorldMatrix(true,true);markAnkles();
   // Terrain-following feet: each foot keeps the clip's lift above its own patch of ground; the pelvis drops to the
   // lower foot so the legs only ever shorten.
   let feetTargets=feet;
   if(!feet&&ground){const rootY=root.getWorldPosition(A1).y,out=[];let drop=0;
-   // Stance width: B's clips bring the feet within 10 cm of each other (knees touching, crossing when walking), so each
-   // foot stays at least a hip's half-width out from the body's centre line standing, 70% of it moving.
-   const centre=root.getWorldPosition(B1),right=toWorldDir(1,0,0),wide=hipHalf*(active==='idle'?1:.7);
-   for(let i=0;i<2;i++){const e=endOf(i,true);if(!e){out.push(null);continue;}const p=e.getWorldPosition(V()),off=(p.x-centre.x)*right.x+(p.z-centre.z)*right.z,short=wide-side[i]*off;
-    if(short>0){p.x+=right.x*side[i]*short;p.z+=right.z*side[i]*short;}
+   // Stance width: standing each foot stays at least a hip's half-width out from the body's centre line. Under way the
+   // feet come in to nearly one line, whatever the clip does (people walk about 5 cm each side of it and run closer;
+   // the rigs' legs hang at hip width, 10-11 cm, and B's clips cross).
+   const centre=root.getWorldPosition(B1),right=toWorldDir(1,0,0),under=T.MathUtils.smoothstep(pace,.2,1.2),line=T.MathUtils.lerp(.06,.04,T.MathUtils.smoothstep(pace,2.9,4.3));
+   for(let i=0;i<2;i++){const e=endOf(i,true);if(!e){out.push(null);continue;}const p=e.getWorldPosition(V()),off=side[i]*((p.x-centre.x)*right.x+(p.z-centre.z)*right.z),shift=T.MathUtils.lerp(Math.max(off,hipHalf),line,under)-off;
+    p.x+=right.x*side[i]*shift;p.z+=right.z*side[i]*shift;
     const g=ground(p.x,p.z)-rootY;out.push(p.setY(p.y+g));drop=Math.min(drop,g);}
    if(settle){if(settle.first==null)settle.first=out[0]&&out[1]&&settle.plant[1].distanceTo(out[1])>settle.plant[0].distanceTo(out[0])?1:0;
     for(let i=0;i<2;i++){if(!out[i])continue;const start=i===settle.first?.05:.3,t=T.MathUtils.clamp((settle.age-start)/.26,0,1),k=T.MathUtils.smoothstep(t,0,1),far=settle.plant[i].distanceTo(out[i])>.05;
@@ -216,7 +222,7 @@ export async function createCharacter(group='A'){
    // feet stayed where the old heading put them and the legs crossed until the first step).
    if(active==='idle'&&!settle&&out[0]&&out[1]){const at=root.getWorldPosition(C1),facing=root.getWorldQuaternion(Q1);
     // Both soles on the sand: each ankle at its standing (rest pose) height above the ground under it.
-    if(!stance||stance.at.distanceTo(at)>.01||stance.facing.angleTo(facing)>.05)stance={at:at.clone(),facing:facing.clone(),feet:out.map((p,i)=>p.clone().setY(ground(p.x,p.z)+ankle[i]))};
+    if(!stance||stance.at.distanceTo(at)>.01||stance.facing.angleTo(facing)>.05){stance={at:at.clone(),facing:facing.clone(),feet:out.map((p,i)=>p.clone().setY(ground(p.x,p.z)+ankle[i]))};const fw=toWorldDir(0,0,1);stance.feet.forEach((p,i)=>{idleFeet[i]=[(p.x-at.x)*right.x+(p.z-at.z)*right.z,(p.x-at.x)*fw.x+(p.z-at.z)*fw.z];});}
     for(let i=0;i<2;i++)out[i].copy(stance.feet[i]);}
    else stance=null;
    pelvis+=drop;feetTargets=out;}
@@ -234,9 +240,11 @@ export async function createCharacter(group='A'){
    const s=side[i],target=hands?.[i];
    if(target){const elbow=rig.fore[i]?.getWorldPosition(V())??toWorld(s*.3,1.1,0);const pole=elbow.add(toWorldDir(s*.6,-.5,-.35));const w=Array.isArray(handWeight)?handWeight[i]:handWeight;error.hands[i]=reach(rig.arm[i],rig.fore[i],endOf(i,false),target,pole,w);}else error.hands[i]=null;
    const foot=feetTargets?.[i];
-   if(foot){const kneeAt=rig.calf[i]?.getWorldPosition(V())??toWorld(s*.1,.5,0);const pole=kneeAt.addScaledVector(fwd,1).addScaledVector(up,.1).addScaledVector(toWorldDir(1,0,0),s*.15);const w=Array.isArray(footWeight)?footWeight[i]:footWeight;error.feet[i]=reach(rig.thigh[i],rig.calf[i],endOf(i,true),foot,pole,w);
+   if(foot){const kneeAt=rig.calf[i]?.getWorldPosition(V())??toWorld(s*.1,.5,0);const pole=kneeAt.addScaledVector(fwd,1).addScaledVector(up,.1).addScaledVector(toWorldDir(1,0,0),s*(kneeOut??T.MathUtils.lerp(.15,.03,T.MathUtils.smoothstep(pace,.2,1.2))));const w=Array.isArray(footWeight)?footWeight[i]:footWeight;error.feet[i]=reach(rig.thigh[i],rig.calf[i],endOf(i,true),foot,pole,w);
     if(source==='C'&&rig.foot[i]){endOf(i,true).getWorldPosition(to);rig.foot[i].parent.worldToLocal(to);rig.foot[i].position.copy(to);}
-    if(keepSole?.[i]){const f=rig.foot[i];f.parent.getWorldQuaternion(parentQ).invert();f.quaternion.copy(parentQ.multiply(keepSole[i]));f.updateWorldMatrix(false,true);}}else error.feet[i]=null;
+    if(keepSole?.[i]){const f=rig.foot[i];f.parent.getWorldQuaternion(parentQ).invert();f.quaternion.copy(parentQ.multiply(keepSole[i]));f.updateWorldMatrix(false,true);}
+    // Heel up (+) or toes up (-), about the body's side axis.
+    if(sole?.[i]&&rig.foot[i]){const f=rig.foot[i],q=f.getWorldQuaternion(new T.Quaternion()).premultiply(soleTurn.setFromAxisAngle(toWorldDir(1,0,0),sole[i]));f.parent.getWorldQuaternion(parentQ).invert();f.quaternion.copy(parentQ.multiply(q));f.updateWorldMatrix(false,true);}}else error.feet[i]=null;
   }
   // Wrists: point the fingers along `dir` with the palm facing `palm` (world), then close the knuckle bones.
   for(let i=0;i<2;i++){const aimAt=handAim?.[i],g=grip[i],hand=rig.hand[i];
@@ -333,5 +341,5 @@ export async function createCharacter(group='A'){
  function palm(i,out=V()){const h=rig.hand[i];if(!h)return head(out);h.getWorldPosition(out);return grip[i]?out.lerp(grip[i].bone.getWorldPosition(A1),.75):out;}
  function head(out=headWorld){return rig.head?rig.head.getWorldPosition(out):out.copy(root.position).add(V(0,1.6,0));}
  update(0);
- return {root,update,trigger,info,head,palm,footWorld,steps,side,armLength,hipHeight:hipY,ankleHeight:(ankle[0]+ankle[1])/2,get gripReach(){return grip[0]?grip[0].bone.getWorldPosition(V()).distanceTo(rig.hand[0].getWorldPosition(V())):0;},hasGrip:!!grip[0],grip,get plants(){return !!contact[active]||!actions.has(active)&&(active==='walk'||active==='run');},mixer,rig,meshes,dispose(){mixer.stopAllAction();mixer.uncacheRoot(model);disposeModel(model);root.removeFromParent();},animations:[...new Set(['idle','walk','run','jump','climb','sit','lie','paddle','kick','interact',...actions.keys()])]};
+ return {root,update,trigger,info,head,palm,footWorld,steps,side,idleFoot:i=>idleFeet[i]??[side[i]*hipHalf,0],armLength,hipHeight:hipY,ankleHeight:(ankle[0]+ankle[1])/2,get gripReach(){return grip[0]?grip[0].bone.getWorldPosition(V()).distanceTo(rig.hand[0].getWorldPosition(V())):0;},hasGrip:!!grip[0],grip,get plants(){return !!contact[active]||!actions.has(active)&&(active==='walk'||active==='run');},mixer,rig,meshes,dispose(){mixer.stopAllAction();mixer.uncacheRoot(model);disposeModel(model);root.removeFromParent();},animations:[...new Set(['idle','walk','run','jump','climb','sit','lie','paddle','kick','interact',...actions.keys()])]};
 }
