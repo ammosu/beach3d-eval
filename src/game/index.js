@@ -260,20 +260,34 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   // Which way along the rungs is each limb's side? The climber faces the ladder, so its own +x runs along -right;
   // read it from the facing rather than assume, or hands and feet cross over.
   const avatarX=Math.cos(ladderYaw)*r.x-Math.sin(ladderYaw)*r.z;
-  // The handrail on a side nearest a point (within 35 cm), or at world height y: the hand against its inner face (a
-  // hand centred in the post would put the fingers through it). Null when there is none.
-  const rail=(sideSign,want)=>{const list=l.handrails?.[sideSign<0?0:1];if(!list?.length)return null;let best=null,d=typeof want==='number'?.08:.35;
-   for(const p of list){const e=typeof want==='number'?Math.abs(p.y-want):p.point.distanceTo(want);if(e<d){d=e;best=p;}}return best?best.point.clone().addScaledVector(r,-sideSign*.04):null;};
+  // A hold for a hand past the top rung, as the wrist's target and aim. Into an opening the deck comes first: flat hand a
+  // little in from the edge, fingers inward, palm down, no grip (always in reach; the uprights are too far ahead until
+  // the body is up). Getting up, or going over a railing (the edge is blocked), an upright beside the way in: at the
+  // height wanted but no higher than it goes, fingers round it towards the tower, palm against its inner face.
+  const offset=(point,dir,palmDir)=>reach?point.addScaledVector(dir,-reach*.85).addScaledVector(palmDir,-.04):point.addScaledVector(palmDir,-.06);
+  const towardTower=n.clone().negate();
+  const overRail=l.over-l.height>.2,railsOn=sideSign=>!!l.handrails?.[sideSign<0?0:1]?.length;
+  const topHold=(sideSign,y,deckFirst)=>{const list=l.handrails?.[sideSign<0?0:1];
+   if(list?.length&&!deckFirst){const above=l.stand.y+.1;let best=null;for(const p of list)if(p.y>=above&&(!best||Math.abs(p.y-y)<Math.abs(best.y-y)))best=p;best??=list[list.length-1];
+    const out=r.clone().multiplyScalar(sideSign);return {wrist:offset(best.point.clone().addScaledVector(r,-sideSign*.04),towardTower,out),dir:towardTower,palm:out,flat:false};}
+   const source=propRoot.children.find(c=>c.name==='lifeguard'),spot=l.edge.clone().addScaledVector(n,-.22).addScaledVector(r,sideSign*.24),deck=source&&surfacesAt(source,spot.x,spot.z).find(h=>Math.abs(h.point.y-(l.stand.y-.015))<.12);spot.y=(deck?.point.y??l.stand.y-.015)+.02;
+   return {wrist:offset(spot,towardTower,down),dir:towardTower,palm:down,flat:true};};
+  let onHold=0;
   for(let i=0;i<2;i++){const sideSign=Math.sign(character.side[i])*Math.sign(avatarX||1);
    // Feet: rung k sits at k·spacing; level 0 is the sand. The sole rests on top of the rung (rung heights are centres).
    const fx=u0/sp+(i?.5:0),fl=Math.min(level(fx),top);along(rungAt(fl),climb.feet[i]).addScaledVector(r,sideSign*.12).addScaledVector(n,.03+.12*swing(fx)).y+=.03+(character.ankleHeight??.08);
    // Hands: about five rungs above the feet, then up the rails above the deck.
    // Above the top rung the hands take the handrails (the ladder's rails or the posts beside the opening) if any.
-   const hx=u0/sp+(i?0:.5),hl=level(hx)+handRungs,h=Math.min(rungAt(hl),l.over+.22),held=hl>top?rail(sideSign,along(h,new T.Vector3()).addScaledVector(r,sideSign*.2)):null;
-   if(held)climb.hands[i].copy(held).addScaledVector(n,.1*swing(hx));else along(h,climb.hands[i]).addScaledVector(r,sideSign*(hl>top?.26:.17)).addScaledVector(n,.1*swing(hx));
+   const hx=u0/sp+(i?0:.5),hl=level(hx)+handRungs,h=Math.min(rungAt(hl),l.over+.22);
+   along(h,climb.hands[i]).addScaledVector(r,sideSign*.17);
    if(reach)climb.hands[i].addScaledVector(fingers,-reach*.85).addScaledVector(palm,-.04);else climb.hands[i].addScaledVector(n,.06);
    climb.aim[i].dir.copy(fingers);climb.aim[i].palm.copy(palm);
-   climb.footWeight[i]=1-T.MathUtils.smoothstep(m,.9,1);climb.handWeight[i]=1-T.MathUtils.smoothstep(m,.7,.92);climb.curl[i]=climb.handWeight[i];
+   // Past the top rung there is nothing left to grip on the ladder line: the hand moves over to a hold beside it.
+   const w=T.MathUtils.clamp(hl-top,0,1),hold=w>0?topHold(sideSign,h,!overRail):null;onHold=Math.max(onHold,w);
+   if(w>0){climb.hands[i].lerp(hold.wrist,w);climb.aim[i].dir.lerp(hold.dir,w).normalize();climb.aim[i].palm.lerp(hold.palm,w).normalize();}
+   climb.hands[i].addScaledVector(n,.1*swing(hx));
+   const rails=railsOn(sideSign),flat=hold?.flat?w*(rails?1-T.MathUtils.smoothstep(m,0,.3):1):0;
+   climb.footWeight[i]=1-T.MathUtils.smoothstep(m,.9,1);climb.handWeight[i]=1-(rails||overRail?T.MathUtils.smoothstep(m,.5,.72):T.MathUtils.smoothstep(m,.35,.6));climb.curl[i]=climb.handWeight[i]*(1-flat);
   }
   // Over the top like a person: hands on the top rail (or deck edge), hips just high enough to clear it, the lead foot
   // arcs over and down onto the deck and the other follows, leaning in under a low roof. Then turn to face the sea.
@@ -285,25 +299,25 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
   const body=(h,o)=>along(h,o).addScaledVector(n,out).setY(o.y-.25);
   const start=body(k.climbH,new T.Vector3()),end=l.stand,deckY=l.stand.y-.015,railY=l.bottom.y+l.over;
   // The torso leans in a little with the ladder, so the hands reach the rungs ahead.
-  body(u0,climb.root);climb.duck=0;climb.lean=.12+.4*tilt;
+  body(u0,climb.root);climb.duck=0;climb.lean=.12+.4*tilt+(overRail?0:.35*onHold);
   if(m>0){
    const across=T.MathUtils.smoothstep(m,.15,.85),drop=T.MathUtils.smoothstep(m,.35,.95);
    climb.root.set(start.x+(end.x-start.x)*across,start.y+(end.y-start.y)*drop,start.z+(end.z-start.z)*across);
    const railLine=l.edge.clone().addScaledVector(n,-l.railDepth);
    for(let i=0;i<2;i++){const sideSign=Math.sign(character.side[i])*Math.sign(avatarX||1);
-    // Hands on the posts beside the opening at about waist height on the deck, else on the top rail or deck edge.
-    let grip=null;for(const y of [deckY+.7,deckY+.6,deckY+.8,deckY+.5,deckY+.9])if(!grip)grip=rail(sideSign,y);
-    if(!grip){grip=railLine.clone().addScaledVector(r,sideSign*.24);grip.y=railY;}
-    if(reach)grip.addScaledVector(fingers,-reach*.85).addScaledVector(palm,-.04);else grip.addScaledVector(n,.06);
-    climb.hands[i].lerp(grip,T.MathUtils.smoothstep(m,0,.15));
+    // Hands on the posts beside the opening at about waist height on the deck, else on the top rail, or flat on the deck
+    // when nothing rises above it.
+    const hold=topHold(sideSign,deckY+.7,false);let grip=hold.wrist;
+    if(hold.flat&&overRail){grip=railLine.clone().addScaledVector(r,sideSign*.24);grip.y=railY;offset(grip,fingers,palm);}
+    const take=T.MathUtils.smoothstep(m,0,.3);climb.hands[i].lerp(grip,take);if(!hold.flat){climb.aim[i].dir.lerp(hold.dir,take).normalize();climb.aim[i].palm.lerp(hold.palm,take).normalize();}
     const s0=i?.45:.1,f=T.MathUtils.smoothstep(m,s0,s0+.4),from=climb.feet[i].clone(),to=end.clone().addScaledVector(r,sideSign*.12),mid=railLine.clone().addScaledVector(r,sideSign*.14);to.y=deckY+.08;mid.y=railY+.16;
     climb.feet[i].set(0,0,0).addScaledVector(from,(1-f)**2).addScaledVector(mid,2*f*(1-f)).addScaledVector(to,f*f);
    }
-   climb.lean=.12+.4*tilt*(1-across)+.45*Math.sin(Math.PI*across);
+   climb.lean=.12+(.4*tilt+(overRail?0:.35*onHold))*(1-across)+.45*Math.sin(Math.PI*across);
    if(l.roof!=null)climb.duck=T.MathUtils.clamp((climb.root.y+1.75-l.roof)/.5,0,1)*T.MathUtils.smoothstep(m,.3,.6);
   }
   let toSea=Math.PI-ladderYaw;toSea=Math.atan2(Math.sin(toSea),Math.cos(toSea));climb.yaw=ladderYaw+toSea*turn;
-  climb.onLadder=m<.9;climb.camera=T.MathUtils.smoothstep(m,.4,1);
+  climb.onLadder=m<.62;climb.camera=T.MathUtils.smoothstep(m,.4,1);
   return climb;
  }
  function syncAnchors(){
