@@ -65,7 +65,9 @@
   @keyframes pop { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) { .play { animation: none; } .bar, .val { transition: none; } }
   /* 手機（窄螢幕或橫放的矮螢幕）：改成上下捲動閱讀，所有頁依序排開；影片捲到才播放，圖並排成兩欄或三欄 */
-  body.scroll { height: auto; overflow: auto; }
+  html.scroll, html.scroll body { height: auto; }
+  html.scroll { overflow: auto; }  /* html 的 overflow 會傳給 viewport：留著 hidden，手指就滑不動（程式捲動仍有效） */
+  html.scroll body { overflow: visible; }
   .scroll .slide { position: static; display: flex; justify-content: flex-start; padding: 40px 18px 34px; gap: 16px;
                    border-top: 1px solid #1f252d; }
   .scroll .slide:first-of-type { min-height: 88svh; justify-content: center; border-top: 0; }
@@ -405,7 +407,7 @@ const videoIO = new IntersectionObserver(es => es.forEach(e => {
   if (e.intersectionRatio >= 0.5) { v.preload = 'auto'; v.play().catch(() => {}); } else v.pause();
 }), {threshold: [0, 0.5]});
 function layout() {
-  document.body.classList.toggle('scroll', narrow.matches);
+  document.documentElement.classList.toggle('scroll', narrow.matches);
   if (narrow.matches) {
     document.querySelectorAll('video').forEach(v => { v.pause(); if (v.readyState < 2) v.preload = 'metadata'; videoIO.observe(v); });
     slides.forEach(s => pageIO.observe(s));
