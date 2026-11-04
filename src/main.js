@@ -16,7 +16,9 @@ if(gaming){params.set('explore','1');params.delete('cam');if(!params.has('group'
 const comparing=location.pathname.endsWith('/compare.html');
 if(comparing){params.set('explore','1');params.delete('cam');}
 const renderer=new THREE.WebGLRenderer({antialias:!lite});
-renderer.setPixelRatio(lite?1:Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);
+// The phone game starts sharper (adapt() below brings it down where the GPU cannot keep up); stills, recordings and automation stay at 1.
+const maxRatio=lite&&gaming&&!params.has('time')&&params.get('auto')!=='1'&&window.__TIME__==null?Math.min(devicePixelRatio,1.5):1;
+renderer.setPixelRatio(lite?maxRatio:Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);
 renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.65;
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
@@ -78,19 +80,21 @@ const explore=exploreEnabled?(await import('./explore.js')).createExplore({scene
 const game=gaming?await (await import('./game/index.js')).createGame({scene,camera,renderer,water,config,explore,auto:params.get('auto')==='1'}):null;
 let lastFrame=performance.now(),lastWaterTime=water.material.uniforms.time.value;
 comparison?.connect(explore);
-// Lite only, live play only: when more than 4% of frames over 2 s miss the display's rate, render at 0.1 lower pixel
-// ratio (down to 0.6), and step back up after 6 s without misses. Stills, recordings and automation never see it.
-let ratio=1,missed=0,frames=0,windowStart=0,clean=0;
+// Lite only, live play only: when more than 10% of frames over at least 2 s and 30 frames take over 25 ms, render at 0.1
+// lower pixel ratio (down to 0.6), and step back up to maxRatio after 6 s without that. A stall over 1 s (a hidden tab, a
+// load) starts the count again. Stills, recordings and automation never see it.
+let ratio=maxRatio,missed=0,frames=0,windowStart=performance.now(),clean=0;
 function adapt(dt){
  if(!lite||params.has('time')||params.get('auto')==='1'||window.__TIME__!=null||document.hidden)return;
- frames++;if(dt>1000/50)missed++;
- const now=performance.now();if(now-windowStart<2000)return;if(frames<30){missed=frames=0;windowStart=now;return;}
- const rate=missed/frames,next=rate>.04?Math.max(.6,ratio-.1):(clean+=now-windowStart)>6000?Math.min(1,ratio+.1):ratio;
- if(rate>.04)clean=0;
- if(next!==ratio){ratio=next;clean=0;renderer.setPixelRatio(ratio);renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);}
+ const now=performance.now();if(dt>1000){missed=frames=0;windowStart=now;return;}
+ frames++;if(dt>25)missed++;
+ if(now-windowStart<2000||frames<30)return;
+ const slow=missed/frames>.1,next=slow?Math.max(.6,ratio-.1):(clean+=now-windowStart)>6000?Math.min(maxRatio,ratio+.1):ratio;
+ if(slow)clean=0;
+ if(next!==ratio){ratio=Math.round(next*10)/10;clean=0;renderer.setPixelRatio(ratio);renderer.setSize(innerWidth,innerHeight);composer.setPixelRatio(ratio);}
  missed=frames=0;windowStart=now;
 }
 const clock=new THREE.Clock();const fixed=params.has('time')?Number(params.get('time')):null;
 function frame(){requestAnimationFrame(frame);water.material.uniforms.time.value=window.__TIME__??fixed??clock.getElapsedTime();controls?.update();const now=performance.now();const gameDt=Math.max(0,Math.min(.1,water.material.uniforms.time.value-Math.max(lastWaterTime,water.userData.simTime??-Infinity)));explore?.update(gaming?gameDt:(now-lastFrame)/1000);game?.update(gameDt,water.material.uniforms.time.value);lastWaterTime=water.material.uniforms.time.value;adapt(now-lastFrame);lastFrame=now;if(comparison)comparison.render();else if(!game?.suspended)composer.render();}frame();  // 潮池 iframe 開著時暫停沙灘繪製
-window.__SCENE__={scene,camera,water,propRoot,results,renderer};window.__READY__=true;
+window.__SCENE__={scene,camera,water,propRoot,results,renderer,composer};window.__READY__=true;
 addEventListener('resize',()=>{if(comparison){comparison.resize();return;}camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);});
