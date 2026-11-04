@@ -25,8 +25,8 @@ export function createExtras({scene,camera,clock,explore:e,objects,toast}){
   if(p.distanceTo(castle.point)<2.5){if(castle.stage()==='washing')return;if(castle.stage()==='built'){castle.wash(clock.value);toast('讓浪花帶走，等一下還能再堆。');}else{castle.start(begin('castle',castle.stand)+.35);toast('蹲下來，慢慢把濕沙拍實。');}return;}
   if(p.distanceTo(kite.point)<2.5){const at=begin('kite',kite.point);kite.start(at);e.setView(0,-.3);toast(touchOnly?'風箏交給海風。拖曳環顧，點「收回風箏」收線。':'風箏交給海風。滑鼠環顧，按 E 收回。');}}
  function near(){if(action)return action.kind==='kite'?{kind:'extra',label:kite.info.returning?'正在慢慢收線':'收回風箏',position:kite.grip}:null;
-  if(e.player.distanceTo(castle.point)<2.5)return castle.stage()==='washing'?null:{kind:'extra',label:castle.stage()==='built'?'讓浪帶走':'堆一座沙堡',position:castle.point};
-  if(e.player.distanceTo(kite.point)<2.5)return {kind:'extra',label:'放風箏，交給海風',position:kite.point};return null;}
+  if(e.player.distanceTo(castle.point)<3.5)return castle.stage()==='washing'?null:{kind:'extra',label:castle.stage()==='built'?'讓浪帶走':'堆一座沙堡',position:castle.point};
+  if(e.player.distanceTo(kite.point)<3.5)return {kind:'extra',label:'放風箏，交給海風',position:kite.point};return null;}
  function release(){if(action?.kind==='kite'){const input=e.input({});e.setView(input.yaw,.08);}action=null;e.setHold(false);e.clearInput();}
  function update(t,active){castle.update(t);kite.update(t);crabs.update(t,e.player,active);birds.update(t);
   if(!action)return;const a=action,u=T.MathUtils.clamp((t-a.at)/Math.max(.001,a.duration),0,1);e.player.lerpVectors(a.from,a.spot,u);e.player.y=groundHeight(e.player.x,e.player.z);e.avatar.position.copy(e.player);e.setFirstPerson(false);e.avatar.rotation.set(0,Math.PI,0);
