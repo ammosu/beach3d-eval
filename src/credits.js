@@ -45,6 +45,11 @@ export const CREDITS=[
   ['蝴蝶魚','Butterfly Fish','Quaternius',pizza('s2MkBeSzGy'),CC0],
   ['神仙魚','Regal angelfish','rubykamen',sketchfab('9d803acdd8dd4e4ca00d3f2dfff1e318'),BY4]]]];
 
+// Shared by all groups (game only), so credited whichever group is on screen; same data as assets/wreck/CREDITS.md.
+const SCENARIO='https://huggingface.co/datasets/scenario-labs/3d-collection';
+export const SHARED_CREDITS=[['沉船點與遠海漁船（三組共用）',['沉沒的飛機','艦砲','舊寶箱','潛水頭盔','破損陶甕','遠海漁船'].map(what=>[what,'Scenario 3D Collection','Scenario（AI 生成）',SCENARIO,BY4])]];
+const listHtml=(sections,note)=>sections.map(([section,items])=>`<h3>${section}</h3><ul>${items.map(([what,title,author,url,[lic,licUrl]])=>`<li>${what}：<a href="${url}" target="_blank" rel="noopener">${esc(title)}</a> · ${esc(author)} · <a href="${licUrl}" target="_blank" rel="noopener">${lic}</a></li>`).join('')}</ul>`).join('')+`<small>${note}</small>`;
+
 const CSS=`.credits-btn{font:inherit;font-size:12px;line-height:1;margin-left:.5em;padding:3px 7px;border-radius:999px;border:1px solid currentColor;background:transparent;color:inherit;opacity:.8;cursor:help;vertical-align:middle;pointer-events:auto}
 .credits-btn:hover,.credits-btn:focus-visible,.credits-btn[aria-expanded=true]{opacity:1}
 .credits-pop{position:fixed;z-index:1000;width:min(380px,calc(100vw - 16px));max-height:min(70vh,520px);overflow:auto;padding:12px 14px;border-radius:10px;background:rgba(18,28,34,.96);color:#eef3f1;font:12px/1.45 system-ui,"Noto Sans TC",sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.35);text-align:left;pointer-events:auto}
@@ -55,8 +60,7 @@ let pop=null,owner=null,hideTimer=0;
 function popup(){
  if(pop)return pop;
  const style=document.createElement('style');style.textContent=CSS;document.head.append(style);
- pop=document.createElement('div');pop.className='credits-pop';pop.id='credits-pop';pop.setAttribute('role','dialog');pop.setAttribute('aria-label','C 組素材出處');pop.hidden=true;
- pop.innerHTML=CREDITS.map(([section,items])=>`<h3>${section}</h3><ul>${items.map(([what,title,author,url,[lic,licUrl]])=>`<li>${what}：<a href="${url}" target="_blank" rel="noopener">${esc(title)}</a> · ${esc(author)} · <a href="${licUrl}" target="_blank" rel="noopener">${lic}</a></li>`).join('')}</ul>`).join('')+'<small>C 組使用免費素材庫的模型，依各自授權標示；部分模型經減面、轉向與縮放。</small>';
+ pop=document.createElement('div');pop.className='credits-pop';pop.id='credits-pop';pop.setAttribute('role','dialog');pop.hidden=true;
  pop.addEventListener('pointerenter',()=>clearTimeout(hideTimer));pop.addEventListener('pointerleave',()=>hideSoon());
  addEventListener('keydown',e=>{if(e.key==='Escape')hide();},true);
  addEventListener('pointerdown',e=>{if(!pop.hidden&&!pop.contains(e.target)&&e.target!==owner)hide();},true);
@@ -65,7 +69,10 @@ function popup(){
  document.body.append(pop);return pop;
 }
 function show(button){
- const p=popup();clearTimeout(hideTimer);owner?.setAttribute('aria-expanded','false');owner=button;button.setAttribute('aria-expanded','true');p.hidden=false;
+ const p=popup();clearTimeout(hideTimer);
+ const shared='shared' in button.dataset;p.setAttribute('aria-label',shared?'共用素材出處':'C 組素材出處');
+ p.innerHTML=shared?listHtml(SHARED_CREDITS,'三組共用的場景佈置，不屬於比較項目；模型經減面與縮放。'):listHtml(CREDITS,'C 組使用免費素材庫的模型，依各自授權標示；部分模型經減面、轉向與縮放。');
+ owner?.setAttribute('aria-expanded','false');owner=button;button.setAttribute('aria-expanded','true');p.hidden=false;
  const r=button.getBoundingClientRect(),w=p.offsetWidth,h=p.offsetHeight;
  // Below, else above, else beside the button (never over it, or leaving the button would close the list).
  const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));let left,top;
@@ -85,3 +92,5 @@ export function creditsButton(){
  b.addEventListener('click',e=>{e.stopPropagation();if(owner===b&&!pop.hidden&&e.pointerType!=='mouse')hide();else show(b);});
  return b;
 }
+// The same button for what every group shows (the game's wreck site and fishing boat).
+export function sharedCreditsButton(){const b=creditsButton();b.dataset.shared='';b.textContent='共用素材出處 ⓘ';return b;}
