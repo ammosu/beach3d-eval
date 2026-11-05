@@ -314,3 +314,11 @@ Open **http://localhost:5191/game.html** (also linked as **遊戲模式** on the
 - 驗證：`node scripts/verify-game.mjs` 通過原七任務、推／拉船、ABC 角色接觸、缺檔與手機回歸，並新增 B 全部自由體驗、A/C 沙堡與風箏、凍結時鐘、WASD 固定與手機 `lite=1` 觸控操作。完成沙堡時手部 IK 最大誤差約 1.6 cm，風箏測試高度約 30.26 m。`npm run build` 通過，只有既有大型 bundle 提醒。`node scripts/shoot.mjs A` 的 wide／beach／closeup 與修改前重新拍攝的基準逐像素相同（最大差 0），結果見 `shots/game/scene-unchanged.json`。
 - 畫面檢查：`shots/game/{castle,kite,crabs,A_castle,A_kite,C_castle,C_kite,mobile-kite}.png`；`shots/game/extras/` 另有 lite 的沙堡側面、沖蝕、握線近看、海鳥與地面投影。已確認手貼牆頂／握把手、線與風箏可辨識、沙蟹與海鳥尺度合理、沒有黑格；手機額外提示與導航列已錯開（390×844：任務本底部 341 px、導航列頂部 355 px，間隔 14 px），觸控放／收風箏檢查通過。
 - 已知限制：風箏影子是淡投影、沙堡侵蝕是時間變形，不是物理模擬。手機以 Chromium 觸控與 lite 模式驗證，尚未量測實體手機 FPS。本次未生成或下載模型，未 commit。
+
+### A 組角色重做（2026-11-05）
+
+- 流程：兩輪 codex（`gpt-6-astra`，推理 xhigh，fast），第 1 輪 1604 秒只改外觀，第 2 輪 2176 秒修外觀缺陷並新增 A 專用的走路、跑步、站立動作。brief 為 `BRIEF_character_A.md`、`BRIEF_character_A2.md`，缺陷清單由 Claude 看截圖後撰寫。原版角色是 2026-10-19 的 `game2`（1144 秒，同模型，推理 high）。`tools/codex_run.sh` 新增 `EFFORT=` 調整推理強度。
+- 結果：面數 11,484 → 19,992，骨架與 17 根骨頭位置不變。B、C 各 14 張固定機位截圖與改動前逐像素相同；A 穿模最深 4 cm（改動前 5 cm），沒有新增道具；`verify-game`、`probe-ik walk A`、`npm run build` 通過。
+- 動作：站立、走路、跑步由 `stride` 與 `age` 直接算出，支撐腳滑動約為 0；走路屈膝、腳掌翻轉、骨盆動作，跑步有騰空，站立有呼吸。
+- 已知不足（數字量不到，看畫面才知道）：第 2 輪的袖子張成披風，比第 1 輪差；脖子仍像柱子；臉像木偶，離 B 還很遠；跑步重心偏低，像弓箭步。對照圖：`shots/character/compare_rounds.png`。
+- 盲測分數與 REPORT 的數字都早於這次改動；A 多跑了兩輪，比較時要註明。

@@ -13,30 +13,113 @@ function procedural(){
  bone('hips',null,0,.91,0);bone('spine','hips',0,.17,0);bone('chest','spine',0,.23,0);bone('neck','chest',0,.13,0);bone('head','neck',0,.10,0);
  for(const [side,s] of [['L',-1],['R',1]]){bone(`arm${side}`,'chest',s*.235,-.01,0);bone(`fore${side}`,`arm${side}`,s*.07,-.265,0);bone(`hand${side}`,`fore${side}`,0,-.245,0);bone(`thigh${side}`,'hips',s*.115,-.015,0);bone(`calf${side}`,`thigh${side}`,0,-.405,0);bone(`foot${side}`,`calf${side}`,0,-.405,.015);}
  joints.hips.updateMatrixWorld(true);
- const palette={skin:0xc68d65,shirt:0x398d94,trim:0xd7e6d8,shorts:0xd9b98a,hair:0x33261f,sole:0x343b37,white:0xf9f5e8,eye:0x29251e};
- function add(geo,color,weights){if(geo.index)geo=geo.toNonIndexed();const pos=geo.attributes.position,si=[],sw=[],colors=[],c=new T.Color(palette[color]??color);for(let i=0;i<pos.count;i++){const w=weights(V().fromBufferAttribute(pos,i));si.push(w[0],w[1]??w[0],0,0);sw.push(w[2]??1,1-(w[2]??1),0,0);colors.push(c.r,c.g,c.b);}geo.setAttribute('skinIndex',new T.Uint16BufferAttribute(si,4));geo.setAttribute('skinWeight',new T.Float32BufferAttribute(sw,4));geo.setAttribute('color',new T.Float32BufferAttribute(colors,3));pieces.push(geo);}
- const idx=n=>bones.indexOf(joints[n]),rigid=n=>()=>[idx(n)];
- function ellipsoid(center,radii,color,joint,segments=20){const g=new T.SphereGeometry(1,segments,12);g.scale(...radii);g.translate(...center);add(g,color,rigid(joint));}
- // Profile rings provide a continuous, tapered torso, avoiding a capsule silhouette.
- function profile(rings,color,weight,segments=24){const p=[],uv=[],index=[];for(let r=0;r<rings.length;r++){const [x,y,z,rx,rz]=rings[r];for(let i=0;i<=segments;i++){const a=i/segments*Math.PI*2;p.push(x+Math.cos(a)*rx,y,z+Math.sin(a)*rz);uv.push(i/segments,r/(rings.length-1));if(r&&i){const k=r*(segments+1)+i;index.push(k,k-segments-2,k-1,k,k-segments-1,k-segments-2);}}}const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(index);g.computeVertexNormals();add(g,color,weight);}
- profile([[0,.89,0,.16,.103],[0,.94,0,.18,.115],[0,1.10,0,.165,.109],[0,1.27,0,.225,.12],[0,1.34,0,.215,.10],[0,1.40,0,.082,.071]],'shirt',p=>{const f=T.MathUtils.clamp((p.y-1.08)/.23,0,1);return [idx('chest'),idx('spine'),f];});
- profile([[0,.88,0,.165,.104],[0,.92,0,.18,.118],[0,.95,0,.18,.118]],'trim',rigid('hips'));
- ellipsoid([0,1.435,0],[.068,.11,.065],'skin','neck');ellipsoid([0,1.59,.005],[.132,.163,.121],'skin','head',28);
- // Hair cap has an asymmetric swept fringe; eyes and ears are also skinned.
- const hair=new T.SphereGeometry(1,28,12,0,Math.PI*2,0,Math.PI*.53);hair.scale(.137,.169,.125);hair.translate(0,1.594,-.008);add(hair,'hair',rigid('head'));
- ellipsoid([-.043,1.70,.064],[.10,.045,.064],'hair','head');
- for(const s of [-1,1]){ellipsoid([s*.129,1.575,.003],[.027,.045,.026],'skin','head');ellipsoid([s*.048,1.60,.112],[.024,.014,.01],'white','head',12);ellipsoid([s*.048,1.60,.121],[.010,.011,.004],'eye','head',12);ellipsoid([s*.048,1.624,.113],[.029,.006,.007],'hair','head',12);}
- ellipsoid([0,1.572,.124],[.022,.030,.027],'skin','head');ellipsoid([0,1.529,.112],[.034,.005,.005],0x885b49,'head',12);
- for(const [side,s] of [['L',-1],['R',1]]){
-  const x=s*.115;
-  profile([[x,.57,0,.098,.097],[x,.63,0,.105,.105],[x,.82,0,.115,.12],[x,.91,0,.104,.10]],'shorts',rigid(`thigh${side}`));
-  profile([[x,.085,.015,.045,.048],[x,.16,0,.051,.055],[x,.31,0,.073,.067],[x,.48,0,.071,.07],[x,.58,0,.084,.083],[x,.64,0,.087,.09]],'skin',p=>[idx(`thigh${side}`),idx(`calf${side}`),T.MathUtils.smoothstep(p.y,.42,.56)]);
-  ellipsoid([x,.064,.065],[.065,.05,.135],'skin',`foot${side}`);ellipsoid([x,.026,.069],[.075,.025,.145],'sole',`foot${side}`);ellipsoid([x,.10,.09],[.071,.017,.044],'shirt',`foot${side}`);
-  profile([[s*.31,.785,0,.044,.046],[s*.31,.90,0,.055,.051],[s*.305,1.035,0,.060,.058],[s*.27,1.21,0,.073,.072],[s*.235,1.31,0,.075,.075]],'skin',p=>[idx(`arm${side}`),idx(`fore${side}`),T.MathUtils.smoothstep(p.y,1.00,1.10)]);
-  profile([[s*.28,1.17,0,.074,.077],[s*.265,1.25,0,.083,.083],[s*.235,1.32,0,.075,.074],[s*.225,1.355,0,0,0]],'shirt',p=>[idx(`arm${side}`),idx('chest'),1-T.MathUtils.smoothstep(p.y,1.28,1.355)]);
-  ellipsoid([s*.31,.738,.008],[.047,.068,.029],'skin',`hand${side}`);ellipsoid([s*.275,.75,.02],[.020,.043,.022],'skin',`hand${side}`);
+ const palette={skin:0xc79270,shirt:0x437c80,shorts:0xb4a17e,hair:0x342b25,sole:0x36352f,strap:0x654b35,white:0xd3c9b8,eye:0x423c30,nail:0xb8957d};
+ const idx=n=>bones.indexOf(joints[n]),rigid=n=>()=>[idx(n)],smooth=T.MathUtils.smoothstep,clamp=T.MathUtils.clamp;
+ const bell=(v,c,w)=>Math.exp(-(((v-c)/w)**2)),mix=T.MathUtils.lerp;
+ // Colour is sampled in bind space; all detail is geometry/vertex colour, with no runtime work or assets.
+ function add(geo,color,weights,tint){if(geo.index)geo=geo.toNonIndexed();const pos=geo.attributes.position,si=[],sw=[],colors=[],base=new T.Color(palette[color]??color);
+  for(let i=0;i<pos.count;i++){const p=V().fromBufferAttribute(pos,i),w=weights(p,i),c=base.clone();si.push(w[0],w[1]??w[0],0,0);sw.push(w[2]??1,1-(w[2]??1),0,0);
+   const grain=Math.sin(p.x*431+p.y*193+p.z*317)*Math.sin(p.y*271-p.z*419)*.013;
+   c.multiplyScalar(1+grain);if(tint)tint(c,p);colors.push(c.r,c.g,c.b);}
+  geo.setAttribute('skinIndex',new T.Uint16BufferAttribute(si,4));geo.setAttribute('skinWeight',new T.Float32BufferAttribute(sw,4));geo.setAttribute('color',new T.Float32BufferAttribute(colors,3));pieces.push(geo);}
+ function surface(rows,n,point,color,weight,tint){rows=Math.max(3,Math.round(rows*.72));n=Math.max(8,Math.round(n*.72/4)*4);const p=[],uv=[],ix=[];for(let j=0;j<=rows;j++)for(let i=0;i<n;i++){p.push(...point(j/rows,i/n*Math.PI*2,j,i));uv.push(i/n,j/rows);if(j){const a=(j-1)*n+i,b=(j-1)*n+(i+1)%n,c=j*n+i,d=j*n+(i+1)%n;ix.push(a,c,b,b,c,d);}}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(ix);g.computeVertexNormals();add(g,color,weight,tint);}
+ // Cubic longitudinal interpolation and shared circular indices give rounded joints without normal seams.
+ function cubic(t,a,b,c,d){const v=(c-a)*.5,w=(d-b)*.5;return (2*b-2*c+v+w)*t*t*t+(-3*b+3*c-2*v-w)*t*t+v*t+b;}
+ function sample(rings,t){const u=t*(rings.length-1),k=Math.min(rings.length-2,Math.floor(u)),f=u-k;return rings[k].map((_,i)=>clamp(cubic(f,rings[Math.max(0,k-1)][i],rings[k][i],rings[k+1][i],rings[Math.min(rings.length-1,k+2)][i]),Math.min(rings[k][i],rings[k+1][i]),Math.max(rings[k][i],rings[k+1][i])));}
+ function loft(rings,color,weight,{n=24,rows=(rings.length-1)*2,shape,tint}={}){surface(rows,n,(t,a)=>{const [x,y,z,rx,rz]=sample(rings,t),p=[x+Math.cos(a)*rx,y,z+Math.sin(a)*rz];return shape?shape(p,a,t):p;},color,weight,tint);}
+ function ellipsoid(center,radii,color,joint,n=16,rows=10,tint){surface(rows,n,(t,a)=>{const h=Math.PI*t,r=Math.sin(h);return [center[0]+r*Math.cos(a)*radii[0],center[1]-Math.cos(h)*radii[1],center[2]+r*Math.sin(a)*radii[2]];},color,rigid(joint),tint);}
+ function cord(points,radius,color,joint,n=7,tint){const curve=new T.CatmullRomCurve3(points.map(p=>V(...p))),g=new T.TubeGeometry(curve,Math.max(6,points.length*2),radius,n,false);add(g,color,rigid(joint),tint);}
+ const skinTint=(c,p)=>{const warm=bell(p.y,.49,.06)*.13+bell(p.y,1.025,.045)*.08+bell(p.y,.70,.035)*.07;c.r*=1+warm*.35;c.g*=1-warm*.22;c.b*=1-warm*.2;};
+ const clothTint=(c,p)=>{const weave=.018*Math.sin(p.y*850)*Math.sin(p.x*850),hem=bell(p.y,.912,.003)*.08;c.multiplyScalar(1+weave+.035*Math.sin(p.y*76+p.x*24)-hem);};
+ const torsoWeight=p=>p.y<1.12?[idx('spine'),idx('hips'),smooth(p.y,.94,1.10)]:[idx('chest'),idx('spine'),smooth(p.y,1.06,1.29)];
+ // A single branched shirt: the armholes and sleeves share vertices, normals and weights.
+ const shirtRings=[[0,.904,0,.184,.119],[0,.918,0,.184,.119],[0,.955,0,.173,.109],[0,1.01,0,.163,.104],[0,1.075,0,.158,.107],[0,1.135,0,.176,.116],[0,1.19,0,.197,.119],[0,1.235,0,.213,.12],[0,1.28,0,.222,.114],[0,1.325,0,.224,.099],[0,1.386,-.002,.198,.081],[0,1.459,-.002,.088,.068]];
+ const sp=[],su=[],six=[],sweights=[],sn=40,at=(r,i)=>r*sn+(i+sn)%sn;
+ for(let r=0;r<shirtRings.length;r++){const [x,y,z,rx,rz]=shirtRings[r];for(let i=0;i<sn;i++){const a=i/sn*Math.PI*2,front=Math.max(0,Math.sin(a)),back=Math.max(0,-Math.sin(a)),fold=(.004*Math.sin(a*7+y*67)+.002*Math.sin(a*13-y*40))*bell(y,.972,.095)*smooth(y,.915,.95)+.003*Math.sin(y*85+a*3)*bell(y,1.20,.045)*bell(Math.abs(Math.cos(a)),.8,.20);
+  sp.push(x+Math.cos(a)*(rx+fold),y,z+Math.sin(a)*(rz+fold)+front*.012*bell(Math.abs(Math.cos(a)),.5,.25)*bell(y,1.25,.07)-back*.005*bell(Math.abs(Math.cos(a)),.55,.3)*bell(y,1.29,.07));su.push(i/sn,r/11);sweights.push(smooth(Math.abs(sp.at(-3)),.155,.266)*smooth(y,1.08,1.14)*(1-smooth(y,1.32,1.40)));
+  if(r){const inHole=r>=7&&r<=10&&(i<5||i>=35||(i>=15&&i<25));if(!inHole)six.push(at(r-1,i),at(r,i),at(r-1,i+1),at(r-1,i+1),at(r,i),at(r,i+1));}}}
+ for(const [side,s,centre] of [['L',-1,20],['R',1,0]]){
+  const loop=[];for(let i=-5;i<5;i++)loop.push(at(6,centre+i));for(let r=6;r<10;r++)loop.push(at(r,centre+5));for(let i=5;i>-5;i--)loop.push(at(10,centre+i));for(let r=10;r>6;r--)loop.push(at(r,centre-5));
+  let prev=loop;
+  for(let r=1;r<=7;r++){const t=Math.min(r,5)/5,next=[];for(let k=0;k<loop.length;k++){const p=V().fromArray(sp,loop[k]*3),a=Math.atan2((p.y-1.28)*1.12,(p.z)*s),target=V(s*(.282+Math.sin(a)*(.060-(r>5?.003:0))),1.151-Math.sin(a)*.009+(r===7?.008:0),Math.cos(a)*s*(.063-(r>5?.003:0))),q=p.clone().lerp(target,t);if(r<5)q.x+=s*.003*Math.sin(Math.PI*t);next.push(sp.length/3);sp.push(q.x,q.y,q.z);su.push(k/loop.length,t);sweights.push(mix(sweights[loop[k]],1,smooth(t,0,.75)));}
+   for(let k=0;k<loop.length;k++){const l=(k+1)%loop.length;six.push(prev[k],next[k],prev[l],prev[l],next[k],next[l]);}prev=next;}
  }
- const geometry=mergeGeometries(pieces);pieces.forEach(g=>g.dispose());const material=new T.MeshStandardMaterial({vertexColors:true,roughness:.82});
+ {const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(sp,3));g.setAttribute('uv',new T.Float32BufferAttribute(su,2));g.setAttribute('sleeveWeight',new T.Float32BufferAttribute(sweights,1));g.setIndex(six);g.computeVertexNormals();
+  const skin=g.toNonIndexed(),weight=skin.attributes.sleeveWeight;skin.deleteAttribute('sleeveWeight');g.dispose();
+  add(skin,'shirt',(p,i)=>{const f=weight.getX(i),side=p.x<0?'L':'R';return f>0?[idx(`arm${side}`),idx('chest'),f]:torsoWeight(p);},clothTint);}
+
+ // Broad neck base, sternocleidomastoid ridges and a thin bound crew neckline.
+ loft([[0,1.365,0,.105,.067],[0,1.422,-.003,.090,.065],[0,1.455,-.006,.075,.063],[0,1.492,-.009,.073,.065],[0,1.532,-.010,.060,.055],[0,1.561,-.012,.049,.047]],'skin',p=>p.y<1.455?[idx('chest'),idx('neck'),1-smooth(p.y,1.38,1.455)]:[idx('neck'),idx('head'),1-smooth(p.y,1.48,1.55)],{n:32,shape:(p,a)=>{p[2]+=.004*Math.max(0,Math.sin(a))*Math.cos(a*4);return p;},tint:skinTint});
+ loft([[0,1.452,-.002,.090,.070],[0,1.460,-.002,.090,.070],[0,1.465,-.002,.086,.067],[0,1.462,-.002,.080,.063],[0,1.453,-.002,.080,.063]],0x426f72,rigid('chest'),{n:56,rows:6});
+ // Adult skull: narrow temples, cheek planes, mandibular angle, chin and recessed eye sockets.
+ const faceRings=[[0,1.515,.005,.029,.031],[0,1.532,.008,.052,.059],[0,1.55,0,.070,.074],[0,1.574,-.008,.084,.083],[0,1.598,-.011,.092,.087],[0,1.622,-.013,.094,.088],[0,1.646,-.017,.092,.089],[0,1.672,-.018,.093,.088],[0,1.699,-.021,.091,.084],[0,1.723,-.023,.078,.071],[0,1.744,-.025,.048,.044],[0,1.752,-.026,0,0]];
+ function faceShape(p){const [x,y,z]=p;if(z<-.012)return p;const front=smooth(z,-.012,.045),ax=Math.abs(x);
+  p[2]+=front*(.011*bell(ax,.060,.025)*bell(y,1.604,.021)-.008*bell(ax,.043,.022)*bell(y,1.641,.014)+.010*bell(ax,.042,.030)*bell(y,1.658,.009)+.012*bell(x,0,.014)*bell(y,1.632,.030)+.024*bell(x,0,.017)*bell(y,1.606,.017)+.006*bell(ax,.018,.010)*bell(y,1.602,.011)+.009*bell(x,0,.031)*bell(y,1.571,.010)+.008*bell(x,0,.029)*bell(y,1.539,.012));return p;}
+ const faceTint=(c,p)=>{skinTint(c,p);const front=smooth(p.z,.01,.065),cheek=bell(Math.abs(p.x),.060,.026)*bell(p.y,1.607,.023)*front,beard=(1-smooth(p.y,1.56,1.60))*front*.035;c.lerp(new T.Color(0xb47560),cheek*.14);c.lerp(new T.Color(0x786455),beard);c.lerp(new T.Color(0xd5a987),bell(p.x,0,.018)*bell(p.y,1.593,.010)*front*.30);};
+ const facePiece=pieces.length;
+ loft(faceRings,'skin',rigid('head'),{n:72,rows:46,shape:faceShape,tint:faceTint});
+ for(const s of [-1,1]){
+  // Almond eye aperture, with separate upper/lower lid rolls instead of exposed eyeballs.
+  const cx=s*.042,cy=1.642,cz=.071;
+  surface(6,24,(t,a)=>{const r=t,x=Math.cos(a)*.020*r,y=Math.sin(a)*.0062*r;return [cx+x,cy+y,cz+.0055*(1-r*r)];},'white',rigid('head'));
+  ellipsoid([cx,cy,cz+.0035],[.0055,.0063,.0025],'eye','head',12,8);
+  ellipsoid([cx,cy,cz+.0055],[.0025,.0033,.0012],0x191b18,'head',12,6);
+  for(const upper of [true,false]){const pts=[];for(let i=0;i<=8;i++){const t=i/8,x=(t*2-1)*.020;pts.push([cx+x,cy+(upper?1:-1)*Math.sin(t*Math.PI)*(upper?.0070:.0058),cz+.001]);}cord(pts,upper?.0018:.0017,upper?0x936c55:0xc49173,'head',6);}
+  cord([[cx-.020,1.653,.069],[cx-.010,1.657,.075],[cx+.009,1.656,.074],[cx+.020,1.650,.067]],.0013,0xb18063,'head',6);
+  cord([[cx-.022,1.663,.068],[cx-.011,1.667,.075],[cx+.007,1.667,.074],[cx+.022,1.661,.064]],.0020,0x69513e,'head',6);
+  // Auricle, inset concha and continuous outer helix; ear size is adult, not a round button.
+  ellipsoid([s*.095,1.620,-.017],[.014,.028,.017],'skin','head',16,10,faceTint);
+  ellipsoid([s*.105,1.620,-.004],[.006,.017,.010],0xa87359,'head',12,8);
+  cord([[s*.103,1.598,-.007],[s*.111,1.610,-.008],[s*.112,1.635,-.014],[s*.102,1.644,-.017],[s*.096,1.634,-.002]],.0038,'skin','head',6);
+  ellipsoid([s*.010,1.598,.096],[.003,.0014,.0015],0xb98b6b,'head',10,4);
+ }
+ // Vermilion is a thin, shaped lip edge; the philtrum and lip volume live on the face loft.
+ cord([[-.027,1.572,.073],[-.014,1.574,.079],[0,1.572,.083],[.014,1.574,.079],[.027,1.572,.073]],.0032,0xa66e61,'head',6);
+ cord([[-.025,1.570,.074],[0,1.567,.082],[.025,1.570,.074]],.0038,0xbe8875,'head',6);
+ // Scalp hugs the temples and tapers down at the nape. Wavy ridges form a swept crop, not separate blobs.
+ const hairPiece=pieces.length;
+ surface(18,64,(t,a)=>{const front=Math.max(0,Math.sin(a)),back=Math.max(0,-Math.sin(a)),edge=1.627+front*.057-back*.034+.010*front*bell(Math.abs(Math.cos(a)),.78,.22)+.004*Math.sin(a*13)+.002*Math.sin(a*23),h=t*Math.PI/2,y=mix(edge,1.763,Math.sin(h))+.013*Math.sin(Math.PI*t)**2*Math.cos(a+.5),r=Math.pow(Math.cos(h),.68)*(1-(.09+back*.13)*(1-smooth(t,0,.20))),wave=.0018*Math.sin(a*19+t*9)*Math.sin(Math.PI*t);
+  const q=[Math.cos(a)*(.101*r+wave)+.014*Math.sin(Math.PI*t),y,Math.sin(a)*(front?.102:.107)*r-.0258762173652649+wave];
+  // Keep the scalp just outside the underlying skull, dipping into it only at the tapered hairline.
+  const k=faceRings.findIndex(v=>v[1]>=y);if(k>0){const a0=faceRings[k-1],a1=faceRings[k],f=(y-a0[1])/(a1[1]-a0[1]),cx=mix(a0[0],a1[0],f),cz=mix(a0[2],a1[2],f),rx=mix(a0[3],a1[3],f)+.002,rz=mix(a0[4],a1[4],f)+.002,d=Math.hypot((q[0]-cx)/rx,(q[2]-cz)/rz),limit=t===0?.99:1.025;if(d<limit){q[0]=cx+(q[0]-cx)*limit/d;q[2]=cz+(q[2]-cz)*limit/d;}}
+  return q;},'hair',rigid('head'),(c,p)=>{const front=smooth(p.z,.005,.055),fade=smooth(p.y,1.602+front*.063,1.659+front*.025);c.lerp(new T.Color(palette.skin),.65*(1-fade));c.multiplyScalar(1+.085*Math.sin(p.x*255+p.y*130+p.z*90));});
+ {const p=pieces[hairPiece].attributes.position;let back=0;for(let i=0;i<p.count;i++)back=Math.min(back,p.getZ(i));const scale=-.1328762173652649/back;for(let i=0;i<p.count;i++)if(p.getZ(i)<0)p.setZ(i,p.getZ(i)*scale);}
+ // Shorts are connected at the seat/crotch; the upper panels blend onto the hips.
+ loft([[0,.901,0,.175,.109],[0,.908,0,.175,.109],[0,.927,0,.172,.107],[0,.932,0,.168,.103]],0xa18d6c,rigid('hips'),{n:40,rows:3});
+ cord([[.008,.913,.109],[.008,.87,.111],[.007,.827,.115],[0,.810,.114]],.0013,0x9f8c6d,'hips',5);
+ for(const [side,s] of [['L',-1],['R',1]]){
+  const x=s*.115,thigh=idx(`thigh${side}`),calf=idx(`calf${side}`),arm=idx(`arm${side}`),fore=idx(`fore${side}`);
+  const shortWeight=p=>[thigh,idx('hips'),1-smooth(p.y,.79,.93)];
+  const shortShape=(p,a)=>{const u=smooth(p[1],.72,.81),width=mix(.207,.170,smooth(p[1],.82,.90));p[0]=mix(p[0],s*width*Math.max(0,s*Math.cos(a)),u);p[2]=mix(p[2],Math.sin(a)*mix(.112,.102,smooth(p[1],.82,.90)),u);p[2]=mix(p[2],Math.sign(Math.sin(a)||1)*mix(.112,.102,smooth(p[1],.82,.90))*Math.sqrt(Math.max(0,1-(p[0]/width)**2)),u);const fold=.0025*Math.sin(a*7+p[1]*37)+.002*Math.sin(a*13-p[1]*28);const seam=1-u*(1-smooth(s*Math.cos(a),0,.4));p[0]+=Math.cos(a)*fold*seam;p[2]+=Math.sin(a)*fold*seam;return p;};
+  loft([[x,.574,0,.091,.088],[x,.59,0,.095,.094],[x,.65,-.002,.097,.097],[x,.72,-.002,.105,.106],[x,.80,-.002,.108,.111],[x*.87,.865,0,.109,.108],[x*.80,.935,0,.10,.101]],'shorts',shortWeight,{n:28,rows:20,shape:shortShape,tint:clothTint});
+  // Match the two front panels' normals at the fly; the hidden inner seam must not shade as a cone.
+  {const g=pieces.at(-1),p=g.attributes.position,n=g.attributes.normal;for(let k=0;k<p.count;k++){const y=p.getY(k),u=smooth(y,.75,.82);if(u){const a=V(p.getX(k)/(.18*.18),.55,p.getZ(k)/(.106*.106)).normalize(),b=V().fromBufferAttribute(n,k).lerp(a,u).normalize();n.setXYZ(k,b.x,b.y,b.z);}}}
+  loft([[x,.575,0,.093,.090],[x,.583,0,.096,.094],[x,.594,0,.096,.095]],0xac9876,shortWeight,{n:28,rows:3,shape:shortShape,tint:clothTint});
+  const legWeight=p=>[thigh,calf,smooth(p.y,.43,.55)];
+  loft([[x,.083,.015,.038,.041],[x,.12,.005,.038,.043],[x,.17,-.002,.040,.044],[x+s*.005,.235,-.008,.052,.057],[x+s*.006,.30,-.009,.067,.064],[x+s*.003,.36,-.005,.065,.062],[x,.425,0,.052,.052],[x,.474,.006,.061,.060],[x,.515,.005,.064,.061],[x,.56,0,.076,.077],[x,.64,0,.084,.084]],'skin',legWeight,{n:28,rows:26,shape:(p,a)=>{const f=Math.max(0,Math.sin(a));p[2]+=.007*f*bell(p[1],.49,.025)+.003*f*bell(p[1],.28,.1)*bell(Math.cos(a),0,.25);return p;},tint:skinTint});
+  // Sole retains the original vertical envelope and toe reach used by the fit/contact rules.
+  loft([[x,.000999999581836164,.069,0,0],[x,.006,.069,.045,.087],[x,.015,.069,.067,.130],[x,.026,.069,.071,.145],[x,.038,.069,.063,.124],[x,.045,.069,.048,.089],[x,.051,.069,0,0]],'sole',rigid(`foot${side}`),{n:28,rows:17});
+  loft([[x,.039,.060,.047,.118],[x,.053,.054,.055,.115],[x,.069,.041,.052,.101],[x,.091,.021,.044,.071],[x,.111,.009,.037,.047],[x,.131,.004,.034,.041]],'skin',p=>[idx(`foot${side}`),calf,1-smooth(p.y,.085,.14)],{n:28,rows:15,tint:skinTint});
+  for(let i=0;i<5;i++){const tx=x+s*(-.036+i*.018),tz=.163-i*.005;ellipsoid([tx,.054,tz],[i?.0095:.013,.013,.024-i*.002],'skin',`foot${side}`,12,6,skinTint);ellipsoid([tx,.064,tz+.009],[i?.006:.008,.0017,.008], 'nail',`foot${side}`,10,4);}
+  cord([[x-s*.056,.038,.069],[x-s*.040,.089,.095],[x-s*.017,.086,.140],[x+s*.028,.088,.098],[x+s*.062,.037,.060]],.009,'strap',`foot${side}`,8);
+  cord([[x-s*.017,.084,.14],[x-s*.017,.042,.149]],.006,'strap',`foot${side}`,7);
+  const armWeight=p=>p.y<.84?[fore,idx(`hand${side}`),smooth(p.y,.782,.835)]:[arm,fore,smooth(p.y,.985,1.085)];
+  loft([[s*.305,.781,.001,.032,.030],[s*.305,.82,0,.036,.034],[s*.307,.875,0,.044,.039],[s*.308,.94,-.002,.055,.047],[s*.306,.99,-.001,.053,.048],[s*.304,1.035,-.002,.046,.044],[s*.294,1.08,0,.051,.047],[s*.279,1.14,0,.050,.047],[s*.276,1.17,0,.048,.046]],'skin',armWeight,{n:28,rows:22,shape:(p,a)=>{p[2]-=.004*Math.max(0,-Math.sin(a))*bell(p[1],1.035,.024);return p;},tint:skinTint});
+  // Every hand vertex starts wholly on hand, including finger/nail detail, so addBone can re-skin the grip.
+  const hand=`hand${side}`,hx=s*.305;
+  loft([[hx,.708,.010,.025,.014],[hx,.725,.009,.030,.013],[hx,.753,.006,.031,.015],[hx,.779,.003,.028,.020],[hx,.792,.002,.032,.030]],'skin',rigid(hand),{n:24,rows:12,tint:skinTint});
+  for(let i=0;i<4;i++){const xx=hx+s*(-.025+i*.017),tip=[.659,.651,.659,.674][i],r=[.009,.0095,.009,.0075][i];loft([[xx,tip,.014,0,0],[xx,tip+.007,.014,r*.85,r*.8],[xx,tip+.026,.012,r,r*.86],[xx,tip+.043,.010,r*.94,r*.84],[xx,.732,.009,r*1.05,r*.92]],'skin',rigid(hand),{n:12,rows:10,tint:skinTint});ellipsoid([xx,tip+.013,.023],[r*.65,.008,.0015],'nail',hand,10,6);}
+  loft([[hx-s*.045,.701,.022,0,0],[hx-s*.047,.708,.024,.010,.010],[hx-s*.047,.728,.027,.012,.012],[hx-s*.037,.752,.018,.013,.012],[hx-s*.025,.770,.009,.014,.014]],'skin',rigid(hand),{n:14,rows:12,tint:skinTint});
+ }
+ // Head features move together, wholly on head; crown and fit envelope stay fixed.
+ for(const g of pieces){const p=g.attributes.position,no=g.attributes.normal,si=g.attributes.skinIndex,sw=g.attributes.skinWeight;for(let i=0;i<p.count;i++)if(si.getX(i)===idx('head')&&sw.getX(i)===1){p.setY(i,1.763+(p.getY(i)-1.763)*.98);p.setX(i,p.getX(i)*1.12);const n=V().fromBufferAttribute(no,i);n.y/=.98;n.x/=1.12;n.normalize();
+   // Keep the high crown inside the old cap's envelope: the tower roof passes close overhead.
+   const y=p.getY(i);if(y>1.70){const rim=Math.sqrt(Math.max(0,1-((y-1.594)/.169)**2)),d=Math.hypot(p.getX(i)/.137,(p.getZ(i)+.008)/.125);if(d>rim){const f=rim/d;p.setX(i,p.getX(i)*f);p.setZ(i,-.008+(p.getZ(i)+.008)*f);n.set(p.getX(i)/(.137*.137),(y-1.594)/(.169*.169),(p.getZ(i)+.008)/(.125*.125)).normalize();}}
+   // The hidden skull stays beneath the cropped hair, including after the crown limit above.
+   if(g===pieces[facePiece]&&y>1.70){const inset=.04*smooth(y,1.70,1.72);p.setX(i,p.getX(i)*(1-inset));p.setZ(i,-.008+(p.getZ(i)+.008)*(1-inset));p.setY(i,y-inset*.025);}
+   no.setXYZ(i,n.x,n.y,n.z);}}
+ const geometry=mergeGeometries(pieces);pieces.forEach(g=>g.dispose());const material=new T.MeshStandardMaterial({vertexColors:true,roughness:.86});
  const mesh=new T.SkinnedMesh(geometry,material);mesh.add(joints.hips);mesh.bind(new T.Skeleton(bones));mesh.name='Codex beach humanoid';const model=new T.Group();model.add(mesh);return {model,clips:[]};
 }
 
@@ -300,9 +383,78 @@ export async function createCharacter(group='A'){
   if(proceduralPose){
    // Procedural gait (no clip): fixed cadence; the stance leg stays straight and its amplitude is matched to speed so
    // the foot sweeps back at ground speed as it passes under the hip (leg·amplitude·ω = speed). That moment is the plant.
-   const rate=loco(selected)?T.MathUtils.lerp(7,10,blendRun):0,gait=rate?T.MathUtils.clamp(speed/(legLength*rate),.15,1.1):0;
+   const rate=loco(selected)?(source==='A'?Math.max(T.MathUtils.lerp(7.5+pace*.5,9.5+pace*.25,blendRun),speed*Math.PI*T.MathUtils.lerp(.56,.34,blendRun)/T.MathUtils.lerp(.39,.46,blendRun)):T.MathUtils.lerp(7,10,blendRun)):0,gait=rate?T.MathUtils.clamp(speed/(legLength*rate),.15,1.1):0;
    if(rate&&dt){const before=stride;stride+=back*rate*dt;if(Math.floor(stride/Math.PI)!==Math.floor(before/Math.PI))steps.push(Math.floor(stride/Math.PI)%2?1:0);}
    const cycle=rate?stride:age*8,swing=Math.sin(cycle)*gait;
+   if(source==='A'&&(rate>0||selected==='idle')){
+    // All targets are functions of stride/age. No pose state is integrated here.
+    // During stance z = -legLength * amplitude * phase, hence dz/dt = -speed.
+    const run=blendRun,scale=model.scale.y,L1=rest.get(rig.calf[0]).p.length()*scale,L2=rest.get(rig.foot[0]).p.length()*scale;
+    const duty=T.MathUtils.lerp(.56,.34,run),edge=Math.PI*duty,amplitude=rate?speed/(legLength*rate):0,A=legLength*amplitude,span=2*Math.PI-2*edge;
+    const hipRest=rest.get(rig.hip).p,baseY=hipY+rest.get(rig.thigh[0]).p.y*scale,baseZ=model.position.z+.015*scale;
+    const roll=rate?.025*Math.cos(cycle):.006*Math.sin(age*.63),yaw=rate?.045*Math.sin(cycle):.012*Math.sin(age*.41);
+    rig.hip.rotation.set(0,yaw,roll);rig.hip.position.x=hipRest.x+(rate?0:.004*Math.sin(age*.63))/scale;rig.hip.position.z=hipRest.z+(rate?.05:0)/scale;
+    // Collapse flight continuously to double support as blendRun passes through duty=1/2.
+    // The outgoing support height approaches the incoming one before the flight interval vanishes.
+    const flight=T.MathUtils.smoothstep(.5-duty,0,.16),width2=(hipHalf-T.MathUtils.lerp(.06,.04,run))**2;
+    const entryPitch=T.MathUtils.lerp(-.22,.10,run),exitPitch=T.MathUtils.lerp(.48,.55,run),entryBend=T.MathUtils.lerp(.26,.30,run),exitBend=T.MathUtils.lerp(.41,.30,run);
+    const exitZ=.015*scale-.05-A*edge,entryZ=.015*scale-.05+A*edge;
+    const exitY=ankle[0]*Math.cos(exitPitch)+.197*Math.sin(exitPitch)+Math.sqrt(Math.max(.1,L1*L1+L2*L2+2*L1*L2*Math.cos(exitBend)-exitZ*exitZ-width2));
+    const entryY=ankle[0]*Math.cos(entryPitch)+(entryPitch<0?.075:.197)*Math.abs(Math.sin(entryPitch))+Math.sqrt(Math.max(.1,L1*L1+L2*L2+2*L1*L2*Math.cos(entryBend)-entryZ*entryZ-width2));
+    // The lower support sets pelvis height. Walk has double support; run has a ballistic-looking flight arc.
+    let hipLevel=Infinity;
+    for(let i=0;i<2&&rate;i++){
+     const ph=Math.atan2(Math.sin(cycle-i*Math.PI),Math.cos(cycle-i*Math.PI));
+     const beyond=Math.max(0,Math.abs(ph)-edge);if(beyond>.28)continue;
+     const support=T.MathUtils.clamp(ph,-edge,edge),u=(support+edge)/(2*edge),pitch=T.MathUtils.lerp(-.22*(1-T.MathUtils.smoothstep(u,0,.20))+.48*T.MathUtils.smoothstep(u,.65,1),.10*(1-T.MathUtils.smoothstep(u,0,.25))+.55*T.MathUtils.smoothstep(u,.55,1),run);
+     const footY=ankle[i]*Math.cos(pitch)+(pitch<0?.075:.197)*Math.abs(Math.sin(pitch));
+     const bend=T.MathUtils.lerp(.10+.16*(2*u-1)**2+.15*T.MathUtils.smoothstep(u,.65,1),.30+.55*Math.sin(Math.PI*u),run);
+     const reach2=L1*L1+L2*L2+2*L1*L2*Math.cos(bend),z=.015*scale-.05-A*support;
+     hipLevel=Math.min(hipLevel,footY+Math.sqrt(Math.max(.1,reach2-z*z-width2))-(exitY-entryY)*(1-flight)*T.MathUtils.smoothstep(u,.7,1)+.25*T.MathUtils.smoothstep(beyond,0,.28));
+    }
+    if(!rate)hipLevel=baseY-.003;
+    else if(Math.acos(Math.cos(2*cycle))/2>edge){
+     const half=((cycle%Math.PI)+Math.PI)%Math.PI,v=(half-edge)/(Math.PI-2*edge);
+     hipLevel=Math.min(hipLevel,T.MathUtils.lerp(entryY+(exitY-entryY)*flight,entryY,v)+.075*run*flight*Math.sin(Math.PI*v));
+    }
+    rig.hip.position.y=hipRest.y+(hipLevel-baseY-(rate?.001:0))/scale;
+    root.updateMatrixWorld(true);
+    for(let i=0;i<2;i++){
+     const sign=side[i],ph=Math.atan2(Math.sin(cycle-i*Math.PI),Math.cos(cycle-i*Math.PI));
+     let x=sign*(rate?T.MathUtils.lerp(.06,.04,run):hipHalf),z=baseZ,y=ankle[i],pitch=0;
+     if(rate&&Math.abs(ph)<=edge){
+      const u=(ph+edge)/(2*edge);z-=A*ph;
+      pitch=T.MathUtils.lerp(-.22*(1-T.MathUtils.smoothstep(u,0,.20))+.48*T.MathUtils.smoothstep(u,.65,1),.10*(1-T.MathUtils.smoothstep(u,0,.25))+.55*T.MathUtils.smoothstep(u,.55,1),run);
+      y=ankle[i]*Math.cos(pitch)+(pitch<0?.075:.197)*Math.abs(Math.sin(pitch));
+     }else if(rate){
+      const u=((ph>0?ph:ph+2*Math.PI)-edge)/span,t=u*u*(3-2*u);
+      z+=A*edge*(2*t-1)-A*span*u*(1-u)*(1-2*u);
+      const endBend=T.MathUtils.lerp(T.MathUtils.lerp(.41,.30,run),T.MathUtils.lerp(.26,.30,run),u),flex=T.MathUtils.lerp(endBend,T.MathUtils.lerp(Math.PI/3,Math.PI*5/9,run),Math.sin(Math.PI*u));
+      const reach2=L1*L1+L2*L2+2*L1*L2*Math.cos(flex);
+      y=hipLevel-Math.sqrt(Math.max(.08,reach2-(z-model.position.z-.05)**2-(hipHalf-Math.abs(x))**2));
+      pitch=T.MathUtils.lerp(.48,.55,run)*(1-T.MathUtils.smoothstep(u,0,.45))+T.MathUtils.lerp(-.22,.10,run)*T.MathUtils.smoothstep(u,.65,1);
+      y=Math.max(y,ankle[i]*Math.cos(pitch)+(pitch<0?.075:.197)*Math.abs(Math.sin(pitch))+.008*Math.sin(Math.PI*u));
+     }
+     // Closed-form two-link construction in avatar space; aim() accounts for the rotated pelvis.
+     rig.thigh[i].getWorldPosition(B1);root.worldToLocal(B1);const hx=B1.x,hy=B1.y,hz=B1.z;
+     const dx=x-hx,dy=y-hy,dz=z-hz,kx=sign*(rate?T.MathUtils.lerp(.089,.081,run):hipHalf)-hx;
+     const a=Math.sqrt(L1*L1-kx*kx),b=Math.sqrt(L2*L2-(dx-kx)**2),d0=Math.hypot(dy,dz),d=Math.min(d0,(a+b)*.999);
+     const along=(a*a+d*d-b*b)/(2*d),height=Math.sqrt(Math.max(0,a*a-along*along)),ky=dy/d0*along+dz/d0*height,kz=dz/d0*along-dy/d0*height;
+     aim(rig.thigh[i],kx,ky,kz);aim(rig.calf[i],dx-kx,dy-ky,dz-kz);
+     // Set a world-relative sole angle. solve() preserves it while following terrain.
+     root.getWorldQuaternion(q);turn.set(Math.sin(pitch/2),0,0,Math.cos(pitch/2));q.multiply(turn);rig.foot[i].parent.getWorldQuaternion(parentQ).invert();rig.foot[i].quaternion.copy(parentQ.multiply(q));
+     const shoulder=rate?T.MathUtils.lerp(.36,.65,run)*Math.sin(ph):.035+.014*Math.sin(age*.72+i*.8);
+     const elbow=rate?T.MathUtils.lerp(.24+.22*Math.max(0,Math.sin(ph)),1.45+.10*Math.sin(ph+.4),run):.18;
+     aim(rig.arm[i],sign*.12,-Math.cos(shoulder),Math.sin(shoulder));aim(rig.fore[i],sign*.035,-Math.cos(shoulder+elbow),Math.sin(shoulder+elbow));
+     // Roll at the forearm, leaving a quiet wrist and a loose, partially closed hand.
+     rig.fore[i].rotateOnAxis(axes.get(rig.fore[i]),sign*(.25+.85*run));
+     if(!ik?.curl?.[i]&&grip[i])for(const c of grip[i].curl)c.bone.quaternion.setFromAxisAngle(c.axis,c.amount*(rate?.18+.24*run:.12));
+    }
+    rig.spine.rotation.set(.025+run*.12+(rate?.008*Math.cos(2*cycle):.008*Math.sin(age*1.4)),-yaw*1.7,-roll*.85);
+    // Chest breathing does not propagate to the legs, which remain at their fixed targets in idle.
+    if(!rate){const chest=rig.spine.children[0],breath=Math.sin(age*1.4);chest.scale.set(1+.004*breath,1+.002*breath,1+.008*breath);}
+    root.updateMatrixWorld(true);root.getWorldQuaternion(q);turn.setFromAxisAngle(worldUp,rate?.008*Math.sin(cycle):.025*Math.sin(age*.39));q.multiply(turn);rig.head.parent.getWorldQuaternion(parentQ).invert();rig.head.quaternion.copy(parentQ.multiply(q));
+   }else{
    for(let i=0;i<2;i++){const sign=i?1:-1,s=i?swing:-swing,stance=rate&&(i?Math.cos(cycle):-Math.cos(cycle))<0;let thigh=[0,-Math.cos(s),Math.sin(s)],calf=stance?thigh:[0,-1,Math.max(0,-s)*.7],arm=[sign*.15,-1,-s*.7],fore=[0,-1,.12];
     if(seated){thigh=[0,-.12,1];calf=pose==='sand'?[0,-.05,1]:[0,-1,.08];arm=[sign*.3,-1,.45];fore=[0,-.15,1];if(selected==='paddle'){arm=[sign*.4,-.4,.8+Math.sin(age*6+i)*.5];fore=[sign*.25,-.2,.9];}}
     // Lying back at recline (radians above level): the legs stay level along the seat, so in the body's frame they
@@ -318,6 +470,8 @@ export async function createCharacter(group='A'){
    }
    aim(rig.spine,0,1,lying?.45*(1-Math.min(1,recline/.4)):selected==='interact'?.35:seated?.08:Math.sin(age*1.7)*.018);
   }
+   }
+
   // Smooth bones only right after a clip/pose switch; smoothing every frame flattens the gait cycle itself.
   // cut: a teleport between modes (getting up from the lounger, off the boat): no easing from the old pose at all.
   const blend=1-Math.exp(-12*dt),boneBlend=actionAge<.3&&!cut?blend:1;

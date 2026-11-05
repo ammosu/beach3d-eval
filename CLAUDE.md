@@ -45,6 +45,8 @@ node scripts/probe-legs.mjs [groups] [outdir]   # legs through a kick and a coco
 node scripts/probe-gait.mjs [groups] [outdir]   # walk/run width against the centre line + stills from in front → shots/gait/
 node scripts/probe-impact.mjs [groups]          # kick hit-stop and camera shake against ?impact=0: frames held, camera turn, ball travel (POWER=<s held>)
 node scripts/probe-reach.mjs [groups]           # interaction prompts from every side and at a distance, walk-up pick-ups and kicks, stick-to-run on touch → shots/reach/
+node scripts/shoot-character.mjs <A|B|C> [outdir]  # character stills from fixed cameras (four sides, face, torso, hand, feet; walk, run) + sheet.png → shots/character/<g>/; B and C must stay pixel-identical when only A changes
+node scripts/probe-walk-side.mjs [groups] [outdir]  # 8 phases of a walk and a run from the side in the game + stance foot slide → shots/walk-side/
 node scripts/probe-climb.mjs [groups] [outdir]  # top of the tower climb: ladder data, hand heights and gaps, side stills + contact sheet → shots/climb/ (CLOSE=1 hand close-ups, NO_RAILS=1 pretends there are no uprights, DT, N)
 ```
 
@@ -116,7 +118,7 @@ There is no lint or unit-test setup. Verification means running the Playwright s
   - With `?auto=1` only: `window.__EXPLORE__` and `window.__GAME__` (including deterministic `step(seconds)`, `teleport`, `view`, `interact`).
   - In game mode, game/explore dt is derived from the water clock, so a frozen clock freezes play. `__GAME__.step()` records the time it advanced to (`water.userData.simTime`), and the frame loop only simulates past it; before 2026-10-21 a recorder that stepped and then waited for a frame advanced play twice per step (game recordings ran at double speed).
 - **Characters.** `src/game/character.js` serves both the game and the solo viewer.
-  - A: procedural SkinnedMesh.
+  - A: procedural SkinnedMesh (19,992 triangles, same 17 bones). Re-sculpted by codex on 2026-11-05 (`BRIEF_character_A.md`, `BRIEF_character_A2.md`; blind scores and REPORT predate it): `procedural()` for the body, and A-only walk, run and idle in `update()`'s `proceduralPose` branch (`source==='A'`, functions of `stride` and `age`: stance knee, heel-to-toe foot pitch, pelvis drop and turn, a run's flight phase, breathing). Known weak spots: sleeves flare like a cape, the neck reads as a column, the face looks like a puppet, the run sits low.
   - B: Tripo `assets/character/{idle,walk,run,jump,climb}.glb`, with clips merged onto one skeleton. Since 2026-10-20 the rig is Tripo v3.0 `spec=unity` (67 joints, three-joint fingers). It was re-rigged from the original model task with `tools/tripo_rig_test.py` and `tools/tripo_retarget_v3.py`; credits are in `assets/tripo/log.csv`. The old 41-joint rig had no fingers.
   - C: Quaternius `assets/character_C/character.glb`.
   - Missing clip poses (sit, lie, paddle, climb) are procedural bone aiming.
