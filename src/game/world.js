@@ -10,9 +10,10 @@ import * as T from 'three';
 import {landHeight} from '../coast.js';
 
 let R=null;
-export async function loadRapier(){
- if(!R){R=(await import('@dimforge/rapier3d-deterministic-compat')).default;await R.init();}
- return R;
+// One load however many callers: the game starts it early so it downloads alongside the character.
+let rapierLoad=null;
+export function loadRapier(){
+ return rapierLoad??=(async()=>{if(!R){R=(await import('@dimforge/rapier3d-deterministic-compat')).default;await R.init();}return R;})();
 }
 
 export const STEP=1/60;

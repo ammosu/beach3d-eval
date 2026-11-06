@@ -31,13 +31,13 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  const $=s=>document.querySelector(s),time=()=>water.material.uniforms.time.value;
  // Touch-only devices: no keycaps, and wording that says what to tap instead of E.
  const say=(keys,touch)=>touchOnly?touch:keys;document.body.classList.toggle('touch-only',touchOnly);
- const welcome=$('.welcome');welcome.innerHTML=`<span class="postmark" aria-hidden="true">☀</span><p class="invitation">給自己一小段海邊時光</p><h1>海灘小任務</h1><p>收集潮間帶的小驚喜，踢球、歇腳、登高，<br>翻石尋找潮池的小住客。<br>再划向外海看鯨豚，帶著海風回來。</p><div class="trip-details"><span>7 個小任務</span><span>約 8–12 分鐘</span></div><ul class="pause-progress" aria-label="目前進度"></ul><button id="begin">開始玩</button><p class="start-controls">${say('WASD 移動 · Shift 跑步 · Space 跳躍<br>滑鼠環顧 · E 互動 · Esc 暫停','左側搖桿移動（推到底跑步），右側拖曳環顧<br>右下按鈕撿東西、坐下、上船、跳躍')}</p><a href="./">回海邊場景實驗室</a>`;{const b=creditsButton();b.dataset.groupC='';b.hidden=e.group!=='C';welcome.append(b);welcome.append(sharedCreditsButton());}
+ const welcome=$('.welcome');welcome.innerHTML=`<span class="postmark" aria-hidden="true">☀</span><p class="invitation">給自己一小段海邊時光</p><h1>海灘小任務</h1><p>收集潮間帶的小驚喜，踢球、歇腳、登高，<br>翻石尋找潮池的小住客。<br>再划向外海看鯨豚，帶著海風回來。</p><div class="trip-details"><span>7 個小任務</span><span>約 8–12 分鐘</span></div><ul class="pause-progress" aria-label="目前進度"></ul><button id="begin" disabled>準備中…</button><p class="start-controls">${say('WASD 移動 · Shift 跑步 · Space 跳躍<br>滑鼠環顧 · E 互動 · Esc 暫停','左側搖桿移動（推到底跑步），右側拖曳環顧<br>右下按鈕撿東西、坐下、上船、跳躍')}</p><a href="./">回海邊場景實驗室</a>`;{const b=creditsButton();b.dataset.groupC='';b.hidden=e.group!=='C';welcome.append(b);welcome.append(sharedCreditsButton());}
  // Reuse the original start handler, including gesture-gated ambience/pointer lock.
  // The old node was replaced, so transfer its behavior through an explicit adapter.
  const ui=document.createElement('div');ui.id='game';ui.innerHTML=`<section class="quest-book" aria-label="任務清單"><button id="quest-now" aria-expanded="false" aria-label="展開任務清單"><span></span><b aria-hidden="true">▾</b></button><header><h2>海灘小任務</h2><span id="game-clock">0:00</span></header><p class="quest-intro">慢慢走，海風會等你。</p><ul><li data-quest="shells"><i></i><span>撿貝殼 <b id="shell-count">0 / 8</b></span></li><li data-quest="ball"><i></i><span>把沙灘球踢進海裡</span></li><li data-quest="lounger"><i></i><span>在躺椅上休息</span></li><li data-quest="tower"><i></i><span>登上救生塔看海</span></li><li data-quest="tidepool"><i></i><span>潮池觀察 <b id="tidepool-hud">0 / 6</b></span></li><li data-quest="opensea"><i></i><span>在外海觀察大型海洋生物 <b id="lagoon-hud">0 / 7</b></span></li><li data-quest="boat"><i></i><span>划到小島，再回岸邊</span></li></ul><p id="footnote">額外的小紀念：在沙上留下腳印</p><p id="extras-note">額外的小樂趣：堆一座沙堡、放一只風箏</p></section><div id="navigation"><span id="nav-arrow">↑</span><span id="nav-text"></span></div><div id="game-toast" role="status" aria-live="polite"></div><div id="target-prompt"><kbd>E</kbd><span></span></div><div id="kick-charge" hidden aria-hidden="true"><i></i></div><button id="interact" disabled>互動 <kbd>E</kbd></button><button id="dive-button">潛水</button><button id="rise-button">上浮</button><div class="game-controls">WASD 移動　滑鼠／←→ 轉視角　E 互動　Shift 跑步<br>1 / 2 / 3 素材　M 靜音　Esc 暫停</div><button id="game-audio" aria-label="切換聲音">聲音 開</button><button id="game-pause" aria-label="暫停">❚❚</button><div id="game-fade"></div><section id="complete" hidden role="dialog" aria-modal="true" aria-labelledby="complete-title"><div><span class="postmark" aria-hidden="true">☀</span><p>海風、浪花，和你的小小足跡</p><h1 id="complete-title">今天的海灘，收集完成。</h1><p>8 枚貝殼 · 6 種潮池生物 · 7 種海洋生物</p><strong id="finish-time"></strong><p id="finish-bonus"></p><button id="replay">再玩一次</button><a href="./">回到首頁</a></div></section>`;document.body.append(ui);
  const objects=createObjects(scene,water.material.uniforms.time,config);
  const underwater=createUnderwater({scene,camera,sun:water.material.uniforms.sunDirection.value});let riseHeld=false,diveHinted=false;
- const seabed=createSeabed({scene,clock:water.material.uniforms.time});seabed.setGroup(e.group);const wreck=createWreck({scene,seabedRoot:seabed.root});let wreckHinted=false;const diveAxis=new T.Vector3();
+ const seabed=createSeabed({scene,clock:water.material.uniforms.time});const wreck=createWreck({scene,seabedRoot:seabed.root});let wreckHinted=false;const diveAxis=new T.Vector3();
  const extras=createExtras({scene,camera,clock:water.material.uniforms.time,explore:e,objects,toast});extras.setGroup(e.group);
  let landedAt=-100,landSize=1,wasAirborne=false,airborneSince=0,kickedAt=-100,lastTime=0;
  const plant=[0,1].map(()=>({down:true,still:0,px:NaN,pz:NaN,lx:1e9,lz:1e9}));let plantRig=null,footBase=Infinity;
@@ -50,7 +50,7 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  const anchorList=Object.values(anchors),interaction={kind:'',label:'',position:null,item:null};
  const dock={x:4,z:shore(4)-9},island={x:45,z:-216};
  // Open sea: the animals live around the buoy, each on its own loop spread over about 60 m; E observes one that is out of the water in view.
- const sea=createSea(scene,{center:new T.Vector3(island.x,0,island.z),boat:()=>vessel.visible?vessel.position:null,water});sea.setGroup(e.group);
+ const sea=createSea(scene,{center:new T.Vector3(island.x,0,island.z),boat:()=>vessel.visible?vessel.position:null,water});
  const seaPose={pos:new T.Vector3(),heading:new T.Vector3()},seaView=new T.Vector3(),seaTarget=new T.Vector3();
  // Nearest unobserved animal within 30 m of the boat with part of it above the water on screen.
  function sighting(){let best=null,d=30;for(const c of sea.creatures){if(c.seen)continue;const p=sea.pose(c.i,time());if(!p.showing)continue;const n=p.pos.distanceTo(vessel.position);if(n>=d)continue;seaView.copy(p.pos).project(camera);if(seaView.z>1||Math.abs(seaView.x)>.92||Math.abs(seaView.y)>.92)continue;d=n;best=c;seaTarget.copy(p.pos).setY(Math.max(p.pos.y,0)+.25*c.spec.length);}return best;}
@@ -63,6 +63,10 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  const impact=createImpact();
  const followCamera=createGameCamera(camera,propRoot);followCamera.focus=()=>extras.cameraFocus();e.setCameraController(followCamera);
  for(const child of e.avatar.children)child.visible=false;
+ // Until everything below is ready the start button stays disabled and says which step is running (it used to show
+ // 開始玩 early and do nothing for up to half a minute on a slow line). It is enabled just before main.js sets __READY__.
+ const beginButton=$('#begin'),phase=text=>{beginButton.textContent=text;};phase('載入角色…');
+ const rapierReady=loadRapier();
  const characterCache=new Map();let character=await createCharacter(e.group);characterCache.set(e.group,character);e.avatar.add(character.root);
  let boatSeat=null;const boat={draft:0,mask:null,restYaw:0,stern:null};
  // Launch: the boat starts where it lies on the beach; holding W pushes it down to the water, then the rower climbs in.
@@ -414,7 +418,11 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  // Boarding only hides the beached prop: the probes above depend on the props and the character, not on play, and
  // re-running them all (every prop's surface, the tower's ladder, the hull) stalled the frame 0.5–2.7 s.
  function hideBeached(){const source=propRoot.children.find(c=>c.name==='boat');if(mode==='boat'&&source){source.visible=false;hiddenBoat=source;}}
- world=createWorld(await loadRapier(),{propRoot,pool});const coconuts=createCoconuts(world,scene);const ball=createBall(world,objects.ball,()=>{if(!state.ball){state.ball=true;toast('球進海裡了！讓它跟著浪花漂吧。');}},()=>e.sfx('splash'));
+ phase('載入物理…');world=createWorld(await rapierReady,{propRoot,pool});
+ // Far content (open-sea animals, the seabed, the wreck site and the trawler) is not seen from the beach at the start: it
+ // downloads only now, so it no longer shares the line with the props, the character and the physics. Its `ready`
+ // promises exist before __READY__ (recorders await them). A group switched to before this already loaded its own.
+ sea.setGroup(e.group);seabed.setGroup(e.group);wreck.load();const coconuts=createCoconuts(world,scene);const ball=createBall(world,objects.ball,()=>{if(!state.ball){state.ball=true;toast('球進海裡了！讓它跟著浪花漂吧。');}},()=>e.sfx('splash'));
  function toast(message){$('#game-toast').textContent=message;toastUntil=time()+3.5;}
  // A count that went up or a quest just ticked pops (grows past its size and settles), so the change is seen.
  const hudSeen={};const pop=el=>{el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');};
@@ -427,6 +435,9 @@ export async function createGame({scene,camera,renderer,water,config,explore:e,a
  function touchHint(){if(!touchOnly)return;try{if(localStorage.getItem('beach3d-touch-hint'))return;localStorage.setItem('beach3d-touch-hint','1');}catch{}const hint=document.createElement('div');hint.id='touch-hint';hint.innerHTML='<span data-for="stick">拖曳搖桿走路，推到底跑步</span><span data-for="look">在這裡拖曳轉動視角</span>';$('#game').append(hint);const gone=()=>{if(!hint.querySelector('span:not(.used)'))hint.remove();};for(const id of ['stick','look'])document.getElementById(id)?.addEventListener('pointerdown',()=>{hint.querySelector(`[data-for=${id}]`)?.classList.add('used');setTimeout(gone,400);},{once:true});setTimeout(()=>hint.remove(),15000);}
  // `start` is exported by Explore so the same gesture enables sound and controls.
  $('#begin').onclick=()=>{e.start();begin();};
+ // Compile every program the opening view needs before play (asynchronously where the browser supports it), so the first
+ // frames do not stall; then the button opens.
+ phase('準備畫面…');await renderer.compileAsync(scene,camera);beginButton.disabled=false;beginButton.textContent='開始玩';
  function fade(){fadeAt=time();}
  function seated(){/* Poses are blended on the active skeleton in updateCharacter. */}
  // Where the body rests under the umbrella: on a lounger, the lying point found from its profile.

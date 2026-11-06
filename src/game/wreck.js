@@ -59,13 +59,15 @@ export function createWreck({scene,seabedRoot}){
  const placed=[],bodies=[];
  // A solid: its object (matrixWorld current each frame), BVH in model space, a world radius round its middle for a quick reject.
  const addBody=(object,bvh,size,kind)=>{const box=bvh.geometry.boundingBox??(bvh.geometry.computeBoundingBox(),bvh.geometry.boundingBox);const mid=box.getCenter(new T.Vector3()),reach=box.getSize(new T.Vector3()).length()/2*size;bodies.push({object,bvh,size,kind,mid,reach,inv:new T.Matrix4()});};
- const ready=Promise.all([
+ // Nothing downloads until load() (the game calls it once the character and physics are in); `ready` exists from the start.
+ let startLoad;const go=new Promise(r=>{startLoad=r;});
+ const ready=go.then(()=>Promise.all([
   ...[...new Set(ITEMS.map(i=>i.id))].map(async id=>{const model=await load(id);
    model.traverse(o=>{if(o.isMesh)o.material=sunken(o.material,TONE[id]);});const bvh=modelBVH(model);
    for(const it of ITEMS.filter(i=>i.id===id)){const obj=model.clone(true),x=WRECK_SITE.x+it.x,z=WRECK_SITE.z+it.z,y=groundHeight(x,z)-it.sink;
     obj.position.set(x,y,z);obj.rotation.set(it.pitch,it.yaw,it.roll,'YXZ');obj.scale.setScalar(it.size);site.add(obj);obj.updateMatrixWorld(true);addBody(obj,bvh,it.size,id);placed.push({id,x,y,z});}}),
   load('trawler').then(model=>{const bvh=modelBVH(model);model.scale.setScalar(TRAWLER.size);trawler.add(model);addBody(model,bvh,TRAWLER.size,'trawler');}),
- ]).catch(err=>{console.warn('Wreck models failed to load',err);});
+ ])).catch(err=>{console.warn('Wreck models failed to load',err);});
  const ca=Math.cos(TRAWLER.yaw),sa=Math.sin(TRAWLER.yaw);
  // Local axes: x along the keel (the bow towards -x), z across.
  const at=(lx,lz,t)=>surfaceHeight(TRAWLER.x+lx*ca+lz*sa,TRAWLER.z-lx*sa+lz*ca,t);
@@ -105,5 +107,5 @@ export function createWreck({scene,seabedRoot}){
  function gap(x,y,z){const p=new T.Vector3(x,y,z);let best=Infinity,kind=null;for(const body of bodies){if(nearest(body,p,50)){const d=near.distanceTo(p);if(d<best){best=d;kind=body.kind;}}}return {gap:best,kind};}
  // The rowboat cannot pass through the anchored hull (a box along it).
  function blocksBoat(x,z){const dx=x-TRAWLER.x,dz=z-TRAWLER.z,lx=dx*ca-dz*sa,lz=dx*sa+dz*ca;return Math.abs(lx)<TRAWLER.halfLength+1&&Math.abs(lz)<TRAWLER.halfBeam+1;}
- return {update,blocksBoat,collideDiver,clearCamera,ready,get info(){return {gap,bodies:bodies.length,site:WRECK_SITE,placed,trawler:{...TRAWLER,y:trawler.position.y,loaded:trawler.children.length>0}};}};
+ return {update,blocksBoat,collideDiver,clearCamera,ready,load(){startLoad();},get info(){return {gap,bodies:bodies.length,site:WRECK_SITE,placed,trawler:{...TRAWLER,y:trawler.position.y,loaded:trawler.children.length>0}};}};
 }
