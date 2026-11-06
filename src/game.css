@@ -102,3 +102,6 @@ body:not(.touch-only) #game #interact.echo{display:none}
 
 /* Start button while the game is still loading (disabled, says which step is running). */
 .game-mode #explore #begin:disabled{background:#7fa7b5!important;cursor:progress}
+/* Credits buttons on the start/pause card: explore.css gives every #explore button a dark fill, and the card's dark text on
+   it left an empty-looking box. Outline them in the link colour instead. */
+.game-mode #explore .welcome .credits-btn,.game-mode #explore .welcome .credits-btn:hover{background:transparent!important;color:var(--sea);border:1px solid currentColor;padding:4px 10px;margin-left:.9em;font-size:12px;border-radius:999px;min-height:0}
